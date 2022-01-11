@@ -6,9 +6,6 @@ module.exports = {
     siteUrl: `https://lukefredrickson.netlify.app`,
   },
   plugins: [
-    `gatsby-plugin-postcss`,
-    `gatsby-plugin-react-helmet`,
-    `gatsby-plugin-image`,
     {
       resolve: `gatsby-source-filesystem`,
       options: {
@@ -16,7 +13,11 @@ module.exports = {
         path: `${__dirname}/src/images`,
       },
     },
-    `gatsby-transformer-sharp`,
+    `gatsby-plugin-image`,
     `gatsby-plugin-sharp`,
+    `gatsby-transformer-sharp`,
+    `gatsby-plugin-react-helmet`,
+    `gatsby-plugin-netlify-cms`,
+    `gatsby-plugin-postcss`,
   ],
 }
