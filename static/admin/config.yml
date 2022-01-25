@@ -18,13 +18,6 @@ collections:
     slug: '{{slug}}'
     fields:
       - { label: 'Title', name: 'title', widget: 'string' }
-      - widget: string
-        name: slug
-        label: Slug
-        required: true
-        pattern: [ '^[a-z0-9]+(?:-[a-z0-9]+)*$','A slug can have no spaces or special characters' ]
-        hint: >-
-          The post URL (do not include folder or file extension)
       - { label: 'Publish Date', name: 'date', widget: 'datetime' }
       - { label: 'Description', name: 'description', widget: 'string' }
       - { label: 'Body', name: 'body', widget: 'markdown' }

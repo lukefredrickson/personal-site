@@ -2,7 +2,7 @@ import * as React from "react"
 import { graphql, Link } from "gatsby"
 import Layout from "../../components/layout.js"
 
-function Blog({ data }) {
+function BlogPost({ data }) {
     const post = data.markdownRemark.frontmatter
 
     return (
@@ -12,24 +12,27 @@ function Blog({ data }) {
                     <Link to="/">Go back to "Home"</Link>
                 </header>
                 <main>
-                    {console.log(post)}
+                    <h1>{post.title}</h1>
+                    <p>{post.description}</p>
+                    <em>{post.date}</em>}
+                    <div dangerouslySetInnerHTML={{ __html: data.markdownRemark.html }} />
                 </main>
             </div>
         </Layout>
     )
 }
 
-export default Blog
+export default BlogPost
 
 export const query = graphql`
-    query BlogPostQuery {
-      markdownRemark {
-        frontmatter {
-          title
-          description
-          date(formatString: "MM-DD-YYYY")
-          thumbnail
-        }
+  query($id: String!) {
+    markdownRemark(id: { eq: $id }) {
+      frontmatter {
+        date(formatString: "MM-DD-YYYY")
+        description
+        title
       }
+      html
     }
+  }
 `
