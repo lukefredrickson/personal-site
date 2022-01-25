@@ -2,7 +2,7 @@
 title: Halo World
 slug: halo-world
 date: 2022-01-25T14:46:34.279Z
-description: An example blog post using the new config.yml settings.
+description: An example blog post using the new config.yml settings. Test.
 thumbnail: /src/images/halo_-series-_logo.svg.png
 ---
 Halo is a military science fiction media franchise created by Bungie. The franchise is currently managed and developed by 343 Industries, and owned and published by Xbox Game Studios. The central focus of the franchise builds on the experiences of Master Chief Sierra-117 “John”, one of a group of supersoldiers code-named Spartans, and his artificial intelligence (AI) companion, Cortana.
