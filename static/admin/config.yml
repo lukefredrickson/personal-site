@@ -2,15 +2,30 @@ backend:
   name: github
   repo: lukefredrickson/personal-site
   branch: master
-media_folder: static/assets
-public_folder: /assets
+media_folder: 'src/images'
+show_preview_links: false
+slug:
+  encoding: "ascii"
+  clean_accents: true
+
 collections:
-  - name: blog
-    label: Blog
-    folder: blog
+  - name: 'blog'
+    label: 'Blog'
+    folder: 'blog'
     create: true
+    extension: 'md'
+    format: 'frontmatter'
+    slug: '{{slug}}'
     fields:
-      - { name: path, label: Path }
-      - { name: date, label: Date, widget: datetime }
-      - { name: title, label: Title }
-      - { name: body, label: Body, widget: markdown }
+      - { label: 'Title', name: 'title', widget: 'string' }
+      - widget: string
+        name: slug
+        label: Slug
+        required: true
+        pattern: [ '^[a-z0-9]+(?:-[a-z0-9]+)*$','A slug can have no spaces or special characters' ]
+        hint: >-
+          The post URL (do not include folder or file extension)
+      - { label: 'Publish Date', name: 'date', widget: 'datetime' }
+      - { label: 'Description', name: 'description', widget: 'string' }
+      - { label: 'Body', name: 'body', widget: 'markdown' }
+      - { label: 'Featured Image', name: 'thumbnail', widget: 'image'}
