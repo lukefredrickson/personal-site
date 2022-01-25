@@ -1,5 +1,6 @@
 ---
-title: Hello World
+title: Halo World
+slug: halo-world
 date: 2022-01-25T14:46:34.279Z
 description: An example blog post using the new config.yml settings.
 thumbnail: /src/images/halo_-series-_logo.svg.png
