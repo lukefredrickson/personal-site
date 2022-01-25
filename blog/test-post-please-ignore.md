@@ -1,5 +1,5 @@
 ---
-title: Test post, please ignore
+title: New test post no slug field
 slug: test-post-please-ignore
 date: 2022-01-25T15:46:15.893Z
 description: Test Post Please Ignore, thanks
