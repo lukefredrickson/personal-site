@@ -3,6 +3,9 @@
   // No adapter needed — pure static output in ./dist is served directly.
   "name": "personal-site",
   "compatibility_date": "2026-07-03",
+  // Generate preview URLs for uploaded versions (per-PR previews via
+  // `wrangler versions upload`). Explicit rather than relying on the default.
+  "preview_urls": true,
   "assets": {
     "directory": "./dist",
     // Serve ./dist/404.html on unmatched routes (Astro generates it).
