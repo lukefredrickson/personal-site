@@ -1,0 +1,11 @@
+{
+  // Static Astro site served by Cloudflare Workers static assets.
+  // No adapter needed — pure static output in ./dist is served directly.
+  "name": "personal-site",
+  "compatibility_date": "2026-07-03",
+  "assets": {
+    "directory": "./dist",
+    // Serve ./dist/404.html on unmatched routes (Astro generates it).
+    "not_found_handling": "404-page"
+  }
+}
