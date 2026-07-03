@@ -12,9 +12,20 @@ a way to preview changes before merging.
 
 Use **Cloudflare Workers Builds** — Cloudflare's native Git integration.
 Connect the GitHub repo in the dashboard; pushes to `main` build
-(`npx astro build`) and deploy (`npx wrangler deploy`). Enable non-production
-branch builds so each PR branch deploys to a stable preview URL, posted as a PR
-comment.
+(`npx astro build`) and deploy. Enable non-production branch builds so each PR
+branch produces a preview URL, posted as a PR comment.
+
+Two distinct deploy commands (both configured in the dashboard, not in git):
+
+- **Deploy command** (production / `main`): `npx wrangler deploy` — promotes the
+  build to the live production deployment.
+- **Non-production branch deploy command** (PR branches): `npx wrangler versions
+  upload` — uploads a version and mints a preview URL **without touching
+  production**. This is the Cloudflare default; it must not be overridden to
+  `wrangler deploy`, or every PR branch would deploy straight to production.
+
+`preview_urls: true` in `wrangler.jsonc` ensures uploaded versions get a public
+preview URL.
 
 ## Alternatives considered
 
