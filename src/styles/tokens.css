@@ -1,0 +1,15 @@
+/* Design-token entry point for lukefredrickson.dev.
+   Imported from the claude.ai/design "lukefredrickson Design System" project
+   (tokens only — components not yet ported). See docs/adr/0005 for provenance.
+
+   Not yet wired into any layout. To make the tokens live site-wide, import
+   this file once from a layout's frontmatter:
+       import '../styles/tokens.css';
+   The palette / type / spacing tokens are inert custom properties (no visual
+   effect until consumed); base.css sets body background, text color, and the
+   default font. */
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/base.css";
