@@ -1,0 +1,536 @@
+<!-- @dsCard group="Site" viewport="784x980" subtitle="All four pages, live: nav, post links, topic filters, persistent theme toggle" name="lukefredrickson.dev" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lukefredrickson.dev</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+  .page { min-height: 100vh; background: var(--bg); }
+  .col { max-width: var(--page-max); margin: 0 auto; padding: var(--page-pad-top) var(--page-pad-x) 44px; display: flex; flex-direction: column; }
+  .gap34 { gap: 34px; } .gap28 { gap: 28px; } .gap26 { gap: 26px; } .gap16 { gap: 16px; }
+  [data-view] { display: none; }
+  [data-view].on { display: block; }
+
+  /* header */
+  .hd { display: flex; justify-content: space-between; align-items: center; }
+  .logo { font: 800 17px var(--font-display); color: var(--ink); cursor: pointer; }
+  .logo span { color: var(--logo); }
+  .nav { display: flex; gap: 20px; align-items: center; font: 600 14.5px var(--font-display); }
+  .nav a { color: var(--text-muted); text-decoration: none; border-bottom: 2.5px solid transparent; padding-bottom: 1px; cursor: pointer; }
+  .nav a.on { color: var(--ink); border-bottom-color: var(--link); }
+  .tog { position: relative; box-sizing: border-box; width: 56px; height: 28px; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--surface); cursor: pointer; box-shadow: var(--shadow-sm); user-select: none; flex: none; }
+  .tog .side { position: absolute; top: 50%; transform: translateY(-50%); color: var(--text-faint); width: 13px; height: 13px; }
+  .tog .side.l { left: 7px; } .tog .side.r { right: 7px; }
+  .tog .knob { position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: var(--ink); color: var(--bg); display: flex; align-items: center; justify-content: center; transition: left .18s ease; }
+  html[data-theme="dark"] .tog .knob { left: 30px; }
+  .tog .knob svg { width: 12px; height: 12px; }
+  .tog .k-moon { display: none; }
+  html[data-theme="dark"] .tog .k-sun { display: none; }
+  html[data-theme="dark"] .tog .k-moon { display: block; }
+  .btn svg { width: 13px; height: 13px; vertical-align: -2px; }
+  .play svg { width: 24px; height: 24px; display: block; }
+
+  /* hero */
+  .hero { display: flex; gap: 26px; align-items: center; }
+  .ph { width: 100px; height: 100px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-card); background: radial-gradient(var(--placeholder-dot) 1px, transparent 1.1px) 0 0/7px 7px, var(--surface); box-shadow: var(--shadow-photo); display: flex; align-items: center; justify-content: center; color: var(--text-faint); font: 12px var(--font-mono); flex: none; }
+  .h1 { font: 800 38px/1.05 var(--font-display); letter-spacing: -.02em; color: var(--ink); }
+  .mark { background: linear-gradient(transparent 64%, var(--highlight) 64%); }
+  .intro { font: 16px/1.55 var(--font-body); color: var(--text-body); max-width: 440px; margin-top: 10px; }
+
+  /* buttons */
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { font: 600 13.5px var(--font-display); border-radius: var(--radius-btn); padding: 8px 18px; background: var(--surface); color: var(--text-body); border: 1.5px solid var(--border-soft); text-decoration: none; cursor: pointer; box-shadow: var(--shadow-sm); }
+  .btn.pri { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: transparent; font-weight: 700; }
+  .plink { font: 600 13.5px var(--font-display); color: var(--text-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .plink svg { width: 13px; height: 13px; }
+  .lsep { color: var(--text-faint); font: 13.5px var(--font-display); user-select: none; }
+
+  .sec-t { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+  .sec-t b { font: 800 var(--text-section) var(--font-display); color: var(--ink); flex: none; }
+  .sec-t i { flex: 1; height: 1px; background: var(--hairline); margin-right: 8px; }
+  .stack16 { display: flex; flex-direction: column; gap: 16px; }
+
+  /* cards */
+  .card { border: 1.5px solid var(--border-strong); border-radius: var(--radius-card); background: var(--surface); overflow: hidden; }
+  .card-hd { display: flex; gap: 14px; align-items: center; padding: 16px 20px; border-bottom: 1.5px solid var(--border-strong); background: var(--surface-raised); }
+  .tile { width: 44px; height: 44px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-tile); display: flex; align-items: center; justify-content: center; flex: none; font: 800 17px var(--font-display); }
+  .card-hd .nm { flex: 1; display: flex; justify-content: space-between; align-items: baseline; }
+  .card-hd b { font: 700 16.5px var(--font-display); color: var(--ink); }
+  .mono { font-family: var(--font-mono); color: var(--text-muted); }
+  .card-bd { padding: 18px 20px 20px; display: flex; flex-direction: column; }
+
+  /* roles */
+  .role { display: flex; gap: 16px; }
+  .railc { display: flex; flex-direction: column; align-items: center; flex: none; width: 12px; padding-top: 2px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--marker-muted); box-sizing: border-box; flex: none; }
+  .dot.now { background: var(--accent); border-color: var(--dot-current-ring); }
+  .rail { flex: 1; width: 1.5px; background: var(--rail); margin: 4px 0; }
+  .rbody { flex: 1; padding-bottom: 20px; }
+  .rbody.last { padding-bottom: 0; }
+  .rt { display: flex; justify-content: space-between; align-items: baseline; }
+  .rt b { font: 700 15px var(--font-display); color: var(--ink); }
+  .bullets { display: flex; flex-direction: column; gap: 5px; margin-top: 7px; }
+  .bl { display: flex; gap: 9px; font: 14px/1.5 var(--font-body); color: var(--text-body); }
+  .bl i { color: var(--marker-muted); font-weight: 700; font-style: normal; flex: none; }
+  .bl.now i { color: var(--bullet); }
+  .conn { display: var(--conn-display, flex); justify-content: center; height: var(--conn-len, 22px); margin: -5px 0; }
+  .conn-line { width: 0; border-left: 2.5px var(--conn-style, dotted) var(--conn-color, var(--rail)); }
+
+  /* writing */
+  .feat { box-shadow: var(--shadow-featured); cursor: pointer; }
+  .feat .img { height: 150px; background: repeating-linear-gradient(45deg, var(--placeholder-hatch) 0 1.5px, transparent 1.5px 8px), var(--surface); border-bottom: 1.5px solid var(--border-strong); display: flex; align-items: center; justify-content: center; color: var(--text-faint); font: 12px var(--font-mono); }
+  .feat .bd { padding: 16px 20px; }
+  .meta { display: flex; gap: 12px; align-items: center; font: 11.5px var(--font-mono); color: var(--text-muted); }
+  .pill { font: 11px var(--font-mono); border-radius: var(--radius-chip); padding: 2px 7px; white-space: nowrap; }
+  .pill.latest { background: var(--latest-bg); border: 1px solid var(--latest-border); color: var(--latest-fg); padding: 1px 7px; }
+  .pill.code { background: var(--topic-code-bg); color: var(--topic-code-fg); }
+  .pill.bikes { background: var(--topic-bikes-bg); color: var(--topic-bikes-fg); }
+  .pill.life { background: var(--topic-life-bg); color: var(--topic-life-fg); }
+  .pill.n { background: var(--tint-sand); color: var(--text-body); }
+  .feat b { font: 700 17px var(--font-display); color: var(--ink); }
+  .feat p { font: 14px/1.55 var(--font-body); color: var(--text-body); margin: 5px 0 0; }
+
+  .rows { display: flex; flex-direction: column; }
+  .row { padding: 14px 0; border-bottom: 1px solid var(--hairline); display: flex; gap: 16px; align-items: flex-start; }
+  .row.click { cursor: pointer; }
+  .row.nodiv { border-bottom: none; }
+  .row .tx { flex: 1; }
+  .row .t { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .row .t b { font: 700 16px var(--font-display); color: var(--ink); }
+  .row .t .mono { font-size: 12px; flex: none; }
+  .row .t .tmeta { display: flex; gap: 9px; align-items: center; flex: none; }
+  .row p { font: 14px/1.55 var(--font-body); color: var(--text-body); margin: 4px 0 0; }
+  .tags { display: flex; gap: 6px; margin-top: 7px; align-items: center; }
+  .rt-min { font: 11px var(--font-mono); color: var(--text-muted); }
+  .more { font: 700 14px var(--font-display); color: var(--link); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .more svg { width: 14px; height: 14px; }
+
+  .ft { border-top: 1px solid var(--hairline); padding-top: 18px; display: flex; justify-content: space-between; font: 12px var(--font-mono); color: var(--text-muted); }
+
+  /* blog index */
+  .h1b { font: 800 34px var(--font-display); letter-spacing: -.02em; color: var(--ink); }
+  .lede { font: 15.5px/1.6 var(--font-body); color: var(--text-body); max-width: 480px; margin-top: 10px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .fp { font: 12px var(--font-mono); border-radius: var(--radius-pill); padding: 5px 14px; cursor: pointer; background: transparent; border: 1.5px solid var(--border-soft); color: var(--text-body); box-shadow: var(--shadow-sm); }
+  .fp.code { border-color: var(--topic-code-line); color: var(--topic-code-fg); }
+  .fp.bikes { border-color: var(--topic-bikes-line); color: var(--topic-bikes-fg); }
+  .fp.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .yr { font: 12px var(--font-mono); letter-spacing: .08em; color: var(--text-faint); margin-bottom: 6px; }
+
+  /* post pages */
+  .back { font: 13px var(--font-mono); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .back svg { width: 13px; height: 13px; }
+  .h1p { font: 800 34px/1.12 var(--font-display); letter-spacing: -.02em; color: var(--ink); }
+  .fig { border: 1.5px solid var(--border-strong); border-radius: var(--radius-card); overflow: hidden; }
+  .fig .m { display: flex; align-items: center; justify-content: center; color: var(--text-faint); font: 13px var(--font-mono); background: repeating-linear-gradient(45deg, var(--placeholder-hatch) 0 1.5px, transparent 1.5px 8px), var(--surface); }
+  .fig .cap { padding: 8px 16px; border-top: 1.5px solid var(--border-strong); background: var(--surface); font: 11.5px var(--font-mono); color: var(--text-muted); }
+  .prose { font: 16px/1.7 var(--font-body); color: var(--text-body); margin: 0; }
+  .inline-code { font: 14px var(--font-mono); background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 4px; padding: 1px 6px; color: var(--code-text); }
+  .codeblk { border: 1.5px solid var(--border-strong); border-radius: var(--radius-md); background: var(--code-bg); overflow: hidden; }
+  .codeblk .bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--code-border); font: 10.5px var(--font-mono); color: var(--text-muted); }
+  .codeblk pre { margin: 0; padding: 14px 16px; font: 13.5px/1.65 var(--font-mono); color: var(--code-text); overflow-x: auto; }
+  .cs { color: var(--code-selector); } .cp { color: var(--code-property); } .cv { color: var(--code-value); }
+  blockquote.q { margin: 0; border-left: 3px solid var(--accent); padding: 2px 0 2px 18px; font: italic 17px/1.6 var(--font-body); color: var(--text-body); }
+  .author { border: 1.5px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); padding: 14px 18px; display: flex; gap: 14px; align-items: center; }
+  .author .aph { width: 52px; height: 52px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-sm); background: radial-gradient(var(--placeholder-dot) 1px, transparent 1.1px) 0 0/7px 7px, var(--surface); display: flex; align-items: center; justify-content: center; color: var(--text-faint); font: 10.5px var(--font-mono); flex: none; }
+  .author .atx { flex: 1; font: 13.5px/1.5 var(--font-body); color: var(--text-body); }
+  .author .atx b { font-family: var(--font-display); color: var(--ink); }
+  .author .atx a { border-bottom: 1.5px solid var(--link); font-weight: 600; color: var(--link); text-decoration: none; cursor: pointer; }
+  .pn { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pn > div { border: 1.5px solid var(--border-soft); border-radius: var(--radius-md); background: var(--surface); padding: 12px 16px; }
+  .pn .dir { font: 11.5px var(--font-mono); color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+  .pn .dir.next { justify-content: flex-end; }
+  .pn .dir svg { width: 13px; height: 13px; }
+  .pn b { font: 700 14px var(--font-display); color: var(--ink); }
+  .pn b.faint { color: var(--text-faint); }
+  .pn .click { cursor: pointer; box-shadow: var(--shadow-sm); }
+
+  /* ride post */
+  .stats { display: flex; gap: 10px; }
+  .stat { flex: 1; border: 1.5px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); padding: 10px 14px; text-align: center; }
+  .stat .v { font: 800 20px var(--font-display); color: var(--ink); }
+  .stat .v span { font: 600 13px var(--font-display); color: var(--text-muted); }
+  .stat .l { font: 10.5px var(--font-mono); color: var(--text-muted); letter-spacing: .06em; }
+  .vid { border: 1.5px solid var(--border-strong); border-radius: var(--radius-card); box-shadow: var(--shadow-video); overflow: hidden; }
+  .vid .thumbv { position: relative; height: 210px; background: repeating-linear-gradient(45deg, var(--placeholder-hatch) 0 1.5px, transparent 1.5px 8px), var(--surface); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .vid .play { width: 58px; height: 58px; border-radius: 50%; background: var(--video); border: 1.5px solid var(--border-strong); display: flex; align-items: center; justify-content: center; color: var(--btn-primary-fg); font-size: 20px; padding-left: 4px; }
+  .vid .dur { position: absolute; bottom: 12px; left: 16px; font: 11.5px var(--font-mono); color: var(--text-muted); }
+  .vid .bar { padding: 10px 16px; background: var(--surface); display: flex; justify-content: space-between; align-items: center; }
+  .vid .bar b { font: 700 14px var(--font-display); color: var(--ink); }
+  .vid .bar .wol { display: inline-flex; align-items: center; gap: 5px; }
+  .vid .bar .wol svg { width: 12px; height: 12px; }
+  .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .photos .fig2 { border: 1.5px solid var(--border-strong); border-radius: var(--radius-sm); height: 130px; display: flex; align-items: center; justify-content: center; color: var(--text-faint); font: 12px var(--font-mono); background: repeating-linear-gradient(45deg, var(--placeholder-hatch) 0 1.5px, transparent 1.5px 8px), var(--surface); }
+
+  @media (max-width: 640px) {
+    .col { padding-left: 22px; padding-right: 22px; }
+    .hero { flex-direction: column; align-items: flex-start; }
+    .stats { flex-wrap: wrap; }
+    .stat { min-width: 40%; }
+    .photos, .pn { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================== HOME ============================== -->
+<div class="page on" data-view="home">
+<div class="col gap34">
+  <div class="hd">
+    <div class="logo" onclick="go('home')">lukefredrickson<span>.dev</span></div>
+    <div class="nav"><a class="on" onclick="go('home')">work</a><a onclick="go('blog')">blog</a><div class="tog" role="switch" title="toggle theme" onclick="flipTheme()"><i class="side l" data-lucide="sun"></i><i class="side r" data-lucide="moon"></i><span class="knob"><i class="k-sun" data-lucide="sun"></i><i class="k-moon" data-lucide="moon"></i></span></div></div>
+  </div>
+
+  <div class="hero">
+    <div class="ph" style="width:150px;height:150px;background:var(--surface) url('../assets/photos/luke-headshot.jpg') center/cover;color:transparent"></div>
+    <div>
+      <div class="h1">Hey, I'm <span class="mark">Luke</span></div>
+      <div class="intro">Full-stack engineer with a front-end focus. I build products end to end and write about what I learn along the way.</div>
+    </div>
+  </div>
+
+  <div class="btns">
+    <a class="btn pri">resume <i data-lucide="file-text"></i></a><a class="btn">github <i data-lucide="external-link"></i></a><a class="btn">linkedin <i data-lucide="external-link"></i></a><a class="btn">email <i data-lucide="send"></i></a>
+  </div>
+
+  <div class="stack16">
+    <div class="sec-t"><b>Where I've worked</b><i></i></div>
+    <div class="card">
+      <div class="card-hd">
+        <div class="tile" style="overflow:hidden"><img src="../assets/logos/energyhub.jpeg" alt="EnergyHub" style="width:100%;height:100%;object-fit:contain"></div>
+        <div class="nm"><b>EnergyHub</b><span class="mono" style="font-size:12px">2022–now · 4 yrs</span></div>
+      </div>
+      <div class="card-bd">
+        <div class="role">
+          <div class="railc"><div class="dot now"></div><div class="rail"></div></div>
+          <div class="rbody">
+            <div class="rt"><b>Senior Software Engineer</b><span class="mono" style="font-size:12px">2025–now</span></div>
+            <div class="bullets">
+              <div class="bl now"><i>▸</i><span>Own front-end architecture across three product teams (~25 engineers)</span></div>
+              <div class="bl now"><i>▸</i><span>Led the design-system rebuild: 90+ components, adopted by every team in two quarters</span></div>
+              <div class="bl now"><i>▸</i><span>Drove the Webpack→Vite migration, cutting CI build times 70%</span></div>
+              <div class="bl now"><i>▸</i><span>Mentor two junior engineers; run the front-end guild</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="role">
+          <div class="railc"><div class="dot"></div><div class="rail"></div></div>
+          <div class="rbody">
+            <div class="rt"><b>Software Engineer II</b><span class="mono" style="font-size:12px">2023–25</span></div>
+            <div class="bullets">
+              <div class="bl"><i>▸</i><span>Shipped the customer dashboard end to end — React front end, Node/Postgres services</span></div>
+              <div class="bl"><i>▸</i><span>Cut p95 page-load from 4.2s to 1.1s; wrote the team's UI performance playbook</span></div>
+              <div class="bl"><i>▸</i><span>Interviewed 30+ candidates; built the front-end take-home exercise still in use</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="role">
+          <div class="railc"><div class="dot"></div></div>
+          <div class="rbody last">
+            <div class="rt"><b>Software Engineer I</b><span class="mono" style="font-size:12px">2022–23</span></div>
+            <div class="bullets">
+              <div class="bl"><i>▸</i><span>Full-stack feature work across the React/Node codebase</span></div>
+              <div class="bl"><i>▸</i><span>Rebuilt onboarding flow, cutting signup drop-off 18%</span></div>
+              <div class="bl"><i>▸</i><span>Wrote the internal CLI for local env setup, now used company-wide</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="conn"><div class="conn-line"></div></div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="tile" style="overflow:hidden"><img src="../assets/logos/packetized_energy_padded.png" alt="Packetized Energy" style="width:100%;height:100%;object-fit:contain"></div>
+        <div class="nm"><b>Packetized Energy</b><span class="mono" style="font-size:12px">summer 2021</span></div>
+      </div>
+      <div class="card-bd" style="flex-direction:row;gap:16px">
+        <div class="railc"><div class="dot"></div></div>
+        <div class="rbody last" style="padding-bottom:0">
+          <div class="rt"><b>Software Engineering Intern</b></div>
+          <div class="bullets">
+            <div class="bl"><i>▸</i><span>Built internal tooling for the data team; returned an offer, chose EnergyHub</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="stack16">
+    <div class="sec-t"><b>Writing</b><i></i></div>
+    <div class="card feat" onclick="go('post-ride')">
+      <div class="img">post hero image</div>
+      <div class="bd">
+        <div class="meta" style="margin-bottom:6px"><span>jun 21, 2026</span><span>·</span><span>4 min</span><span class="pill bikes">bikes</span><span class="pill n">vlog</span></div>
+        <b>Kelly Brook loop — first century of the year</b>
+        <p>102 miles, 6,400 ft of climbing, one gas-station burrito. Photos and the full vlog inside.</p>
+      </div>
+    </div>
+    <div class="rows">
+      <div class="row click" onclick="go('post-tech')"><div class="tx"><div class="t"><b>Why I still hand-roll my CSS</b><span class="tmeta"><span class="pill code">code</span><span class="mono">jun 2026</span></span></div></div></div>
+      <div class="row"><div class="tx"><div class="t"><b>New bike day: building up the gravel rig</b><span class="tmeta"><span class="pill bikes">bikes</span><span class="mono">may 2026</span></span></div></div></div>
+      <div class="row nodiv"><div class="tx"><div class="t"><b>Notes on shipping a design system solo</b><span class="tmeta"><span class="pill code">code</span><span class="mono">may 2026</span></span></div></div></div>
+    </div>
+    <div class="more" onclick="go('blog')">all posts <i data-lucide="move-right"></i></div>
+  </div>
+
+  <div class="ft"><span>© 2026 luke fredrickson</span><span>lukefredrickson.dev</span></div>
+</div>
+</div>
+
+<!-- ============================== BLOG INDEX ============================== -->
+<div class="page" data-view="blog">
+<div class="col gap28">
+  <div class="hd">
+    <div class="logo" onclick="go('home')">lukefredrickson<span>.dev</span></div>
+    <div class="nav"><a onclick="go('home')">work</a><a class="on" onclick="go('blog')">blog</a><div class="tog" role="switch" title="toggle theme" onclick="flipTheme()"><i class="side l" data-lucide="sun"></i><i class="side r" data-lucide="moon"></i><span class="knob"><i class="k-sun" data-lucide="sun"></i><i class="k-moon" data-lucide="moon"></i></span></div></div>
+  </div>
+
+  <div>
+    <div class="h1b">The blog</div>
+    <div class="lede">Software, bikes, and whatever else I'm thinking about. Sometimes all three at once.</div>
+  </div>
+
+  <div class="filters">
+    <button class="fp on" data-f="all" onclick="setFilter('all')">everything · 6</button>
+    <button class="fp code" data-f="code" onclick="setFilter('code')">code · 3</button>
+    <button class="fp bikes" data-f="bikes" onclick="setFilter('bikes')">bikes · 2</button>
+    <button class="fp" data-f="life" onclick="setFilter('life')">life · 1</button>
+  </div>
+
+  <div data-yr="2026">
+    <div class="yr">2026</div>
+    <div class="rows">
+      <div class="row click" data-topic="bikes" onclick="go('post-ride')">
+        <div class="tx">
+          <div class="t"><b>Kelly Brook loop — first century of the year</b><span class="mono">jun 21</span></div>
+          <p>102 miles, 6,400 ft of climbing, one gas-station burrito. Photos and the full vlog inside.</p>
+          <div class="tags"><span class="pill bikes">bikes</span><span class="pill n">vlog</span><span class="rt-min">4 min</span></div>
+        </div>
+      </div>
+      <div class="row click" data-topic="code" onclick="go('post-tech')">
+        <div class="tx">
+          <div class="t"><b>Why I still hand-roll my CSS</b><span class="mono">jun 14</span></div>
+          <p>Every year someone tells me my stylesheet workflow is obsolete. Every year I ship faster than the person telling me.</p>
+          <div class="tags"><span class="pill code">code</span><span class="rt-min">6 min</span></div>
+        </div>
+      </div>
+      <div class="row" data-topic="bikes">
+        <div class="tx">
+          <div class="t"><b>New bike day: building up the gravel rig</b><span class="mono">may 25</span></div>
+          <p>Frame-up build, part choices, and what I got wrong the first time.</p>
+          <div class="tags"><span class="pill bikes">bikes</span><span class="rt-min">8 min</span></div>
+        </div>
+      </div>
+      <div class="row nodiv" data-topic="code">
+        <div class="tx">
+          <div class="t"><b>Notes on shipping a design system solo</b><span class="mono">may 02</span></div>
+          <p>What worked, what I'd never do again, and the spreadsheet that saved the whole thing.</p>
+          <div class="tags"><span class="pill code">code</span><span class="rt-min">9 min</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-yr="2025">
+    <div class="yr">2025</div>
+    <div class="rows">
+      <div class="row" data-topic="code">
+        <div class="tx">
+          <div class="t"><b>Everything I know about CSS grid in one post</b><span class="mono">nov 23</span></div>
+          <div class="tags"><span class="pill code">code</span><span class="rt-min">15 min</span></div>
+        </div>
+      </div>
+      <div class="row nodiv" data-topic="life">
+        <div class="tx">
+          <div class="t"><b>My first year as a senior engineer</b><span class="mono">sep 30</span></div>
+          <div class="tags"><span class="pill life">life</span><span class="rt-min">7 min</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ft"><span>© 2026 luke fredrickson</span><span>lukefredrickson.dev</span></div>
+</div>
+</div>
+
+<!-- ============================== TECH POST ============================== -->
+<div class="page" data-view="post-tech">
+<div class="col gap26">
+  <div class="hd">
+    <div class="logo" onclick="go('home')">lukefredrickson<span>.dev</span></div>
+    <div class="nav"><a onclick="go('home')">work</a><a class="on" onclick="go('blog')">blog</a><div class="tog" role="switch" title="toggle theme" onclick="flipTheme()"><i class="side l" data-lucide="sun"></i><i class="side r" data-lucide="moon"></i><span class="knob"><i class="k-sun" data-lucide="sun"></i><i class="k-moon" data-lucide="moon"></i></span></div></div>
+  </div>
+
+  <div class="back" onclick="go('blog')"><i data-lucide="move-left"></i> all posts</div>
+
+  <div>
+    <div class="h1p">Why I still hand-roll my CSS</div>
+    <div class="meta" style="margin-top:12px;font-size:12.5px"><span>jun 14, 2026</span><span>·</span><span>6 min read</span><span>·</span><span class="pill code">code</span></div>
+  </div>
+
+  <div class="fig">
+    <div class="m" style="height:240px">hero image · 16:9</div>
+    <div class="cap">optional caption or image credit</div>
+  </div>
+
+  <p class="prose">Every year someone tells me my stylesheet workflow is obsolete. Every year I ship faster than the person telling me. This post is about why plain CSS — with a few conventions — still beats the framework treadmill for personal projects and even mid-size products.</p>
+  <p class="prose">The argument usually starts with utility classes. And look, I get it: <span class="inline-code">flex items-center gap-2</span> is fast to type. But speed of typing was never the bottleneck.</p>
+
+  <div class="codeblk">
+    <div class="bar"><span>card.css</span><span style="cursor:pointer">copy</span></div>
+    <pre><span class="cs">.card</span> {
+  <span class="cp">display</span>: grid;
+  <span class="cp">gap</span>: <span class="cv">12px</span>;
+  <span class="cp">padding</span>: <span class="cv">1rem 1.25rem</span>;
+}</pre>
+  </div>
+
+  <p class="prose">Naming things forces you to decide what things <em>are</em>. That act of deciding is where half my design bugs get caught — before the browser ever renders them.</p>
+
+  <blockquote class="q">A stylesheet you can read top to bottom is documentation. A class soup is a scavenger hunt.</blockquote>
+
+  <div class="author">
+    <div class="aph" style="background:var(--surface) url('../assets/photos/luke-headshot.jpg') center/cover;color:transparent"></div>
+    <div class="atx"><b>Luke Fredrickson</b> — full-stack engineer, front-end focus. More about me + career highlights on the <a onclick="go('home')">home page</a>.</div>
+  </div>
+
+  <div class="pn">
+    <div><div class="dir"><i data-lucide="move-left"></i> previous</div><b>Notes on shipping a design system solo</b></div>
+    <div class="click" style="text-align:right" onclick="go('post-ride')"><div class="dir next">next <i data-lucide="move-right"></i></div><b>Kelly Brook loop — first century of the year</b></div>
+  </div>
+
+  <div class="ft"><span>© 2026 luke fredrickson</span><span>lukefredrickson.dev</span></div>
+</div>
+</div>
+
+<!-- ============================== RIDE POST ============================== -->
+<div class="page" data-view="post-ride">
+<div class="col gap26">
+  <div class="hd">
+    <div class="logo" onclick="go('home')">lukefredrickson<span>.dev</span></div>
+    <div class="nav"><a onclick="go('home')">work</a><a class="on" onclick="go('blog')">blog</a><div class="tog" role="switch" title="toggle theme" onclick="flipTheme()"><i class="side l" data-lucide="sun"></i><i class="side r" data-lucide="moon"></i><span class="knob"><i class="k-sun" data-lucide="sun"></i><i class="k-moon" data-lucide="moon"></i></span></div></div>
+  </div>
+
+  <div class="back" onclick="go('blog')"><i data-lucide="move-left"></i> all posts</div>
+
+  <div>
+    <div class="h1p" style="font-size:32px;line-height:1.14">Kelly Brook loop — first century of the year</div>
+    <div class="meta" style="margin-top:12px;font-size:12.5px;flex-wrap:wrap"><span>jun 21, 2026</span><span>·</span><span class="pill bikes">bikes</span><span class="pill n">vlog</span></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v">102 <span>mi</span></div><div class="l">DISTANCE</div></div>
+    <div class="stat"><div class="v">6,400 <span>ft</span></div><div class="l">CLIMBING</div></div>
+    <div class="stat"><div class="v">6:48 <span>hrs</span></div><div class="l">MOVING</div></div>
+    <div class="stat"><div class="v">1 <span>🌯</span></div><div class="l">BURRITOS</div></div>
+  </div>
+
+  <div class="fig">
+    <div class="m" style="height:230px;background:var(--tint-green)">hero photo — summit view</div>
+    <div class="cap">top of the gap, mile 61</div>
+  </div>
+
+  <p class="prose">Left at 6am to beat the heat, which worked for exactly two hours. The plan: the full Kelly Brook loop, counterclockwise this time, with the gravel cut-through at mile 40…</p>
+
+  <div class="vid">
+    <div class="thumbv"><div class="play"><i data-lucide="play"></i></div><div class="dur">youtube · 14:32</div></div>
+    <div class="bar"><b>Century vlog: Kelly Brook loop</b><span class="mono wol" style="font-size:11.5px">watch on youtube <i data-lucide="external-link"></i></span></div>
+  </div>
+
+  <div class="photos">
+    <div class="fig2">photo</div>
+    <div class="fig2">photo</div>
+  </div>
+
+  <p class="prose">Mile 80 is where centuries get honest. Notes for next time: more water at the store stop, and never trust a road named "Brook" to be flat…</p>
+
+  <div class="pn">
+    <div class="click" onclick="go('post-tech')"><div class="dir"><i data-lucide="move-left"></i> previous</div><b>Why I still hand-roll my CSS</b></div>
+  </div>
+
+  <div class="ft"><span>© 2026 luke fredrickson</span><span>lukefredrickson.dev</span></div>
+</div>
+</div>
+
+<script>
+  var THEME_KEY = 'lfdev-theme';
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+  }
+  function flipTheme() {
+    var next = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+    applyTheme(next);
+  }
+  function go(view) {
+    document.querySelectorAll('[data-view]').forEach(function (el) {
+      el.classList.toggle('on', el.getAttribute('data-view') === view);
+    });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+  function setFilter(f) {
+    document.querySelectorAll('.fp').forEach(function (el) { el.classList.toggle('on', el.getAttribute('data-f') === f); });
+    document.querySelectorAll('[data-view="blog"] .row').forEach(function (row) {
+      row.style.display = (f === 'all' || row.getAttribute('data-topic') === f) ? '' : 'none';
+    });
+    document.querySelectorAll('[data-view="blog"] [data-yr]').forEach(function (grp) {
+      var any = Array.prototype.some.call(grp.querySelectorAll('.row'), function (r) { return r.style.display !== 'none'; });
+      grp.style.display = any ? '' : 'none';
+    });
+  }
+
+  var saved = 'light';
+  try { saved = localStorage.getItem(THEME_KEY) || 'light'; } catch (e) {}
+  applyTheme(saved);
+</script>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons({ attrs: { 'stroke-width': 1.5 } });</script>
+
+<!-- Tweaks panel (React only powers the panel; the page itself stays vanilla) -->
+<div id="tweaks-root"></div>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script type="text/babel" src="tweaks-panel-src.js"></script>
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "showConnector": true,
+    "connectorLength": 10,
+    "connectorStyle": "dotted",
+    "connectorColor": "#dad4e2"
+  }/*EDITMODE-END*/;
+
+  function TweaksApp() {
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+    React.useEffect(() => {
+      const r = document.documentElement.style;
+      r.setProperty('--conn-display', t.showConnector ? 'flex' : 'none');
+      r.setProperty('--conn-len', t.connectorLength + 'px');
+      r.setProperty('--conn-style', t.connectorStyle);
+      // '#dad4e2' (iris-mist) = "theme default": fall through to var(--rail) so dark mode uses the dark rail color
+      // ('#ded8e6' = the pre-oklch rail sentinel — kept so stored prefs still mean "default")
+      if (t.connectorColor === '#dad4e2' || t.connectorColor === '#ded8e6') r.removeProperty('--conn-color');
+      else r.setProperty('--conn-color', t.connectorColor);
+    }, [t]);
+    return (
+      <TweaksPanel>
+        <TweakSection label="Card connector" />
+        <TweakToggle label="Show connector" value={t.showConnector} onChange={(v) => setTweak('showConnector', v)} />
+        <TweakSlider label="Length" value={t.connectorLength} min={10} max={48} step={2} unit="px" onChange={(v) => setTweak('connectorLength', v)} />
+        <TweakRadio label="Style" value={t.connectorStyle} options={['dotted', 'dashed']} onChange={(v) => setTweak('connectorStyle', v)} />
+        <TweakColor label="Color" value={t.connectorColor} options={['#dad4e2', '#daa24f', '#ba5f76']} onChange={(v) => setTweak('connectorColor', v)} />
+      </TweaksPanel>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<TweaksApp />);
+</script>
+</body>
+</html>
