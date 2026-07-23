@@ -10,7 +10,11 @@ understands basic backend concepts (serverless functions, databases) but is
 
 - Explain the reasoning, the alternatives, and the trade-offs — don't just do it.
 - Don't pure-delegate. Favor understanding over speed.
-- Land changes as PRs with explainer descriptions; the diff review is the lesson.
+- Land changes as PRs; the diff review is the lesson, not the PR body. The body
+  follows `.github/pull_request_template.md` and stays under ~200 words — it is
+  a scan surface. State the root problem and the decided solution at high
+  altitude, then let the code speak for itself. The full explainer (reasoning,
+  alternatives, trade-offs) belongs in the ADR, which the PR links to.
 - Record decisions as ADRs (see Domain docs).
 
 ## Tooling
