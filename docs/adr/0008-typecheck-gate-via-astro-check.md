@@ -16,8 +16,10 @@ editor, and two consequences compound:
 
 - The Astro VS Code extension's live diagnostics — the usual first line of
   defence — are never in the loop, because there is no editor in the loop.
-- **There is no LSP server for `.astro`** in the agent environment. `AGENTS.md`'s
-  Code Intelligence section, which tells agents to "check LSP diagnostics and fix
+- **No LSP server is available for `.astro` in the agent environment.** (One
+  exists — `@astrojs/language-server`, which `@astrojs/check` pulls in — but
+  nothing wires it up as an LSP the agent can query.) `AGENTS.md`'s Code
+  Intelligence section, which tells agents to "check LSP diagnostics and fix
   errors before proceeding", was therefore unactionable for this repo's primary
   file type.
 
@@ -33,7 +35,7 @@ npm script, and enforce it at three tiers that each do one job.
 
 | Tier | Mechanism | Job |
 | --- | --- | --- |
-| Agent loop | `AGENTS.md` instruction + `npm run check` | The only feedback that exists — no `.astro` LSP |
+| Agent loop | `AGENTS.md` instruction + `npm run check` | The only feedback that exists — no `.astro` LSP in reach |
 | Local backstop | husky `pre-push` hook | Saves a CI round-trip; ~1.8s, once per push |
 | Enforcement | Actions `typecheck` job + branch ruleset | Unbypassable; the only real gate |
 

@@ -1,3 +1,6 @@
+# Named `CI` rather than `Typecheck` because this is the repo's general-purpose
+# Actions workflow — lint and a11y jobs are expected to land beside `typecheck`
+# later. Workers Builds remains the separate deploy CI (ADR 0002, ADR 0008).
 name: CI
 
 # The `typecheck` job name below is the status-check context string that the
