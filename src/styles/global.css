@@ -9,8 +9,8 @@
   Today it pulls in only the CSS reset. No @layer, and no subfolders for live
   styles yet — both are deliberately deferred until there are enough partials
   to order or group, or a utility framework / third-party CSS makes them
-  worthwhile (see ADR 0006). Note `tokens/` alongside this file is reference
-  material, not live styles: nothing imports it.
+  worthwhile (see ADR 0006). Everything under `src/styles/` ships; the
+  reference-only design tokens live at `docs/design/` (see ADR 0007).
 */
 
 @import "./reset.css";

@@ -1,0 +1,20 @@
+/* Design-token entry point for lukefredrickson.dev.
+   Imported from the claude.ai/design "lukefredrickson Design System" project
+   (tokens only — components not yet ported). See docs/adr/0005 for provenance.
+
+   REFERENCE ONLY — this file and ./tokens/ do not ship. They live under docs/
+   precisely so they can't be mistaken for live CSS: nothing imports them, and
+   Astro only bundles imported CSS, so they contribute nothing to the build
+   (see docs/adr/0007). Kept verbatim from the design system so upstream token
+   changes port over as a clean diff.
+
+   To make the tokens live, copy them into src/styles/ and @import them behind
+   src/styles/global.css — the layout imports exactly one stylesheet (ADR 0006).
+   The palette / type / spacing tokens are inert custom properties (no visual
+   effect until consumed); base.css sets body background, text color, and the
+   default font, which overlaps the reset and must be reconciled at that point. */
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/base.css";
