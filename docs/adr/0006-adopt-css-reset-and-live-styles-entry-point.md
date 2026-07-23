@@ -1,7 +1,15 @@
 # 6. Adopt Josh Comeau's CSS reset and a live-styles entry point
 
 Date: 2026-07-22
-Status: Accepted
+Status: Accepted (amended by ADR 0007)
+
+## Amendment (ADR 0007)
+
+The reference tokens have moved to `docs/design/`. Every `src/styles/tokens…`
+path below reads as `docs/design/tokens…`. Both decisions this ADR records —
+the reset, and `global.css` as the single stylesheet the layout imports — are
+unchanged, as is the note that `tokens/base.css` overlaps the reset and must be
+reconciled when the tokens are made live.
 
 ## Context
 
