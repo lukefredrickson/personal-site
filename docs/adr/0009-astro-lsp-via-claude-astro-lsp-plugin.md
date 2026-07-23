@@ -2,6 +2,7 @@
 
 Date: 2026-07-23
 Status: Accepted
+Amends: ADR 0008 (Context only — the three tiers stand)
 
 ## Context
 
@@ -78,6 +79,34 @@ a command *failure*, and the tail-chasing pull comes from watching a command
 fail; and they **gate nothing**, so ignoring a transient one costs nothing. This
 is not a silent reversal of that rejection — the rejected mechanism is still
 rejected.
+
+## Alternatives considered
+
+- **Do nothing; leave `npm run check` as the only signal** — rejected. The check
+  is a whole-project batch command with a ~1.8s floor. It answers "is anything
+  broken", never "what type does this expression have" or "where is this
+  defined". Navigation questions were being answered by Grep and Read, which
+  costs tokens and, on a `.astro` file, cannot see through the compiler at all.
+- **Per-user install via `/plugin install`, left out of the repo** — rejected,
+  on ADR 0008's husky reasoning: a capability the repo depends on should be
+  declared by the repo, so a fresh clone is correct without a manual step and
+  `AGENTS.md` can state the capability as fact rather than as a suggestion.
+- **`.claude/settings.local.json` instead of `settings.json`** — rejected for the
+  same reason: `settings.local.json` is per-user and gitignored, which is exactly
+  the manual step being removed. It stays gitignored for genuinely local
+  overrides.
+- **Vendor the language server inside the plugin** — rejected, and the plugin
+  deliberately does not. Resolving from the consuming project's `node_modules`
+  guarantees the LSP and `astro check` are the same binary; a vendored copy could
+  drift and let the interactive signal disagree with the CI gate about what a
+  type error is.
+- **Pin the marketplace to a commit SHA** rather than a repo — not available;
+  marketplace entries take a source, and updates come via `version` bumps. The
+  weakness is recorded under Consequences rather than solved.
+- **The upstream `ricardo-nth/claude-astro-lsp`** — rejected. It spawns
+  `astro-ls` from `PATH`, which requires a global install and reintroduces the
+  drift the previous point rules out. `claude-astro-lsp` is derived from it and
+  keeps the `tsdk`-injection idea.
 
 ## Verified behaviour
 

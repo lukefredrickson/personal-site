@@ -1,8 +1,15 @@
 # 8. Typecheck gate via `astro check`
 
 Date: 2026-07-23
-Status: Accepted (Context amended by ADR 0009 — an `.astro` LSP is now wired up;
-the three tiers below are unchanged)
+Status: Accepted (Context amended by ADR 0009)
+
+## Amendment (ADR 0009)
+
+An `.astro` LSP is now wired up. The three tiers below are unchanged and this
+decision stands in full; only the Context's premise narrows. The Agent-loop
+row's *"The only feedback that exists — no `.astro` LSP in reach"*, and the
+Context bullet it rests on, now read as historical. LSP diagnostics are advisory
+and gate nothing — they do not make the `pre-push` hook redundant.
 
 ## Context
 
