@@ -1,0 +1,24 @@
+# Named `CI` rather than `Typecheck` because this is the repo's general-purpose
+# Actions workflow — lint and a11y jobs are expected to land beside `typecheck`
+# later. Workers Builds remains the separate deploy CI (ADR 0002, ADR 0008).
+name: CI
+
+# The `typecheck` job name below is the status-check context string that the
+# branch ruleset on `main` requires. Renaming the job silently un-requires it.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # matches `engines.node: >=22.12.0`
+          cache: npm
+      - run: npm ci
+      - run: npm run check

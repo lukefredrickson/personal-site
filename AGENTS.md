@@ -26,17 +26,35 @@ understands basic backend concepts (serverless functions, databases) but is
 
 ## Code Intelligence
 
-Prefer LSP over Grep/Read for code navigation — faster, precise, avoids
-reading entire files:
+**No LSP server is available for `.astro` files in this environment** — and
+`.astro` is this repo's primary file type. The LSP guidance immediately below
+applies to `.ts`/`.js` only; for `.astro`, the typecheck subsection is the whole
+story.
+
+Where LSP is available, prefer it over Grep/Read for code navigation — faster,
+precise, avoids reading entire files:
 
 - `workspaceSymbol` to find where something is defined
 - `findReferences` to see all usages across the codebase
 - `goToDefinition` / `goToImplementation` to jump to source
 - `hover` for type info without reading the file
 
-Use Grep only when LSP isn't available or for text/pattern searches
-(comments, strings, config). After writing or editing code, check LSP
-diagnostics and fix errors before proceeding.
+Use Grep when LSP isn't available or for text/pattern searches (comments,
+strings, config). After writing or editing `.ts`/`.js`, check LSP diagnostics
+and fix errors before proceeding.
+
+### Typechecking (the only diagnostic path for `.astro`)
+
+Since LSP diagnostics don't reach `.astro`, the typecheck is the signal:
+
+    npm run check
+
+Run it after editing `.astro` or `.ts` files, at the point the work is finished
+rather than after each individual write — mid-refactor failures are expected and
+not worth chasing. It prints errors, warnings, and hints; only errors fail it.
+The same script runs in a `pre-push` hook and in CI (the `typecheck` job,
+required on `main`), so an unfixed type error cannot reach production. See
+ADR 0008.
 
 ## Workflow (Matt Pocock skills)
 
