@@ -1,0 +1,16 @@
+/*
+  global.css — live styles entry point.
+
+  This is the single stylesheet the shared layout imports. It is the stable
+  seam for site-wide styling: the layout imports it once and never needs
+  touching again. Future live partials (base styles, element defaults, etc.)
+  are added behind this file via @import, not in the layout.
+
+  Today it pulls in only the CSS reset. No @layer, and no subfolders for live
+  styles yet — both are deliberately deferred until there are enough partials
+  to order or group, or a utility framework / third-party CSS makes them
+  worthwhile (see ADR 0006). Note `tokens/` alongside this file is reference
+  material, not live styles: nothing imports it.
+*/
+
+@import "./reset.css";
