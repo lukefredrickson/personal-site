@@ -110,7 +110,9 @@ rejected.
 
 ## Verified behaviour
 
-Observed in-session through Claude Code's LSP tool against `src/pages/index.astro`:
+Observed in-session through Claude Code's LSP tool against `src/pages/index.astro`,
+on the GitHub-sourced install this ADR ships — not on a local-path development
+install, which runs a different code path:
 
 | Operation | Result |
 | --- | --- |
@@ -124,13 +126,18 @@ Observed in-session through Claude Code's LSP tool against `src/pages/index.astr
 
 Plus:
 
-- **Lazy spawn confirmed.** No server process existed at session start; one
-  appeared only after the first LSP call. This is the evidence the plugin's
+- **Lazy spawn confirmed.** No server process existed after the plugin loaded;
+  one appeared only after the first LSP call. This is the evidence the plugin's
   `defaultEnabled: true` rests on — an always-on plugin that costs nothing until
   used.
+- **Cache-anchored proxy confirmed.** `ps` showed the proxy running from
+  `~/.claude/plugins/cache/claude-astro-lsp/astro-lsp/1.0.0/bin/astro-ls-proxy.mjs`
+  at plugin commit `d01d1ff`, with install scope `project` — i.e. enabled by the
+  `.claude/settings.json` this ADR adds, not by a user-level `/plugin install`.
 - **Project-anchored resolution confirmed.** The server ran from this repo's
   `node_modules/@astrojs/language-server`, not a copy bundled with the plugin.
-- **Memory: ~370–400 MB** for the server plus ~40 MB for the proxy process.
+- **Memory: ~370–410 MB** for the server plus ~40 MB for the proxy process
+  (409 MB / 41 MB observed on this repo).
 
 ## Consequences
 
