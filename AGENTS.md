@@ -38,6 +38,19 @@ Use Grep only when LSP isn't available or for text/pattern searches
 (comments, strings, config). After writing or editing code, check LSP
 diagnostics and fix errors before proceeding.
 
+**There is no LSP server for `.astro` files** — this repo's primary file type.
+LSP navigation and diagnostics are unavailable there, so the diagnostic path is
+the typecheck instead:
+
+    npm run check
+
+Run it after editing `.astro` or `.ts` files, at the point the work is finished
+rather than after each individual write — mid-refactor failures are expected and
+not worth chasing. It prints errors, warnings, and hints; only errors fail it.
+The same script runs in a `pre-push` hook and in CI (the `typecheck` job,
+required on `main`), so an unfixed type error cannot reach production. See
+ADR 0008.
+
 ## Workflow (Matt Pocock skills)
 
 This repo follows the matt-pocock skills flow (github.com/mattpocock/skills):
