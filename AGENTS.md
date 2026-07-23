@@ -15,6 +15,9 @@ understands basic backend concepts (serverless functions, databases) but is
   a scan surface. State the root problem and the decided solution at high
   altitude, then let the code speak for itself. The full explainer (reasoning,
   alternatives, trade-offs) belongs in the ADR, which the PR links to.
+  Never hard-wrap prose in a PR or issue body: GitHub renders a single newline
+  there as a `<br>`, so wrapped paragraphs come out as a ragged column. Wrap
+  Markdown *files* as usual — the rule is specific to PR/issue bodies.
 - Record decisions as ADRs (see Domain docs).
 
 ## Tooling
