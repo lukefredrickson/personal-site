@@ -1,7 +1,8 @@
 # 8. Typecheck gate via `astro check`
 
 Date: 2026-07-23
-Status: Accepted
+Status: Accepted (Context amended by ADR 0009 — an `.astro` LSP is now wired up;
+the three tiers below are unchanged)
 
 ## Context
 
