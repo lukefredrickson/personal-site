@@ -25,3 +25,4 @@ pnpm-debug.log*
 
 # local Claude Code overrides (the checked-in .claude/settings.json is shared)
 .claude/settings.local.json
+.claude/worktrees/

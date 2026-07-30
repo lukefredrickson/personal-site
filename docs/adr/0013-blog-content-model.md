@@ -1,4 +1,4 @@
-# 10. Blog content model
+# 13. Blog content model
 
 Date: 2026-07-30
 Status: Accepted
