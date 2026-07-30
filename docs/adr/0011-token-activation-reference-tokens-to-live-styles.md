@@ -1,4 +1,4 @@
-# 10. Token activation: how reference tokens graduate to live styles
+# 11. Token activation: how reference tokens graduate to live styles
 
 Date: 2026-07-30
 Status: Accepted
