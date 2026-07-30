@@ -33,26 +33,37 @@ understands basic backend concepts (serverless functions, databases) but is
 
 ## Code Intelligence
 
-**No LSP server is available for `.astro` files in this environment** — and
-`.astro` is this repo's primary file type. The LSP guidance immediately below
-applies to `.ts`/`.js` only; for `.astro`, the typecheck subsection is the whole
-story.
+**LSP covers `.astro` as well as `.ts`/`.js`.** The `astro-lsp` plugin is
+enabled by this repo's `.claude/settings.json`, and runs
+`@astrojs/language-server` out of this project's own `node_modules` — the same
+binary `npm run check` uses. See ADR 0009.
 
-Where LSP is available, prefer it over Grep/Read for code navigation — faster,
-precise, avoids reading entire files:
+Prefer LSP over Grep/Read for code navigation — faster, precise, avoids reading
+entire files:
 
-- `workspaceSymbol` to find where something is defined
-- `findReferences` to see all usages across the codebase
 - `goToDefinition` / `goToImplementation` to jump to source
+- `findReferences` to see all usages across the codebase
 - `hover` for type info without reading the file
+- `workspaceSymbol` to find where something is **declared** — but see the caveat
+  below
 
-Use Grep when LSP isn't available or for text/pattern searches (comments,
-strings, config). After writing or editing `.ts`/`.js`, check LSP diagnostics
-and fix errors before proceeding.
+What LSP does *not* do here:
 
-### Typechecking (the only diagnostic path for `.astro`)
+- **`workspaceSymbol` will not find a component by name.** It indexes
+  declarations only; filenames and import aliases are not declarations, and an
+  Astro component's compiled default export is anonymous. Querying `Welcome`
+  returns nothing even though `Welcome.astro` exists. Frontmatter and TS
+  declarations (`interface Props`, consts, functions) *are* findable. **"Where
+  is component X" is a Grep/Glob job** — search for the filename.
+- **Diagnostics lag one tool call.** They surface on the *next* tool result, not
+  on the `Edit` that caused them, and a stale one can echo once after a fix
+  before clearing. Treat them as eventually consistent: useful when they appear,
+  never something to poll for. `npm run check` is the authoritative signal.
 
-Since LSP diagnostics don't reach `.astro`, the typecheck is the signal:
+Use Grep for text/pattern searches (comments, strings, config) and for finding
+files by name.
+
+### Typechecking (the gate)
 
     npm run check
 
@@ -62,6 +73,10 @@ not worth chasing. It prints errors, warnings, and hints; only errors fail it.
 The same script runs in a `pre-push` hook and in CI (the `typecheck` job,
 required on `main`), so an unfixed type error cannot reach production. See
 ADR 0008.
+
+LSP diagnostics do **not** replace this. They cover only the files opened this
+session; the check covers the whole project and fires even when the breakage is
+in a file nobody touched.
 
 ## Workflow (Matt Pocock skills)
 

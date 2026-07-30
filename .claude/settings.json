@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-astro-lsp": {
+      "source": {
+        "source": "github",
+        "repo": "lukefredrickson/claude-astro-lsp"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "astro-lsp@claude-astro-lsp": true
+  }
+}
