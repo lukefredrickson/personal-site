@@ -1,4 +1,4 @@
-# 15. Code blocks via Expressive Code
+# 16. Code blocks via Expressive Code
 
 Date: 2026-07-30
 Status: Accepted
