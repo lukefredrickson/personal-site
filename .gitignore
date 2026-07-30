@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# local Claude Code overrides (the checked-in .claude/settings.json is shared)
+.claude/settings.local.json
