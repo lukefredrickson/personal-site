@@ -2,6 +2,8 @@
 
 Date: 2026-07-30
 Status: Accepted
+Amended 2026-07-30: video embeds via `astro-embed` — see
+[Amendment: video embeds](#amendment-video-embeds-astro-embed-2026-07-30).
 
 ## Context
 
@@ -87,3 +89,41 @@ reasoning and alternatives live in that ticket's thread.
   init. Filter states are real URLs — shareable, crawlable, JS-free.
 - Exact prop-level parity with the reference kit is explicitly not a goal;
   visual parity is.
+
+## Amendment: video embeds via astro-embed (2026-07-30)
+
+Resolves wayfinder ticket
+[#34](https://github.com/lukefredrickson/personal-site/issues/34) (part of
+the [realize-the-design-system map, #18](https://github.com/lukefredrickson/personal-site/issues/18)).
+
+The `VideoCard` spec (`docs/design/components/cards/VideoCard.*`) is
+**dropped, not translated** — the design's card chrome (title, duration
+badge, rose play treatment) is placeholder. Ride posts embed vlogs with the
+[`astro-embed`](https://astro-embed.netlify.app/components/youtube/)
+`<YouTube>` component (`@astro-community/astro-embed-youtube`), imported
+directly in MDX bodies and dropped inline with the prose.
+
+Why a package over a hand-rolled iframe: `astro-embed` is the
+community-idiomatic answer (maintained by Astro core contributors) and is a
+[lite-youtube-embed](https://github.com/paulirish/lite-youtube-embed) facade —
+build-time static poster, the real player loads only on click, via the
+privacy-enhanced `youtube-nocookie.com` domain. That's the facade pattern's
+performance (zero YouTube requests until play) with none of the hand-rolling.
+Authoring is paste-friendly: `id` accepts a full watch/`youtu.be` URL; pass
+`title` for the overlay and accessible name; the poster comes from YouTube
+(`posterQuality` if the default looks soft).
+
+Exceptions to this ADR's rules, accepted knowingly:
+
+- **Rule 1/6 (pure Astro, zero client JS):** `<lite-youtube>` is a
+  third-party custom element with a small script — the scripted list grows
+  from one (ThemeToggle) to two. The alternative (bare always-loaded iframe)
+  ships ~500 kB of YouTube player per pageview instead.
+- **Rule 5 (components 1:1 with specs):** no `VideoCard.astro` will exist;
+  this is the first spec consciously retired rather than built.
+- **No-JS:** without JavaScript the poster and title render but play is
+  dead. Accepted — a `<noscript>` watch link is a five-line additive fix if
+  it ever matters.
+
+The rose `--video` token loses its only consumer and stays dormant unless a
+future design revives it.
