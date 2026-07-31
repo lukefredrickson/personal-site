@@ -26,6 +26,134 @@ export interface Blocker {
   readonly state: string;
 }
 
+/** One blocked-by edge change proposed by the planning agent. */
+export interface EdgeMutation {
+  readonly op: "add" | "remove";
+  /** The issue that is (or would no longer be) blocked. */
+  readonly blocked: number;
+  /** The issue that blocks it. */
+  readonly blocker: number;
+  readonly reasoning: string;
+}
+
+export interface RejectedMutation {
+  readonly mutation: EdgeMutation;
+  readonly reason: string;
+}
+
+export interface ScreenedMutations {
+  readonly accepted: readonly EdgeMutation[];
+  readonly rejected: readonly RejectedMutation[];
+  /** The blocked-by graph with every accepted mutation applied. */
+  readonly amended: ReadonlyMap<number, readonly Blocker[]>;
+}
+
+/**
+ * Mechanically screen the planning agent's proposed edge mutations. The
+ * agent has no write authority — this is the host-side gate between its
+ * proposal and anything that persists or executes. Two rules, no judgment:
+ * both endpoints must be issues in the walk, and an addition must not
+ * create a cycle in the graph as amended so far. Mutations are screened in
+ * proposal order, so a removal can legitimately make room for a later
+ * addition. Re-adding a present edge or removing an absent one is accepted
+ * unchanged — application is idempotent, so both are harmless no-ops.
+ *
+ * Blockers outside the walk pass through to the amended graph untouched:
+ * the agent may only rewire edges among walk members, and `planStacks`
+ * keeps its existing authority over external blockers.
+ */
+export function screenMutations(
+  issues: readonly StackIssue[],
+  blockedBy: ReadonlyMap<number, readonly Blocker[]>,
+  mutations: readonly EdgeMutation[],
+): ScreenedMutations {
+  const walk = new Set(issues.map((issue) => issue.number));
+
+  // Walk-internal edges as blocked → its blockers; external blockers are
+  // carried separately and never mutated.
+  const internal = new Map<number, Set<number>>();
+  const external = new Map<number, readonly Blocker[]>();
+  for (const issue of issues) {
+    const blockers = blockedBy.get(issue.number) ?? [];
+    internal.set(
+      issue.number,
+      new Set(blockers.filter((b) => walk.has(b.number)).map((b) => b.number)),
+    );
+    external.set(
+      issue.number,
+      blockers.filter((b) => !walk.has(b.number)),
+    );
+  }
+
+  // True if `from` transitively depends on (is blocked by) `to`.
+  const dependsOn = (from: number, to: number): boolean => {
+    const stack = [from];
+    const seen = new Set<number>();
+    while (stack.length > 0) {
+      const n = stack.pop()!;
+      if (n === to) return true;
+      if (seen.has(n)) continue;
+      seen.add(n);
+      stack.push(...(internal.get(n) ?? []));
+    }
+    return false;
+  };
+
+  const accepted: EdgeMutation[] = [];
+  const rejected: RejectedMutation[] = [];
+  for (const mutation of mutations) {
+    const missing = [mutation.blocked, mutation.blocker].filter(
+      (n) => !walk.has(n),
+    );
+    if (missing.length > 0) {
+      rejected.push({
+        mutation,
+        reason:
+          `references ${missing.map((n) => `#${n}`).join(" and ")}, ` +
+          `not an open Sandcastle issue in this walk`,
+      });
+      continue;
+    }
+    if (
+      mutation.op === "add" &&
+      (mutation.blocked === mutation.blocker ||
+        dependsOn(mutation.blocker, mutation.blocked))
+    ) {
+      rejected.push({
+        mutation,
+        reason:
+          `would create a blocked-by cycle — #${mutation.blocker} already ` +
+          `depends on #${mutation.blocked}`,
+      });
+      continue;
+    }
+
+    if (mutation.op === "add") {
+      internal.get(mutation.blocked)!.add(mutation.blocker);
+    } else {
+      internal.get(mutation.blocked)!.delete(mutation.blocker);
+    }
+    accepted.push(mutation);
+  }
+
+  // Walk members are open by construction (the issue fetch filters on
+  // state:open), so amended internal edges carry state "open".
+  const amended = new Map<number, readonly Blocker[]>(
+    issues.map((issue) => [
+      issue.number,
+      [
+        ...external.get(issue.number)!,
+        ...[...internal.get(issue.number)!].map((number) => ({
+          number,
+          state: "open",
+        })),
+      ],
+    ]),
+  );
+
+  return { accepted, rejected, amended };
+}
+
 /**
  * Partition issues into the connected components of the blocked-by graph
  * (treated as undirected — two issues are related if either blocks the

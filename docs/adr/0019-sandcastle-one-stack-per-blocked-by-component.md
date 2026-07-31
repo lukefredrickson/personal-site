@@ -4,6 +4,8 @@ Date: 2026-07-31
 Status: Accepted, amended by
 [ADR 0020](0020-sandcastle-plan-and-run-commands-with-plan-file.md)
 (`--dry-run` retired in favor of `plan`/`run` with a persisted plan file)
+and [ADR 0021](0021-sandcastle-planning-agent-blocked-by-mutations.md)
+(stacks derive from the blocked-by graph as amended by the planning agent)
 
 Amends [ADR 0018](0018-sandcastle-sequential-stacked-pr-orchestration.md).
 Resolves
