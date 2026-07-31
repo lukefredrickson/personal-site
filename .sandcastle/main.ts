@@ -21,7 +21,13 @@
 //      first in each stack from main). The implementer runs first; it
 //      pushes the branch and opens a draft PR based on the previous branch.
 //      If it produced commits, the reviewer runs in the same sandbox and
-//      pushes any refinements.
+//      pushes any refinements. A step whose branch already has an open PR
+//      is complete — progress lives on GitHub, not in local state — so its
+//      sandbox is skipped, but the step stays in the walk as the base for
+//      its successor. Re-running after a partial failure therefore resumes
+//      at the first PR-less step of each incomplete stack. A branch with
+//      commits but no PR is incomplete and re-runs: the sandbox picks up
+//      the existing branch, finds the work done, and opens the missing PR.
 //   3. A failed or commit-less step aborts only its own stack — later
 //      layers of that stack would build on a missing foundation, but the
 //      other stacks share nothing with it, so they still run. The run
@@ -29,7 +35,7 @@
 //
 // Nothing here merges branches or closes issues: the owner reviews each PR
 // bottom-up (`gh stack` locally) and merging a PR closes its issue via the
-// closing keyword in the PR body. See ADR 0018 through ADR 0021.
+// closing keyword in the PR body. See ADR 0018 through ADR 0022.
 //
 // Usage:
 //   npm run sandcastle plan  # compute, print, and persist the plan
@@ -466,9 +472,27 @@ try {
 // Walk the stacks
 // ---------------------------------------------------------------------------
 
+// The completion marker. An open PR on a step's branch means the step is
+// done — the PR is what the whole walk exists to produce, and it lives on
+// GitHub where every run can see it. Closed and merged PRs don't count:
+// a merged layer's successor should rebase via the normal review flow,
+// and a closed-unmerged PR means the work was rejected, not done.
+function openPrUrl(branch: string): string | undefined {
+  const prs = JSON.parse(
+    execFileSync(
+      "gh",
+      ["pr", "list", "--head", branch, "--state", "open", "--json", "url"],
+      { encoding: "utf8" },
+    ),
+  ) as { url: string }[];
+  return prs[0]?.url;
+}
+
 interface StackOutcome {
   readonly stack: readonly StackStep[];
   readonly completed: readonly StackStep[];
+  /** Steps skipped because their branch already had an open PR. */
+  readonly skipped: readonly StackStep[];
   readonly aborted?: { readonly step: StackStep; readonly reason: string };
 }
 
@@ -479,6 +503,7 @@ for (const [i, stack] of plan.stacks.entries()) {
   console.log(`\n=== Stack ${i + 1}/${plan.stacks.length} ===`);
 
   const completed: StackStep[] = [];
+  const skipped: StackStep[] = [];
   let aborted: StackOutcome["aborted"];
 
   for (const step of stack) {
@@ -491,6 +516,19 @@ for (const [i, stack] of plan.stacks.entries()) {
     // The catch keeps the failure contained so the remaining stacks run.
     let abortReason: string | undefined;
     try {
+      // Already complete? Skip the sandbox but keep the step in the walk —
+      // its successor still chains from this branch. Inside the try so a
+      // flaked `gh` call aborts this stack, not the whole run.
+      const existingPr = openPrUrl(step.branch);
+      if (existingPr !== undefined) {
+        skipped.push(step);
+        console.log(
+          `✓ #${step.issue.number} already complete (open PR ${existingPr}) ` +
+            `— skipping.`,
+        );
+        continue;
+      }
+
       // baseBranch cuts the new branch from the previous issue's tip, so
       // each layer builds on dependencies that haven't merged yet. It's
       // ignored when the branch already exists, which makes a re-run resume
@@ -552,27 +590,33 @@ for (const [i, stack] of plan.stacks.entries()) {
 
     // The stack is only a stack if every layer has its PR. The implementer
     // opens it from inside the sandbox, where a flaked push or `gh pr create`
-    // would otherwise pass silently — verify from the host. A missing PR
-    // doesn't invalidate later layers (the branches still chain), so warn and
-    // keep walking; the owner can open it by hand from the pushed branch.
+    // would otherwise pass silently — verify from the host, with the same
+    // open-PR test the skip above uses, so a step is "complete" by one
+    // definition everywhere. A missing PR doesn't invalidate later layers
+    // (the branches still chain), so warn and keep walking; a re-run treats
+    // the step as incomplete and effectively just opens the missing PR.
+    // A flaked verification reads as a missing PR: the warning path already
+    // exits non-zero and retains the plan, so the next run re-checks.
+    let pr: string | undefined;
     try {
-      const pr = JSON.parse(
-        execFileSync("gh", ["pr", "view", step.branch, "--json", "url"], {
-          encoding: "utf8",
-        }),
-      ) as { url: string };
-      console.log(`\n✓ #${step.issue.number} complete: ${pr.url}`);
+      pr = openPrUrl(step.branch);
     } catch {
+      pr = undefined;
+    }
+    if (pr !== undefined) {
+      console.log(`\n✓ #${step.issue.number} complete: ${pr}`);
+    } else {
       missingPrs.push(step.branch);
       console.error(
         `\n⚠ #${step.issue.number}: commits exist on ${step.branch} but no PR ` +
           `was found. Continuing — open it manually with ` +
-          `gh pr create --draft --head ${step.branch} --base ${step.base}`,
+          `gh pr create --draft --head ${step.branch} --base ${step.base}, ` +
+          `or re-run \`npm run sandcastle run\` to have the step retried.`,
       );
     }
   }
 
-  outcomes.push({ stack, completed, aborted });
+  outcomes.push({ stack, completed, skipped, aborted });
 }
 
 // ---------------------------------------------------------------------------
@@ -581,21 +625,26 @@ for (const [i, stack] of plan.stacks.entries()) {
 
 console.log(`\n=== Run summary ===\n`);
 for (const [i, outcome] of outcomes.entries()) {
+  const doneSteps = [...outcome.skipped, ...outcome.completed];
   const done =
-    outcome.completed.length === 0
+    doneSteps.length === 0
       ? "none"
-      : outcome.completed.map((s) => `#${s.issue.number}`).join(", ");
+      : doneSteps.map((s) => `#${s.issue.number}`).join(", ");
+  const skippedSuffix =
+    outcome.skipped.length === 0
+      ? ""
+      : `, ${outcome.skipped.length} already complete`;
   if (outcome.aborted) {
     console.log(
-      `✗ Stack ${i + 1}/${outcomes.length}: ${outcome.completed.length}/` +
-        `${outcome.stack.length} step(s) completed (${done}); aborted at ` +
-        `#${outcome.aborted.step.issue.number} (${outcome.aborted.step.branch})` +
-        ` — ${outcome.aborted.reason}`,
+      `✗ Stack ${i + 1}/${outcomes.length}: ${doneSteps.length}/` +
+        `${outcome.stack.length} step(s) complete (${done}${skippedSuffix}); ` +
+        `aborted at #${outcome.aborted.step.issue.number} ` +
+        `(${outcome.aborted.step.branch}) — ${outcome.aborted.reason}`,
     );
   } else {
     console.log(
       `✓ Stack ${i + 1}/${outcomes.length}: all ${outcome.stack.length} ` +
-        `step(s) completed (${done})`,
+        `step(s) complete (${done}${skippedSuffix})`,
     );
   }
 }
@@ -610,8 +659,9 @@ if (missingPrs.length > 0) {
 }
 
 if (abortedCount > 0 || missingPrs.length > 0) {
-  // Keep the plan: a resume re-executes identical walks, and branches
-  // that already have commits pick their accumulated work back up.
+  // Keep the plan: a resume re-executes identical walks, skipping every
+  // step that already has an open PR, so each incomplete stack picks back
+  // up at its first PR-less step.
   console.error(
     `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle run\` ` +
       `to resume the same walks.`,

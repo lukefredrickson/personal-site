@@ -6,6 +6,8 @@ Status: Accepted, amended by
 stack per blocked-by component instead of a single chain) and
 [ADR 0020](0020-sandcastle-plan-and-run-commands-with-plan-file.md)
 (`--dry-run` retired in favor of `plan`/`run` with a persisted plan file)
+and [ADR 0022](0022-sandcastle-resume-via-open-pr-marker.md) (a step
+whose branch has an open PR is skipped, making re-runs resume)
 
 Resolves
 [#57](https://github.com/lukefredrickson/personal-site/issues/57). Reshapes
