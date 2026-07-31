@@ -1,14 +1,17 @@
 // Sequential stacked-PR orchestration, one stack per blocked-by component
 //
-// One run walks the whole backlog and leaves one GitHub stacked-PR stack
-// per connected component of the blocked-by graph:
+// Two entry points over one walk. `plan` computes the stacks and persists
+// them; `run` executes a persisted plan and leaves one GitHub stacked-PR
+// stack per connected component of the blocked-by graph:
 //
-//   1. Fetch open issues labeled `Sandcastle`, partition them into the
-//      connected components of GitHub's native blocked-by graph, and order
-//      each component with a deterministic topological sort — all in a pure
-//      function (stack.ts), no planner agent, no LLM judgment call in the
-//      grouping or ordering. A component of one issue is a plain standalone
-//      PR based on main.
+//   1. Planning fetches open issues labeled `Sandcastle`, partitions them
+//      into the connected components of GitHub's native blocked-by graph,
+//      and orders each component with a deterministic topological sort —
+//      all in a pure function (stack.ts), no planner agent, no LLM
+//      judgment call in the grouping or ordering. A component of one issue
+//      is a plain standalone PR based on main. The result is printed for
+//      review and written to the plan file; planning never writes to
+//      GitHub.
 //   2. For each stack, for each issue in order: create a sandbox on
 //      sandcastle/issue-<n>, cut from the previous issue's branch (the
 //      first in each stack from main). The implementer runs first; it
@@ -22,17 +25,20 @@
 //
 // Nothing here merges branches or closes issues: the owner reviews each PR
 // bottom-up (`gh stack` locally) and merging a PR closes its issue via the
-// closing keyword in the PR body. See ADR 0018 and ADR 0019.
+// closing keyword in the PR body. See ADR 0018, ADR 0019, and ADR 0020.
 //
 // Usage:
-//   npm run sandcastle              # the real, paid walk
-//   npm run sandcastle -- --dry-run # print the planned stacks and exit
+//   npm run sandcastle plan  # compute, print, and persist the plan
+//   npm run sandcastle run   # execute the plan file (plans first if none)
 //
-// Always dry-run first: it exercises the full real path (issue fetch,
+// Always plan first: it exercises the full real path (issue fetch,
 // blocked-by edge fetch, grouping, ordering, branch/base assignment) minus
-// side effects.
+// side effects, and what it prints is exactly what `run` will execute.
+// Re-running `plan` overwrites the plan file — that is the replan gesture.
+// `run` consumes the file as-is, with no staleness check.
 
 import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { planStacks, type Blocker, type StackIssue, type StackStep } from "./stack.ts";
@@ -52,85 +58,174 @@ const hooks = {
 // platform-specific binaries and any packages added since the last copy.
 const copyToWorktree = ["node_modules"];
 
+// npm scripts always run from the package root, so a root-relative path is
+// stable. Gitignored: the plan is local run state, not repo content.
+const PLAN_FILE = ".sandcastle/plan.json";
+
 // ---------------------------------------------------------------------------
-// Plan the stacks
+// The plan file
 // ---------------------------------------------------------------------------
 
-const dryRun = process.argv.includes("--dry-run");
+// The persisted plan is the proposal contract between planning and
+// execution. `mutations` is always empty at this layer: it reserves the
+// slot a future judgment agent would fill with proposed backlog mutations,
+// so the file shape doesn't change when one arrives. The file's existence
+// is the marker that planning ran — a plan with no stacks means planning
+// found nothing to change, while a missing file means no plan exists.
+interface Plan {
+  readonly stacks: readonly (readonly StackStep[])[];
+  readonly mutations: readonly unknown[];
+}
 
-const issues: StackIssue[] = JSON.parse(
-  execFileSync(
-    "gh",
-    [
-      "issue",
-      "list",
-      "--state",
-      "open",
-      "--label",
-      "Sandcastle",
-      "--limit",
-      "100",
-      "--json",
-      "number,title",
-    ],
-    { encoding: "utf8" },
-  ),
-);
+function readPlan(): Plan | undefined {
+  if (!existsSync(PLAN_FILE)) return undefined;
+  return JSON.parse(readFileSync(PLAN_FILE, "utf8")) as Plan;
+}
 
-if (issues.length === 0) {
-  console.log("No open issues labeled Sandcastle. Nothing to do.");
+function writePlan(plan: Plan): void {
+  writeFileSync(PLAN_FILE, JSON.stringify(plan, null, 2) + "\n");
+}
+
+function deletePlan(): void {
+  unlinkSync(PLAN_FILE);
+}
+
+// ---------------------------------------------------------------------------
+// Planning: GitHub reads only, no writes
+// ---------------------------------------------------------------------------
+
+function computePlan(): Plan {
+  const issues: StackIssue[] = JSON.parse(
+    execFileSync(
+      "gh",
+      [
+        "issue",
+        "list",
+        "--state",
+        "open",
+        "--label",
+        "Sandcastle",
+        "--limit",
+        "100",
+        "--json",
+        "number,title",
+      ],
+      { encoding: "utf8" },
+    ),
+  );
+
+  if (issues.length === 0) {
+    return { stacks: [], mutations: [] };
+  }
+
+  // Fetch each issue's blocked-by edges — grouping and ordering are derived
+  // from them. N+1 API calls; fine at this backlog size.
+  const { nameWithOwner } = JSON.parse(
+    execFileSync("gh", ["repo", "view", "--json", "nameWithOwner"], {
+      encoding: "utf8",
+    }),
+  ) as { nameWithOwner: string };
+
+  const blockedBy = new Map<number, readonly Blocker[]>(
+    issues.map((issue) => [
+      issue.number,
+      (
+        JSON.parse(
+          execFileSync(
+            "gh",
+            [
+              "api",
+              `repos/${nameWithOwner}/issues/${issue.number}/dependencies/blocked_by`,
+            ],
+            { encoding: "utf8" },
+          ),
+        ) as Blocker[]
+      ).map(({ number, state }) => ({ number, state })),
+    ]),
+  );
+
+  return { stacks: planStacks(issues, blockedBy), mutations: [] };
+}
+
+function printPlan(plan: Plan): void {
+  if (plan.stacks.length === 0) {
+    console.log(
+      "Empty plan: no open issues labeled Sandcastle, nothing to change.",
+    );
+    return;
+  }
+
+  const issueCount = plan.stacks.reduce((n, stack) => n + stack.length, 0);
+  console.log(
+    `Planned ${plan.stacks.length} stack(s) covering ${issueCount} issue(s), ` +
+      `one draft PR each:\n`,
+  );
+  for (const [i, stack] of plan.stacks.entries()) {
+    const shape =
+      stack.length === 1
+        ? `standalone PR based on ${stack[0]!.base}`
+        : `${stack.length} chained PRs`;
+    console.log(`Stack ${i + 1} of ${plan.stacks.length} — ${shape}:`);
+    for (const step of stack) {
+      console.log(`  #${step.issue.number} ${step.issue.title}`);
+      console.log(`      ${step.branch}  ←  based on ${step.base}`);
+    }
+    console.log();
+  }
+
+  console.log("Grouping and order derived from the blocked-by graph.");
+}
+
+// ---------------------------------------------------------------------------
+// Command dispatch
+// ---------------------------------------------------------------------------
+
+const command = process.argv[2];
+
+if (command !== "plan" && command !== "run") {
+  const hint =
+    command === "--dry-run"
+      ? ` (--dry-run is retired; \`plan\` replaces it)`
+      : command === undefined
+        ? ""
+        : ` (unknown command "${command}")`;
+  console.error(`Usage: npm run sandcastle <plan|run>${hint}`);
+  process.exit(1);
+}
+
+if (command === "plan") {
+  const plan = computePlan();
+  writePlan(plan);
+  printPlan(plan);
+  console.log(
+    `\nPlan written to ${PLAN_FILE}; no GitHub writes were made. Execute ` +
+      `it with \`npm run sandcastle run\`; re-run \`plan\` to replan.`,
+  );
   process.exit(0);
 }
 
-// Fetch each issue's blocked-by edges — grouping and ordering are derived
-// from them. N+1 API calls; fine at this backlog size.
-const { nameWithOwner } = JSON.parse(
-  execFileSync("gh", ["repo", "view", "--json", "nameWithOwner"], {
-    encoding: "utf8",
-  }),
-) as { nameWithOwner: string };
+// ---------------------------------------------------------------------------
+// Load (or make) the plan to run
+// ---------------------------------------------------------------------------
 
-const blockedBy = new Map<number, readonly Blocker[]>(
-  issues.map((issue) => [
-    issue.number,
-    (
-      JSON.parse(
-        execFileSync(
-          "gh",
-          [
-            "api",
-            `repos/${nameWithOwner}/issues/${issue.number}/dependencies/blocked_by`,
-          ],
-          { encoding: "utf8" },
-        ),
-      ) as Blocker[]
-    ).map(({ number, state }) => ({ number, state })),
-  ]),
-);
-
-const stacks = planStacks(issues, blockedBy);
-
-console.log(
-  `Planned ${stacks.length} stack(s) covering ${issues.length} issue(s), ` +
-    `one draft PR each:\n`,
-);
-for (const [i, stack] of stacks.entries()) {
-  const shape =
-    stack.length === 1
-      ? `standalone PR based on ${stack[0]!.base}`
-      : `${stack.length} chained PRs`;
-  console.log(`Stack ${i + 1} of ${stacks.length} — ${shape}:`);
-  for (const step of stack) {
-    console.log(`  #${step.issue.number} ${step.issue.title}`);
-    console.log(`      ${step.branch}  ←  based on ${step.base}`);
-  }
-  console.log();
+let plan = readPlan();
+if (plan === undefined) {
+  console.log(`No plan file at ${PLAN_FILE} — planning first.\n`);
+  plan = computePlan();
+  writePlan(plan);
+} else {
+  console.log(
+    `Executing the existing plan at ${PLAN_FILE} as-is; re-run \`plan\` ` +
+      `first if the backlog has changed.\n`,
+  );
 }
+printPlan(plan);
 
-console.log("Grouping and order derived from the blocked-by graph.");
-
-if (dryRun) {
-  console.log("\nDry run — no sandboxes launched.");
+// An empty plan is still a valid, executable plan — executing it is a
+// no-op that trivially succeeds, so it is consumed like any other plan.
+if (plan.stacks.length === 0) {
+  deletePlan();
+  console.log("\nNothing needed changing. Plan file deleted.");
   process.exit(0);
 }
 
@@ -147,8 +242,8 @@ interface StackOutcome {
 const missingPrs: string[] = [];
 const outcomes: StackOutcome[] = [];
 
-for (const [i, stack] of stacks.entries()) {
-  console.log(`\n=== Stack ${i + 1}/${stacks.length} ===`);
+for (const [i, stack] of plan.stacks.entries()) {
+  console.log(`\n=== Stack ${i + 1}/${plan.stacks.length} ===`);
 
   const completed: StackStep[] = [];
   let aborted: StackOutcome["aborted"];
@@ -282,10 +377,18 @@ if (missingPrs.length > 0) {
 }
 
 if (abortedCount > 0 || missingPrs.length > 0) {
+  // Keep the plan: a resume re-executes identical walks, and branches
+  // that already have commits pick their accumulated work back up.
+  console.error(
+    `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle run\` ` +
+      `to resume the same walks.`,
+  );
   process.exit(1);
 }
 
+deletePlan();
 console.log(
-  `\nAll done. Review each stack bottom-up: bind its PRs with gh stack link, ` +
-    `merge the bottom PR first, and let auto-retargeting handle the rest.`,
+  `\nAll done; plan file deleted. Review each stack bottom-up: bind its ` +
+    `PRs with gh stack, merge the bottom PR first, and let auto-retargeting ` +
+    `handle the rest.`,
 );

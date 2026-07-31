@@ -3,7 +3,9 @@
 Date: 2026-07-30
 Status: Accepted, amended by
 [ADR 0019](0019-sandcastle-one-stack-per-blocked-by-component.md) (one
-stack per blocked-by component instead of a single chain)
+stack per blocked-by component instead of a single chain) and
+[ADR 0020](0020-sandcastle-plan-and-run-commands-with-plan-file.md)
+(`--dry-run` retired in favor of `plan`/`run` with a persisted plan file)
 
 Resolves
 [#57](https://github.com/lukefredrickson/personal-site/issues/57). Reshapes

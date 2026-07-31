@@ -2,10 +2,10 @@
 // function. Issues and their blocked-by edges in, one ordered stack of
 // (issue, branch, base) per connected component out — no I/O, no side
 // effects. `main.ts` fetches the edges from GitHub's REST dependencies
-// endpoint and passes them in as data. `main.ts --dry-run` prints the
-// stacks and exits, which is both the pre-flight check before a paid run
-// and the verification path for changes to this logic (the repo
-// intentionally has no test runner; see ADR 0018).
+// endpoint and passes them in as data. `main.ts plan` prints the stacks
+// and persists them without touching GitHub, which is both the pre-flight
+// check before a paid run and the verification path for changes to this
+// logic (the repo intentionally has no test runner; see ADR 0018).
 
 export interface StackIssue {
   readonly number: number;
@@ -45,7 +45,7 @@ export interface Blocker {
  * one is an error, since the stack would build on a missing layer. A cycle
  * among walk members is also an error. All errors are aggregated into a
  * single throw so the operator can fix everything in one pass and re-run
- * --dry-run.
+ * `plan`.
  */
 export function planStacks(
   issues: readonly StackIssue[],
