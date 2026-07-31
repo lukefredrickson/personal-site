@@ -1,47 +1,37 @@
-// Parallel Planner with Review — four-phase orchestration loop
+// Sequential stacked-PR orchestration
 //
-// This template drives a multi-phase workflow:
-//   Phase 1 (Plan):             An opus agent analyzes open issues, builds a
-//                               dependency graph, and outputs a <plan> JSON
-//                               listing unblocked issues with branch names.
-//   Phase 2 (Execute + Review): For each issue, a sandbox is created via
-//                               createSandbox(). The implementer runs first
-//                               (100 iterations). If it produces commits, a
-//                               reviewer runs in the same sandbox on the same
-//                               branch (1 iteration). All issue pipelines run
-//                               concurrently via Promise.allSettled().
-//   Phase 3 (Merge):            A single agent merges all completed branches
-//                               into the current branch.
+// One run walks the whole backlog and leaves a GitHub stacked-PR stack:
 //
-// The outer loop repeats up to MAX_ITERATIONS times so that newly unblocked
-// issues are picked up after each round of merges.
+//   1. Fetch open issues labeled `Sandcastle` and order them by their
+//      "Build NN:" title prefix — a pure function (stack.ts), no planner
+//      agent, no LLM judgment call in the ordering.
+//   2. For each issue, in order: create a sandbox on sandcastle/issue-<n>,
+//      cut from the previous issue's branch (the first from main). The
+//      implementer runs first; it pushes the branch and opens a draft PR
+//      based on the previous branch. If it produced commits, the reviewer
+//      runs in the same sandbox and pushes any refinements.
+//   3. A failed or commit-less step aborts the walk — later layers build on
+//      earlier ones, so continuing would stack onto a missing foundation.
+//
+// Nothing here merges branches or closes issues: the owner reviews each PR
+// bottom-up (`gh stack` locally) and merging a PR closes its issue via the
+// closing keyword in the PR body. See ADR 0018.
 //
 // Usage:
-//   npx tsx .sandcastle/main.ts
-// Or add to package.json:
-//   "scripts": { "sandcastle": "npx tsx .sandcastle/main.ts" }
+//   npm run sandcastle              # the real, paid walk
+//   npm run sandcastle -- --dry-run # print the planned walk and exit
+//
+// Always dry-run first: it exercises the full real path (issue fetch,
+// ordering, branch/base assignment) minus side effects.
 
+import { execFileSync } from "node:child_process";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import { z } from "zod";
-
-// The planner emits its plan as JSON inside <plan> tags; Output.object extracts
-// and validates it against this schema. We use Zod here, but any Standard
-// Schema validator works just as well — Valibot, ArkType, etc. See
-// https://standardschema.dev.
-const planSchema = z.object({
-  issues: z.array(
-    z.object({ id: z.string(), title: z.string(), branch: z.string() }),
-  ),
-});
+import { planStack, type StackIssue } from "./stack.ts";
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
-
-// Maximum number of plan→execute→merge cycles before stopping.
-// Raise this if your backlog is large; lower it for a quick smoke-test run.
-const MAX_ITERATIONS = 10;
 
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
@@ -55,172 +45,144 @@ const hooks = {
 const copyToWorktree = ["node_modules"];
 
 // ---------------------------------------------------------------------------
-// Main loop
+// Plan the walk
 // ---------------------------------------------------------------------------
 
-for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-  console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
+const dryRun = process.argv.includes("--dry-run");
 
-  // -------------------------------------------------------------------------
-  // Phase 1: Plan
-  //
-  // The planning agent (opus, for deeper reasoning) reads the open issue list,
-  // builds a dependency graph, and selects the issues that can be worked in
-  // parallel right now (i.e., no blocking dependencies on other open issues).
-  //
-  // It outputs a <plan> JSON block — Output.object parses and validates it.
-  // -------------------------------------------------------------------------
-  const plan = await sandcastle.run({
-    hooks,
-    sandbox: docker(),
-    name: "planner",
-    // One iteration is enough: the planner just needs to read and reason,
-    // not write code. (Structured output requires maxIterations: 1.)
-    maxIterations: 1,
-    // Opus for planning: dependency analysis benefits from deeper reasoning.
-    agent: sandcastle.claudeCode("claude-opus-5"),
-    promptFile: "./.sandcastle/plan-prompt.md",
-    // Extract and validate the <plan> JSON into a typed object. Throws
-    // StructuredOutputError if the tag is missing, the JSON is malformed, or
-    // validation fails — which aborts the loop.
-    output: sandcastle.Output.object({ tag: "plan", schema: planSchema }),
-  });
+const issues: StackIssue[] = JSON.parse(
+  execFileSync(
+    "gh",
+    [
+      "issue",
+      "list",
+      "--state",
+      "open",
+      "--label",
+      "Sandcastle",
+      "--limit",
+      "100",
+      "--json",
+      "number,title",
+    ],
+    { encoding: "utf8" },
+  ),
+);
 
-  const issues = plan.output.issues;
+const walk = planStack(issues);
 
-  if (issues.length === 0) {
-    // No unblocked work — either everything is done or everything is blocked.
-    console.log("No unblocked issues to work on. Exiting.");
-    break;
-  }
-
-  console.log(
-    `Planning complete. ${issues.length} issue(s) to work in parallel:`,
-  );
-  for (const issue of issues) {
-    console.log(`  ${issue.id}: ${issue.title} → ${issue.branch}`);
-  }
-
-  // -------------------------------------------------------------------------
-  // Phase 2: Execute + Review
-  //
-  // For each issue, create a sandbox via createSandbox() so the implementer
-  // and reviewer share the same sandbox instance per branch. The implementer
-  // runs first; if it produces commits, the reviewer runs in the same sandbox.
-  //
-  // Promise.allSettled means one failing pipeline doesn't cancel the others.
-  // -------------------------------------------------------------------------
-
-  const settled = await Promise.allSettled(
-    issues.map(async (issue) => {
-      const sandbox = await sandcastle.createSandbox({
-        branch: issue.branch,
-        sandbox: docker(),
-        hooks,
-        copyToWorktree,
-      });
-
-      try {
-        // Run the implementer
-        const implement = await sandbox.run({
-          name: "implementer",
-          maxIterations: 100,
-          agent: sandcastle.claudeCode("claude-opus-5"),
-          promptFile: "./.sandcastle/implement-prompt.md",
-          promptArgs: {
-            TASK_ID: issue.id,
-            ISSUE_TITLE: issue.title,
-            BRANCH: issue.branch,
-          },
-        });
-
-        // Only review if the implementer produced commits
-        if (implement.commits.length > 0) {
-          const review = await sandbox.run({
-            name: "reviewer",
-            maxIterations: 1,
-            agent: sandcastle.claudeCode("claude-opus-5"),
-            promptFile: "./.sandcastle/review-prompt.md",
-            promptArgs: {
-              BRANCH: issue.branch,
-            },
-          });
-
-          // Merge commits from both runs so the merge phase sees all of them.
-          // Each sandbox.run() only returns commits from its own run.
-          return {
-            ...review,
-            commits: [...implement.commits, ...review.commits],
-          };
-        }
-
-        return implement;
-      } finally {
-        await sandbox.close();
-      }
-    }),
-  );
-
-  // Log any agents that threw (network error, sandbox crash, etc.).
-  for (const [i, outcome] of settled.entries()) {
-    if (outcome.status === "rejected") {
-      console.error(
-        `  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${outcome.reason}`,
-      );
-    }
-  }
-
-  // Only pass branches that actually produced commits to the merge phase.
-  // An agent that ran successfully but made no commits has nothing to merge.
-  const completedIssues = settled
-    .map((outcome, i) => ({ outcome, issue: issues[i]! }))
-    .filter(
-      (entry) =>
-        entry.outcome.status === "fulfilled" &&
-        entry.outcome.value.commits.length > 0,
-    )
-    .map((entry) => entry.issue);
-
-  const completedBranches = completedIssues.map((i) => i.branch);
-
-  console.log(
-    `\nExecution complete. ${completedBranches.length} branch(es) with commits:`,
-  );
-  for (const branch of completedBranches) {
-    console.log(`  ${branch}`);
-  }
-
-  if (completedBranches.length === 0) {
-    // All agents ran but none made commits — nothing to merge this cycle.
-    console.log("No commits produced. Nothing to merge.");
-    continue;
-  }
-
-  // -------------------------------------------------------------------------
-  // Phase 3: Merge
-  //
-  // One agent merges all completed branches into the current branch,
-  // resolving any conflicts and running tests to confirm everything works.
-  //
-  // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
-  // uses to know which branches to merge and which issues to close.
-  // -------------------------------------------------------------------------
-  await sandcastle.run({
-    hooks,
-    sandbox: docker(),
-    name: "merger",
-    maxIterations: 1,
-    agent: sandcastle.claudeCode("claude-opus-5"),
-    promptFile: "./.sandcastle/merge-prompt.md",
-    promptArgs: {
-      // A markdown list of branch names, one per line.
-      BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),
-      // A markdown list of issue IDs and titles, one per line.
-      ISSUES: completedIssues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
-    },
-  });
-
-  console.log("\nBranches merged.");
+if (walk.length === 0) {
+  console.log("No open issues labeled Sandcastle. Nothing to do.");
+  process.exit(0);
 }
 
-console.log("\nAll done.");
+console.log(`Planned walk — ${walk.length} issue(s), one draft PR each:\n`);
+for (const step of walk) {
+  console.log(`  #${step.issue.number} ${step.issue.title}`);
+  console.log(`      ${step.branch}  ←  based on ${step.base}`);
+}
+
+if (dryRun) {
+  console.log("\nDry run — no sandboxes launched.");
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Walk the stack
+// ---------------------------------------------------------------------------
+
+const missingPrs: string[] = [];
+
+for (const step of walk) {
+  console.log(
+    `\n=== #${step.issue.number}: ${step.issue.title} (${step.base} → ${step.branch}) ===\n`,
+  );
+
+  // baseBranch cuts the new branch from the previous issue's tip, so each
+  // layer builds on dependencies that haven't merged yet. It's ignored when
+  // the branch already exists, which makes a re-run resume accumulated work.
+  const sandbox = await sandcastle.createSandbox({
+    branch: step.branch,
+    baseBranch: step.base,
+    sandbox: docker(),
+    hooks,
+    copyToWorktree,
+  });
+
+  let implement: sandcastle.SandboxRunResult;
+  try {
+    implement = await sandbox.run({
+      name: `implementer #${step.issue.number}`,
+      maxIterations: 100,
+      agent: sandcastle.claudeCode("claude-opus-5"),
+      promptFile: "./.sandcastle/implement-prompt.md",
+      promptArgs: {
+        ISSUE_NUMBER: String(step.issue.number),
+        ISSUE_TITLE: step.issue.title,
+        BRANCH: step.branch,
+        BASE_BRANCH: step.base,
+      },
+    });
+
+    // Only review if the implementer produced commits.
+    if (implement.commits.length > 0) {
+      await sandbox.run({
+        name: `reviewer #${step.issue.number}`,
+        maxIterations: 1,
+        agent: sandcastle.claudeCode("claude-opus-5"),
+        promptFile: "./.sandcastle/review-prompt.md",
+        promptArgs: {
+          BRANCH: step.branch,
+          BASE_BRANCH: step.base,
+        },
+      });
+    }
+  } finally {
+    await sandbox.close();
+  }
+
+  // Later layers are cut from this branch's tip, so a step that produced
+  // nothing means every subsequent PR would be built on a missing layer.
+  // Stop and let the owner inspect rather than stacking onto a hole.
+  if (implement.commits.length === 0) {
+    console.error(
+      `\n✗ #${step.issue.number} produced no commits. Aborting the walk — ` +
+        `later issues build on this layer.`,
+    );
+    process.exit(1);
+  }
+
+  // The stack is only a stack if every layer has its PR. The implementer
+  // opens it from inside the sandbox, where a flaked push or `gh pr create`
+  // would otherwise pass silently — verify from the host. A missing PR
+  // doesn't invalidate later layers (the branches still chain), so warn and
+  // keep walking; the owner can open it by hand from the pushed branch.
+  try {
+    const pr = JSON.parse(
+      execFileSync("gh", ["pr", "view", step.branch, "--json", "url"], {
+        encoding: "utf8",
+      }),
+    ) as { url: string };
+    console.log(`\n✓ #${step.issue.number} complete: ${pr.url}`);
+  } catch {
+    missingPrs.push(step.branch);
+    console.error(
+      `\n⚠ #${step.issue.number}: commits exist on ${step.branch} but no PR ` +
+        `was found. Continuing — open it manually with ` +
+        `gh pr create --draft --head ${step.branch} --base ${step.base}`,
+    );
+  }
+}
+
+if (missingPrs.length > 0) {
+  console.error(
+    `\nWalk finished, but ${missingPrs.length} branch(es) have no PR: ` +
+      missingPrs.join(", "),
+  );
+  process.exit(1);
+}
+
+console.log(
+  `\nAll done. Review bottom-up: bind the PRs with gh stack link, merge the ` +
+    `bottom PR first, and let auto-retargeting handle the rest.`,
+);

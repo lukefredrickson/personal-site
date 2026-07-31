@@ -2,15 +2,17 @@
 
 Review the code changes on branch `{{BRANCH}}` and improve code clarity, consistency, and maintainability while preserving exact functionality.
 
+This branch is one layer of a stacked-PR walk, based on `{{BASE_BRANCH}}`. Review only this layer's increment. Never merge, rebase, or switch branches.
+
 # CONTEXT
 
 ## Branch diff
 
-!`git diff {{TARGET_BRANCH}}...{{BRANCH}}`
+!`git diff {{BASE_BRANCH}}...{{BRANCH}}`
 
 ## Commits on this branch
 
-!`git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`
+!`git log {{BASE_BRANCH}}..{{BRANCH}} --oneline`
 
 # REVIEW PROCESS
 
@@ -27,7 +29,6 @@ Review the code changes on branch `{{BRANCH}}` and improve code clarity, consist
 
 3. **Check correctness**:
    - Does the implementation match the intent? Are edge cases handled?
-   - Are new/changed behaviours covered by tests?
    - Are there unsafe casts, `any` types, or unchecked assumptions?
    - Does the change introduce injection vulnerabilities, credential leaks, or other security issues?
 
@@ -47,8 +48,9 @@ Review the code changes on branch `{{BRANCH}}` and improve code clarity, consist
 If you find improvements to make:
 
 1. Make the changes directly on this branch
-2. Run tests and type checking to ensure nothing is broken
+2. Run `npm run check` to ensure nothing is broken — it is the only gate; the repo intentionally has no test runner, and you must not add one
 3. Commit describing the refinements
+4. Push your commits so the open draft PR picks them up: `git push origin {{BRANCH}}`. If the push is rejected for credentials, run `gh auth setup-git` once and retry.
 
 If the code is already clean and well-structured, do nothing.
 
