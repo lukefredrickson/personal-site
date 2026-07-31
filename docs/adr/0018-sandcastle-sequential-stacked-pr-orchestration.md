@@ -56,6 +56,14 @@ It is both the pre-flight before every paid run and the verification for
 this change. No test framework is added: the repo intentionally has none,
 and ~30 lines of sort-and-chain logic doesn't justify importing one.
 
+The walk is also validated against GitHub's native blocked-by graph before
+the dry-run exit (and before every paid run). The `Build NN:` order remains
+the source of truth; the graph is a cross-check that fails the run if a
+mis-ordered or mis-labeled backlog would build an issue before its blockers.
+A closed blocker counts as satisfied; an open blocker outside the walk fails
+it. The check is a pure function in `.sandcastle/stack.ts`; `main.ts` fetches
+the edges via the REST dependencies endpoint and passes them in as data.
+
 ### Agent environment fixes
 
 - The prompts' gate becomes `npm run check`; all `npm run typecheck` /

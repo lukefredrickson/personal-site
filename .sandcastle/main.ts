@@ -22,12 +22,18 @@
 //   npm run sandcastle -- --dry-run # print the planned walk and exit
 //
 // Always dry-run first: it exercises the full real path (issue fetch,
-// ordering, branch/base assignment) minus side effects.
+// ordering, branch/base assignment, blocked-by graph check) minus side
+// effects.
 
 import { execFileSync } from "node:child_process";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import { planStack, type StackIssue } from "./stack.ts";
+import {
+  planStack,
+  validateBlockers,
+  type Blocker,
+  type StackIssue,
+} from "./stack.ts";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -81,6 +87,36 @@ for (const step of walk) {
   console.log(`  #${step.issue.number} ${step.issue.title}`);
   console.log(`      ${step.branch}  ←  based on ${step.base}`);
 }
+
+// Cross-check the walk against GitHub's native blocked-by graph before the
+// dry-run exit — catching a mis-ordered backlog is exactly what dry-run is
+// for. N+1 API calls; fine at this backlog size.
+const { nameWithOwner } = JSON.parse(
+  execFileSync("gh", ["repo", "view", "--json", "nameWithOwner"], {
+    encoding: "utf8",
+  }),
+) as { nameWithOwner: string };
+
+const blockedBy = new Map<number, readonly Blocker[]>(
+  walk.map((step) => [
+    step.issue.number,
+    (
+      JSON.parse(
+        execFileSync(
+          "gh",
+          [
+            "api",
+            `repos/${nameWithOwner}/issues/${step.issue.number}/dependencies/blocked_by`,
+          ],
+          { encoding: "utf8" },
+        ),
+      ) as Blocker[]
+    ).map(({ number, state }) => ({ number, state })),
+  ]),
+);
+
+validateBlockers(walk, blockedBy);
+console.log("\nBlocked-by graph check passed.");
 
 if (dryRun) {
   console.log("\nDry run — no sandboxes launched.");

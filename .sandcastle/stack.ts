@@ -66,3 +66,58 @@ export function planStack(
     return step;
   });
 }
+
+/** A blocking issue from GitHub's native blocked-by graph. */
+export interface Blocker {
+  readonly number: number;
+  readonly state: string;
+}
+
+/**
+ * Cross-check the walk against GitHub's native blocked-by edges. The
+ * `Build NN:` order stays the source of truth; this catches a mis-ordered
+ * or mis-labeled backlog before a paid run builds an issue ahead of its
+ * blockers. A blocker satisfies the check if it is an earlier step in the
+ * walk or already closed; an open blocker outside the walk, or one at or
+ * after its dependent's position, is a violation.
+ *
+ * Throws a single Error aggregating every violation, so the operator can
+ * fix all titles/labels/edges in one pass and re-run --dry-run.
+ */
+export function validateBlockers(
+  walk: readonly StackStep[],
+  blockedBy: ReadonlyMap<number, readonly Blocker[]>,
+): void {
+  const position = new Map(walk.map((step, i) => [step.issue.number, i]));
+
+  const violations: string[] = [];
+  walk.forEach((step, i) => {
+    for (const blocker of blockedBy.get(step.issue.number) ?? []) {
+      const blockerPos = position.get(blocker.number);
+      if (blockerPos !== undefined) {
+        if (blockerPos >= i) {
+          violations.push(
+            `#${step.issue.number} (step ${i + 1}) is blocked by ` +
+              `#${blocker.number} (step ${blockerPos + 1}), which does not ` +
+              `come earlier in the walk. Fix the Build NN: prefixes or the ` +
+              `blocked-by edge.`,
+          );
+        }
+      } else if (blocker.state !== "closed") {
+        violations.push(
+          `#${step.issue.number} (step ${i + 1}) is blocked by ` +
+            `#${blocker.number}, which is ${blocker.state} but not in the ` +
+            `walk. Label it Sandcastle with a Build NN: prefix, close it, ` +
+            `or remove the edge.`,
+        );
+      }
+    }
+  });
+
+  if (violations.length > 0) {
+    throw new Error(
+      `The walk violates GitHub's blocked-by graph:\n` +
+        violations.map((v) => `  - ${v}`).join("\n"),
+    );
+  }
+}
