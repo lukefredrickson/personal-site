@@ -56,7 +56,9 @@ When the work is complete and `npm run check` passes:
 
 1. Push the branch: `git push -u origin {{BRANCH}}`. If the push is rejected
    for credentials, run `gh auth setup-git` once and retry.
-2. Open a draft PR based on the previous layer, using stock `gh`:
+2. Open a draft PR based on the branch you were cut from, using stock `gh`
+   (the host retargets the base to the PR's final predecessor afterwards, so
+   do not second-guess it):
 
    `gh pr create --draft --head {{BRANCH}} --base {{BASE_BRANCH}} --title "..." --body-file <file>`
 
