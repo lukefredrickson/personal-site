@@ -31,12 +31,18 @@ lesson.
 ### Sequential walk, one draft PR per issue, chained as a GitHub stack
 
 The plan → parallel-execute → merge loop is replaced by a deterministic
-sequential walk. Open issues labeled `Sandcastle` are ordered by their
-`Build NN:` title prefix — a pure function in `.sandcastle/stack.ts`, no
-planner agent, no LLM judgment in the ordering. Each issue runs implementer +
-reviewer in a sandbox on `sandcastle/issue-<n>`, cut from the previous
-issue's branch tip via `createSandbox`'s `baseBranch` (the first from
-`main`), so each layer builds on unmerged dependencies. The implementer
+sequential walk. Open issues labeled `Sandcastle` are ordered by GitHub's
+native blocked-by DAG: a topological sort (Kahn's algorithm) in a pure
+function in `.sandcastle/stack.ts`, with the lowest issue number placed
+first whenever several issues are ready — no planner agent, no LLM judgment
+in the ordering. The `Build NN:` title prefixes remain for human
+readability but are not load-bearing. (A first cut ordered by the title
+prefix and cross-checked that order against the blocked-by edges; the two
+encodings of the same fact were collapsed into the DAG as single source of
+truth before this ADR merged, all on the same PR.) Each issue runs
+implementer + reviewer in a sandbox on `sandcastle/issue-<n>`, cut from the
+previous issue's branch tip via `createSandbox`'s `baseBranch` (the first
+from `main`), so each layer builds on unmerged dependencies. The implementer
 pushes the branch and opens a draft PR based on the previous branch with
 stock `gh`; per GitHub's stacked-PR model, correctly chained bases are all
 the automation needs. The planner and merge agents — and the merge prompt —
@@ -51,18 +57,21 @@ the required typecheck check guards every layer despite intermediate bases.
 ### The seam is `--dry-run`
 
 `npm run sandcastle -- --dry-run` exercises the real path — issue fetch,
-ordering, branch/base assignment — minus side effects, and prints the walk.
-It is both the pre-flight before every paid run and the verification for
-this change. No test framework is added: the repo intentionally has none,
-and ~30 lines of sort-and-chain logic doesn't justify importing one.
+edge fetch, ordering, branch/base assignment — minus side effects, and
+prints the walk. It is both the pre-flight before every paid run and the
+verification for this change. No test framework is added: the repo
+intentionally has none, and the sort-and-chain logic doesn't justify
+importing one.
 
-The walk is also validated against GitHub's native blocked-by graph before
-the dry-run exit (and before every paid run). The `Build NN:` order remains
-the source of truth; the graph is a cross-check that fails the run if a
-mis-ordered or mis-labeled backlog would build an issue before its blockers.
-A closed blocker counts as satisfied; an open blocker outside the walk fails
-it. The check is a pure function in `.sandcastle/stack.ts`; `main.ts` fetches
-the edges via the REST dependencies endpoint and passes them in as data.
+The blocked-by graph is the single source of truth for the order; `main.ts`
+fetches the edges via the REST dependencies endpoint and passes them into
+the pure function as data. A closed blocker outside the walk counts as
+satisfied; an open one fails the run (the stack would build on a missing
+layer), as does a cycle among walk members. The accepted trade-offs: the
+order among independent issues is whatever the lowest-number tie-break
+yields — harmless in a linear stack, where every layer builds on all
+previous ones — and a mislabeled issue is no longer rejected by a title
+check, so the dry-run printout is the guard against a wrong walk.
 
 ### Agent environment fixes
 
