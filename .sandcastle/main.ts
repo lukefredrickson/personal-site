@@ -643,7 +643,7 @@ type RestackOutcome =
   /** Rebase conflicted; the resolver agent finished it, same gate, pushed. */
   | { readonly kind: "resolved"; readonly sha: string }
   | { readonly kind: "unpushed" }
-  /** Conflicted and unresolved; `reason` says how the attempt ended. */
+  /** Unresolved; `reason` completes the clause "rebase onto <tip> …". */
   | { readonly kind: "conflict"; readonly reason: string }
   /** `resolvedConflict` marks a check failure after an agent resolution. */
   | { readonly kind: "check-failed"; readonly resolvedConflict: boolean };
@@ -733,18 +733,18 @@ function attemptResolution(
   try {
     runResolverAgent(worktree, branch, tipName);
   } catch (error) {
-    return `the resolver agent failed: ${error instanceof Error ? error.message : String(error)}`;
+    return `conflicted and the resolver agent failed: ${error instanceof Error ? error.message : String(error)}`;
   }
   if (rebaseInProgress(worktree)) {
-    return "the resolver could not finish the rebase";
+    return "conflicted and the resolver could not finish the rebase";
   }
   if (git(["status", "--porcelain"], { cwd: worktree }) !== "") {
-    return "the resolver left uncommitted changes";
+    return "conflicted and the resolver left uncommitted changes";
   }
   try {
     git(["merge-base", "--is-ancestor", tipSha, "HEAD"], { cwd: worktree });
   } catch {
-    return "the resolver's result does not descend from the chain tip";
+    return "conflicted and the resolver's result does not descend from the chain tip";
   }
   return undefined;
 }
@@ -801,7 +801,7 @@ function restackBranch(
     // that died before starting) has no conflict state to resolve.
     const failure = rebaseInProgress(worktree)
       ? attemptResolution(worktree, branch, tipName, tipSha)
-      : "the rebase failed before reaching a conflict the resolver could work on";
+      : "failed without leaving a conflict the resolver could work on";
     if (failure !== undefined) {
       abandonRebase(worktree, originSha);
       return { kind: "conflict", reason: failure };
@@ -1133,7 +1133,7 @@ async function runStack(
           continue;
         }
         if (outcome.kind === "conflict") {
-          prune(step, `rebase onto ${tipName} conflicted — ${outcome.reason}`);
+          prune(step, `rebase onto ${tipName} ${outcome.reason}`);
           continue;
         }
         if (outcome.kind === "check-failed") {
