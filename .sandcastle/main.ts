@@ -45,17 +45,24 @@
 //      with commits but no PR is incomplete and re-runs: the sandbox
 //      picks up the existing branch, finds the work done, and opens the
 //      missing PR.
-//   3. A step that cannot join the chain — a failed or commit-less
-//      build, a rebase conflict, or a failed check at its restacked
-//      tip — is pruned along with its dependency-descendants
-//      (pruneClosure). Siblings and later issues that never depended on
-//      it keep building and restack onto the last good tip. Other
-//      stacks share nothing with it, so they run regardless. The run
-//      exits non-zero if anything was pruned, with a per-stack summary.
+//   3. A conflicting rebase gets one resolver-agent attempt before it
+//      prunes: the agent runs in the restack worktree on the
+//      in-progress rebase, and its result counts only if host code
+//      finds the rebase finished, the tree clean, and `npm run check`
+//      passing — then the branch force-pushes and the chain continues
+//      as if no conflict occurred. A step that still cannot join the
+//      chain — a failed or commit-less build, a conflict the resolver
+//      could not fix, or a failed check at its restacked tip — is
+//      pruned along with its dependency-descendants (pruneClosure).
+//      Siblings and later issues that never depended on it keep
+//      building and restack onto the last good tip. Other stacks share
+//      nothing with it, so they run regardless. The run exits non-zero
+//      if anything was pruned, with a per-stack summary that
+//      distinguishes agent-resolved conflicts from pruned subtrees.
 //
 // Nothing here merges branches or closes issues: the owner reviews each PR
 // bottom-up (`gh stack` locally) and merging a PR closes its issue via the
-// closing keyword in the PR body. See ADR 0018 through ADR 0022.
+// closing keyword in the PR body. See ADR 0018 through ADR 0025.
 //
 // Usage:
 //   npm run sandcastle plan  # compute, print, and persist the plan
@@ -75,7 +82,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { z } from "zod";
@@ -633,9 +640,128 @@ type RestackOutcome =
   | { readonly kind: "noop"; readonly sha: string }
   /** Rebased, check passed, force-pushed. */
   | { readonly kind: "restacked"; readonly sha: string }
+  /** Rebase conflicted; the resolver agent finished it, same gate, pushed. */
+  | { readonly kind: "resolved"; readonly sha: string }
   | { readonly kind: "unpushed" }
-  | { readonly kind: "conflict" }
-  | { readonly kind: "check-failed" };
+  /** Conflicted and unresolved; `reason` says how the attempt ended. */
+  | { readonly kind: "conflict"; readonly reason: string }
+  /** `resolvedConflict` marks a check failure after an agent resolution. */
+  | { readonly kind: "check-failed"; readonly resolvedConflict: boolean };
+
+// ---------------------------------------------------------------------------
+// The resolver agent: one attempt on the in-progress rebase
+// ---------------------------------------------------------------------------
+
+const RESOLVE_PROMPT_FILE = ".sandcastle/resolve-prompt.md";
+
+function rebaseInProgress(worktree: string): boolean {
+  return ["rebase-merge", "rebase-apply"].some((dir) => {
+    const path = git(["rev-parse", "--git-path", dir], { cwd: worktree });
+    return existsSync(isAbsolute(path) ? path : join(worktree, path));
+  });
+}
+
+// The resolver runs on the host, in the restack worktree, because the
+// in-progress rebase state exists only there — a fresh sandbox would have
+// to redo the rebase and self-certify the result. Containment is the same
+// mechanism as the planning agent's: in -p mode every tool call outside
+// --allowedTools is auto-denied, so it can edit files and drive the rebase
+// forward but cannot push, abort, or skip commits. GIT_EDITOR=true keeps
+// `git rebase --continue` from opening an editor. Success is never taken
+// from the agent's output — the caller judges the git state afterward and
+// runs the check gate itself.
+function runResolverAgent(
+  worktree: string,
+  branch: string,
+  tipName: string,
+): void {
+  const prompt = readFileSync(RESOLVE_PROMPT_FILE, "utf8")
+    .replaceAll("{{BRANCH}}", branch)
+    .replaceAll("{{TIP}}", tipName);
+  execFileSync(
+    "claude",
+    [
+      "-p",
+      "--model",
+      "claude-opus-5",
+      "--allowedTools",
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git rebase --continue)",
+      "Bash(git commit --amend:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run check:*)",
+      "--disallowedTools",
+      "Bash(git rebase --abort)",
+      "Bash(git rebase --skip)",
+      "Bash(git push:*)",
+    ],
+    {
+      encoding: "utf8",
+      input: prompt,
+      cwd: worktree,
+      stdio: ["pipe", "inherit", "inherit"],
+      env: { ...process.env, GIT_EDITOR: "true" },
+      timeout: 30 * 60 * 1000,
+    },
+  );
+}
+
+// One attempt, judged mechanically. Returns undefined when the worktree
+// holds a plausible resolution — rebase finished, tree clean, HEAD
+// descends from the tip — and a reason string otherwise. The check gate
+// is not run here: the caller gates every rewritten tip the same way,
+// resolved or not.
+function attemptResolution(
+  worktree: string,
+  branch: string,
+  tipName: string,
+  tipSha: string,
+): string | undefined {
+  console.log(
+    `\n↻ ${branch}: rebase onto ${tipName} conflicted — giving the ` +
+      `resolver agent (claude-opus-5) one attempt before pruning…`,
+  );
+  try {
+    runResolverAgent(worktree, branch, tipName);
+  } catch (error) {
+    return `the resolver agent failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  if (rebaseInProgress(worktree)) {
+    return "the resolver could not finish the rebase";
+  }
+  if (git(["status", "--porcelain"], { cwd: worktree }) !== "") {
+    return "the resolver left uncommitted changes";
+  }
+  try {
+    git(["merge-base", "--is-ancestor", tipSha, "HEAD"], { cwd: worktree });
+  } catch {
+    return "the resolver's result does not descend from the chain tip";
+  }
+  return undefined;
+}
+
+// Whatever a failed rebase or resolution left behind, put the worktree
+// back to a clean detached HEAD so the branch's prune is the only trace.
+// Nothing was pushed on any failure path, so origin still holds the
+// pre-restack branch — there is no half-resolved state to undo remotely.
+function abandonRebase(worktree: string, originSha: string): void {
+  try {
+    git(["rebase", "--abort"], { cwd: worktree });
+  } catch {
+    // No rebase in progress — it died before starting or was completed.
+  }
+  git(["switch", "--force", "--detach", originSha], { cwd: worktree });
+  git(["clean", "-fd"], { cwd: worktree });
+}
 
 // Rebase one branch onto the chain tip, entirely against origin refs —
 // local branch names are never created or moved, so nothing here can
@@ -647,6 +773,7 @@ type RestackOutcome =
 function restackBranch(
   worktree: string,
   branch: string,
+  tipName: string,
   tipSha: string,
 ): RestackOutcome {
   let originSha: string;
@@ -666,21 +793,27 @@ function restackBranch(
   }
 
   git(["switch", "--detach", originSha], { cwd: worktree });
+  let resolvedConflict = false;
   try {
     git(["rebase", tipSha], { cwd: worktree, show: true });
   } catch {
-    try {
-      git(["rebase", "--abort"], { cwd: worktree });
-    } catch {
-      // Rebase died before starting; there is nothing to abort.
+    // A conflict stops the rebase mid-flight; anything else (a rebase
+    // that died before starting) has no conflict state to resolve.
+    const failure = rebaseInProgress(worktree)
+      ? attemptResolution(worktree, branch, tipName, tipSha)
+      : "the rebase failed before reaching a conflict the resolver could work on";
+    if (failure !== undefined) {
+      abandonRebase(worktree, originSha);
+      return { kind: "conflict", reason: failure };
     }
-    return { kind: "conflict" };
+    resolvedConflict = true;
   }
   const sha = git(["rev-parse", "HEAD"], { cwd: worktree });
 
   // The semantic-drift tripwire: each wave's siblings built blind to each
   // other, so a rebase can apply cleanly yet break the combined tree. The
-  // install trues up dependencies an issue may have added.
+  // install trues up dependencies an issue may have added. An agent
+  // resolution passes the same gate or prunes like any other bad tip.
   try {
     execFileSync("npm", ["install", "--no-audit", "--no-fund"], {
       cwd: worktree,
@@ -688,7 +821,7 @@ function restackBranch(
     });
     execFileSync("npm", ["run", "check"], { cwd: worktree, stdio: "inherit" });
   } catch {
-    return { kind: "check-failed" };
+    return { kind: "check-failed", resolvedConflict };
   }
 
   git(
@@ -700,7 +833,7 @@ function restackBranch(
     ],
     { cwd: worktree, show: true },
   );
-  return { kind: "restacked", sha };
+  return { kind: resolvedConflict ? "resolved" : "restacked", sha };
 }
 
 // True if origin/<inner>'s tip is an ancestor of origin/<outer> — outer's
@@ -741,6 +874,8 @@ interface StackOutcome {
   readonly chained: readonly StackStep[];
   /** Chained steps that skipped their sandbox (already had an open PR). */
   readonly skipped: readonly StackStep[];
+  /** Chained steps whose rebase conflict the resolver agent fixed. */
+  readonly resolved: readonly StackStep[];
   readonly pruned: readonly PrunedStep[];
 }
 
@@ -763,6 +898,7 @@ async function runStack(
 
   const levels = waveLevels(stack);
   const skipped: StackStep[] = [];
+  const resolved: StackStep[] = [];
   const pruned = new Map<number, string>();
 
   // Pruning removes the step and its dependency-descendants from the
@@ -983,7 +1119,7 @@ async function runStack(
 
         let outcome: RestackOutcome;
         try {
-          outcome = restackBranch(restackWt, step.branch, tipSha);
+          outcome = restackBranch(restackWt, step.branch, tipName, tipSha);
         } catch (error) {
           prune(
             step,
@@ -997,21 +1133,28 @@ async function runStack(
           continue;
         }
         if (outcome.kind === "conflict") {
-          prune(step, `rebase onto ${tipName} conflicted`);
+          prune(step, `rebase onto ${tipName} conflicted — ${outcome.reason}`);
           continue;
         }
         if (outcome.kind === "check-failed") {
           prune(
             step,
-            `npm run check failed at its tip restacked onto ${tipName}`,
+            outcome.resolvedConflict
+              ? `the resolver finished its rebase onto ${tipName} but npm run check failed`
+              : `npm run check failed at its tip restacked onto ${tipName}`,
           );
           continue;
         }
 
+        if (outcome.kind === "resolved") resolved.push(step);
         console.log(
           outcome.kind === "restacked"
             ? `✓ ${step.branch} restacked onto ${tipName}: check passed, force-pushed.`
-            : `✓ ${step.branch} already chains from ${tipName} — no-op.`,
+            : outcome.kind === "resolved"
+              ? `✓ ${step.branch} restacked onto ${tipName}: conflict ` +
+                `agent-resolved, check passed, force-pushed. Audit the ` +
+                `resolution when reviewing the PR.`
+              : `✓ ${step.branch} already chains from ${tipName} — no-op.`,
         );
 
         // Keep every PR based on its actual predecessor in the chain, so
@@ -1038,6 +1181,7 @@ async function runStack(
     stack,
     chained: stack.filter((s) => !pruned.has(s.issue.number)),
     skipped: skipped.filter((s) => !pruned.has(s.issue.number)),
+    resolved: resolved.filter((s) => !pruned.has(s.issue.number)),
     pruned: stack
       .filter((s) => pruned.has(s.issue.number))
       .map((s) => ({ step: s, reason: pruned.get(s.issue.number)! })),
@@ -1092,6 +1236,14 @@ for (const [i, outcome] of outcomes.entries()) {
     console.log(
       `✓ Stack ${i + 1}/${outcomes.length}: all ${outcome.stack.length} ` +
         `step(s) chained (${done}${skippedSuffix})`,
+    );
+  }
+  // The audit trail for the owner: these branches carry conflict
+  // resolutions an agent authored, not just replayed commits.
+  for (const step of outcome.resolved) {
+    console.log(
+      `    ↻ #${step.issue.number} (${step.branch}) — rebase conflict ` +
+        `agent-resolved; audit the resolution when reviewing.`,
     );
   }
 }
