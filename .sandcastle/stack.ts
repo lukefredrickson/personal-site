@@ -5,7 +5,7 @@
 // endpoint and passes them in as data. `main.ts plan` prints the stacks
 // and persists them without touching GitHub, which is both the pre-flight
 // check before a paid run and the verification path for changes to this
-// logic (the repo intentionally has no test runner; see ADR 0018).
+// logic (the repo intentionally has no test runner).
 
 export interface StackIssue {
   readonly number: number;
@@ -35,7 +35,7 @@ export interface Blocker {
 /** One blocked-by edge change proposed by the planning agent. */
 export interface EdgeMutation {
   readonly op: "add" | "remove";
-  /** The issue that is (or would no longer be) blocked. */
+  /** The blocked end of the edge: the issue that waits. */
   readonly blocked: number;
   /** The issue that blocks it. */
   readonly blocker: number;
@@ -202,7 +202,7 @@ export function planStacks(
   const inDegree = new Map<number, number>();
   const dependents = new Map<number, number[]>();
   const blockersOf = new Map<number, number[]>();
-  // Undirected adjacency, used to find the components.
+  // Undirected adjacency, for finding the components.
   const neighbors = new Map<number, number[]>();
   for (const issue of issues) {
     inDegree.set(issue.number, 0);
