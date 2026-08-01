@@ -1,6 +1,7 @@
 ---
 interface Props {
-	/** Filled pine; reserved for the one main action per view (the résumé link). */
+	/** `primary` is filled pine — the one main action per view (the résumé
+	 *  link); `secondary` is everything else. */
 	variant?: 'primary' | 'secondary';
 	/** Renders an `<a>` when set, a `<button>` otherwise. */
 	href?: string;
@@ -26,7 +27,7 @@ const Element = href ? 'a' : 'button';
 		/* Separates the label from a trailing icon the caller slots in. The icon's
 		   own size stays a call-site prop — CSS here would beat it (ADR 0015). */
 		gap: var(--space-1);
-		/* 18px sits off the spacing scale; it is the kit's button width. */
+		/* 18px sits off the spacing scale; it is the kit's button padding. */
 		padding: var(--space-2) 18px;
 		border: var(--border-w) solid var(--border-soft);
 		border-radius: var(--radius-btn);

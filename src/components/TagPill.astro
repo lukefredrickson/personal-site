@@ -14,18 +14,17 @@ interface Props {
 const { tag, topic = 'neutral', outlined = false } = Astro.props;
 
 const Element = tag ? 'a' : 'span';
+const href = tag ? `/blog/tags/${tag}/` : undefined;
 ---
 
-<Element
-	class:list={['tag-pill', topic, { outlined }]}
-	href={tag ? `/blog/tags/${tag}/` : undefined}
->
+<Element class:list={['tag-pill', topic, { outlined }]} href={href}>
 	<slot />
 </Element>
 
 <style>
 	.tag-pill {
 		display: inline-block;
+		/* Off the spacing scale; the kit's chip padding. */
 		padding: 2px 7px;
 		border-radius: var(--radius-chip);
 		font-family: var(--font-mono);
@@ -58,7 +57,8 @@ const Element = tag ? 'a' : 'span';
 
 	/* Last so it wins over the topic tints at equal specificity. */
 	.outlined {
-		/* The 1px border eats a pixel of the vertical padding. */
+		/* The border replaces a pixel of padding, so an outlined chip stands the
+		   same height as a filled one. */
 		padding: 1px 7px;
 		border: 1px solid var(--latest-border);
 		background: var(--latest-bg);
