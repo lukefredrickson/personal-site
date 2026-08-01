@@ -62,7 +62,7 @@
 //
 // Nothing here merges branches or closes issues: the owner reviews each PR
 // bottom-up (`gh stack` locally) and merging a PR closes its issue via the
-// closing keyword in the PR body. See ADR 0018 through ADR 0025.
+// closing keyword in the PR body.
 //
 // Usage:
 //   npm run sandcastle plan  # compute, print, and persist the plan
@@ -382,7 +382,7 @@ function computePlan(): Plan {
 function describeMutation(mutation: EdgeMutation): string {
   return mutation.op === "add"
     ? `add: #${mutation.blocked} blocked by #${mutation.blocker}`
-    : `remove: #${mutation.blocked} no longer blocked by #${mutation.blocker}`;
+    : `remove: #${mutation.blocked} unblocked from #${mutation.blocker}`;
 }
 
 function printPlan(plan: Plan): void {
