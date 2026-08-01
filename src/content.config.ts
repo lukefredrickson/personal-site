@@ -3,12 +3,12 @@ import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 
 /*
-  The `blog` collection — one collection, mixed `.md`/`.mdx` (ADR 0013), stored
-  folder-per-post as `<year>/<slug>/post.{md,mdx}` (ADR 0015). Year folders are
-  organizational only: the post directory name is the slug and the whole URL
+  One `blog` collection, mixed `.md`/`.mdx` (ADR 0013), folder-per-post as
+  `<year>/<slug>/post.{md,mdx}` (ADR 0015). Year folders are organizational
+  only: the post directory name is the slug and the whole URL
   (`/blog/<slug>/`), so moving a post between years changes nothing rendered.
-  Everything a post owns — hero and body photos, one-off components — sits
-  beside `post.md` and stays invisible to the loader.
+  Everything a post owns — photos, one-off components — sits beside `post.md`,
+  where the loader pattern ignores it.
 */
 
 // Lowercase kebab, so a tag string is also its route segment and pill label
@@ -20,8 +20,6 @@ const TAG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const claimedSlugs = new Map<string, string>();
 
 /*
-  Slug = post directory name, plus the duplicate-slug guard.
-
   Taking the slug from one path segment narrows the filesystem's uniqueness
   guarantee to per-year, so nothing but this check stops `2025/foo/` and
   `2026/foo/` from resolving to the same id — and by `getCollection()` time the
@@ -33,7 +31,8 @@ const claimedSlugs = new Map<string, string>();
   restarts.
 */
 function generateId({ entry }: { entry: string }): string {
-  const slug = entry.split('/')[1]!;
+  // entry is `<year>/<slug>/post.md`, per the loader pattern below.
+  const [, slug] = entry.split('/');
   const prior = claimedSlugs.get(slug);
   if (prior !== undefined && prior !== entry) {
     throw new Error(
@@ -61,7 +60,9 @@ const blog = defineCollection({
         description: z.string(), // doubles as the meta description
         pubDate: z.coerce.date(),
         updatedDate: z.coerce.date().optional(),
-        tags: z.array(z.string().regex(TAG_PATTERN, 'tags must be lowercase kebab-case')).default([]),
+        tags: z
+          .array(z.string().regex(TAG_PATTERN, 'tags must be lowercase kebab-case'))
+          .default([]),
         hero: image().optional(),
         heroAlt: z.string().optional(),
         heroCaption: z.string().optional(),
