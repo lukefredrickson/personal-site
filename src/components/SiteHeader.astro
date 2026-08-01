@@ -1,0 +1,67 @@
+---
+import ThemeToggle from './ThemeToggle.astro';
+
+// The spec passes `active` in per screen; the URL already knows. Deriving it
+// here means the layout renders one header for every page and no page can get
+// its own nav wrong. Everything outside the blog is work.
+const onBlog = Astro.url.pathname.startsWith('/blog');
+---
+
+<header class="site-header">
+	<a class="logo" href="/">lukefredrickson<span>.dev</span></a>
+	<nav aria-label="Main">
+		<a href="/" aria-current={onBlog ? undefined : 'page'}>work</a>
+		<a href="/blog/" aria-current={onBlog ? 'page' : undefined}>blog</a>
+	</nav>
+	<ThemeToggle />
+</header>
+
+<style>
+	.site-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-6);
+		/* Below the narrowest phones the wordmark and the controls stop sharing a
+		   line; wrapping beats shrinking either. */
+		flex-wrap: wrap;
+		row-gap: var(--space-4);
+	}
+
+	/* Pushes the nav and the toggle to the right edge. */
+	.logo {
+		margin-right: auto;
+		color: var(--ink);
+		font-family: var(--font-display);
+		/* No job token covers a wordmark; the design's 17px snaps to `lg`. */
+		font-size: var(--font-size-lg);
+		font-weight: 800;
+		text-decoration: none;
+	}
+
+	.logo span {
+		color: var(--logo);
+	}
+
+	nav {
+		display: flex;
+		align-items: center;
+		gap: var(--space-6);
+	}
+
+	nav a {
+		color: var(--text-muted);
+		font-family: var(--font-display);
+		font-size: var(--text-ui);
+		font-weight: 600;
+		text-decoration: none;
+		/* Reserved on every item so the current one does not shift the row. The
+		   kit's underline is heavier than a border (--border-w is 1.5px). */
+		padding-bottom: 1px;
+		border-bottom: 2.5px solid transparent;
+	}
+
+	nav a[aria-current='page'] {
+		color: var(--ink);
+		border-bottom-color: var(--link);
+	}
+</style>

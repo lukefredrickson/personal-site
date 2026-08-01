@@ -5,7 +5,7 @@ import background from '../assets/background.svg';
 
 <div id="container">
 	<img id="background" src={background.src} alt="" fetchpriority="high" />
-	<main>
+	<div id="content">
 		<section id="hero">
 			<a href="https://astro.build"
 				><img src={astroLogo.src} width="115" height="48" alt="Astro Homepage" /></a
@@ -25,7 +25,7 @@ import background from '../assets/background.svg';
 				</a>
 			</section>
 		</section>
-	</main>
+	</div>
 
 	<a href="https://astro.build/blog/astro-6-beta/" id="news" class="box">
 		<svg width="32" height="32" fill="none" xmlns="http://www.w3.org/2000/svg"
@@ -57,7 +57,7 @@ import background from '../assets/background.svg';
 		height: 100%;
 	}
 
-	main {
+	#content {
 		height: 100%;
 		display: flex;
 		justify-content: center;
