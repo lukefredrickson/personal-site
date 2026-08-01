@@ -1,0 +1,68 @@
+---
+interface Props {
+	/** The number, pre-formatted — "102", "6,400", "6:48". */
+	value: string;
+	/** Unit trailing the value — "mi", "ft", "hrs", "🌯". */
+	unit?: string;
+	/** Rendered all-caps: stat labels are the only caps in the system. */
+	label: string;
+}
+
+const { value, unit, label } = Astro.props;
+---
+
+<div class="stat-chip">
+	<div class="value">
+		<span>{value}</span>
+		{unit && <span class="unit">{unit}</span>}
+	</div>
+	<div class="label">{label}</div>
+</div>
+
+<style>
+	.stat-chip {
+		/* Chips split their row evenly; the row itself belongs to the screen. */
+		flex: 1;
+		padding: var(--space-3) var(--space-4);
+		border: var(--border-w) solid var(--border-strong);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+	}
+
+	.value {
+		display: flex;
+		align-items: baseline;
+		justify-content: center;
+		gap: var(--space-1);
+		color: var(--ink);
+		font-family: var(--font-display);
+		/* No job token covers a stat value; the design's 20px snaps to the `xl`
+		   step ADR 0011 minted as headroom. */
+		font-size: var(--font-size-xl);
+		font-weight: 800;
+		/* Undo the body's 1.5 so the two lines sit tight. */
+		line-height: 1.2;
+	}
+
+	.unit {
+		color: var(--text-muted);
+		font-size: var(--text-ui);
+		font-weight: 600;
+	}
+
+	.label {
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+		letter-spacing: var(--tracking-caps);
+		text-align: center;
+		text-transform: uppercase;
+	}
+
+	/* Whether the row wraps is the row's call; two-up is this chip's floor. */
+	@media (max-width: 40rem) {
+		.stat-chip {
+			min-width: 40%;
+		}
+	}
+</style>

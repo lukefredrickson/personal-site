@@ -1,0 +1,103 @@
+---
+import { MoveLeft, MoveRight } from '@lucide/astro';
+
+interface Neighbor {
+	title: string;
+	href: string;
+}
+
+interface Props {
+	/** The older post; omit on the first one. */
+	prev?: Neighbor;
+	/** The newer post; omit on the latest. */
+	next?: Neighbor;
+}
+
+const { prev, next } = Astro.props;
+
+// Both halves render identically apart from these four values, so they are
+// data rather than two near-copies of the markup.
+const sides = [
+	{ side: 'prev', label: 'previous', icon: MoveLeft, post: prev, fallback: "that's the first one!" },
+	{ side: 'next', label: 'next', icon: MoveRight, post: next, fallback: "that's the latest one!" },
+];
+---
+
+<nav class="prev-next" aria-label="Nearby posts">
+	{
+		sides.map(({ side, label, icon: Icon, post, fallback }) => {
+			const Element = post ? 'a' : 'div';
+			return (
+				<Element class:list={['card', side]} href={post?.href}>
+					<span class="dir">
+						<Icon size={13} /> {label}
+					</span>
+					<span class:list={['title', { faint: !post }]}>{post ? post.title : fallback}</span>
+				</Element>
+			);
+		})
+	}
+</nav>
+
+<style>
+	.prev-next {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--space-4);
+	}
+
+	.card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		/* 12px sits off the spacing scale; it is the kit's quiet-card padding. */
+		padding: 12px var(--space-5);
+		border: var(--border-w) solid var(--border-soft);
+		border-radius: var(--radius-card);
+		background: var(--surface);
+		text-decoration: none;
+	}
+
+	/* Only a real neighbor is a link, and the lift is what says so. */
+	a.card {
+		box-shadow: var(--shadow-sm);
+	}
+
+	.next {
+		text-align: right;
+	}
+
+	.dir {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	/* Arrows point outward: away from the label, toward the post. */
+	.next .dir {
+		flex-direction: row-reverse;
+		justify-content: flex-end;
+	}
+
+	.title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-item-title);
+		font-weight: 700;
+		line-height: var(--leading-heading);
+	}
+
+	.faint {
+		color: var(--text-faint);
+	}
+
+	/* Two titles side by side stop being readable before the column does. */
+	@media (max-width: 40rem) {
+		.prev-next {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

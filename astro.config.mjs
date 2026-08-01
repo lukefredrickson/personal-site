@@ -47,4 +47,14 @@ export default defineConfig({
       fallbacks: ['monospace'],
     },
   ],
+
+  image: {
+    // One responsive pipeline for every optimized image (ADR 0015): multi-width
+    // srcset, lazy loading, reserved dimensions. Set globally so plain `![]()`
+    // images in post bodies get it too, not just the `<Image>` call sites.
+    layout: 'constrained',
+    // The layout only resizes with the global styles that back it; off (the
+    // default), markdown images render at intrinsic width and overflow.
+    responsiveStyles: true,
+  },
 });
