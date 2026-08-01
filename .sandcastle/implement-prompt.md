@@ -1,12 +1,16 @@
 # TASK
 
-Fix issue {{TASK_ID}}: {{ISSUE_TITLE}}
+Implement issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}
 
-Pull in the issue using `gh issue view <ID>`. If it has a parent PRD, pull that in too.
+Pull in the issue using `gh issue view {{ISSUE_NUMBER}}`. If it has a parent
+PRD, pull that in too.
 
 Only work on the issue specified.
 
-Work on branch {{BRANCH}}. Make commits and run tests.
+You are on branch `{{BRANCH}}`, cut from `{{BASE_BRANCH}}`. This branch is one
+layer of a stacked-PR walk: earlier issues' work is already present on
+`{{BASE_BRANCH}}` even though it has not merged to main. Build on what is
+there. Never merge, rebase, or switch branches.
 
 # CONTEXT
 
@@ -18,24 +22,21 @@ Here are the last 10 commits:
 
 </recent-commits>
 
+# STANDARDS
+
+Follow @.sandcastle/CODING_STANDARDS.md. In short: idiomatic Astro, ADRs are
+binding, and the Astro docs MCP (`astro-docs`) beats training data — consult
+it for any Astro question.
+
 # EXPLORATION
 
-Explore the repo and fill your context window with relevant information that will allow you to complete the task.
-
-Pay extra attention to test files that touch the relevant parts of the code.
-
-# EXECUTION
-
-If applicable, use RGR to complete the task.
-
-1. RED: write one test
-2. GREEN: write the implementation to pass that test
-3. REPEAT until done
-4. REFACTOR the code
+Explore the repo and fill your context window with relevant information that
+will allow you to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.
+Before committing, run `npm run check` and fix every error it reports. This is
+the only gate — the repo intentionally has no test runner. Do not add one.
 
 # COMMIT
 
@@ -49,11 +50,27 @@ Make a git commit. The commit message must:
 
 Keep it concise.
 
+# PULL REQUEST
+
+When the work is complete and `npm run check` passes:
+
+1. Push the branch: `git push -u origin {{BRANCH}}`. If the push is rejected
+   for credentials, run `gh auth setup-git` once and retry.
+2. Open a draft PR based on the previous layer, using stock `gh`:
+
+   `gh pr create --draft --head {{BRANCH}} --base {{BASE_BRANCH}} --title "..." --body-file <file>`
+
+3. The body must follow `.github/pull_request_template.md`, start with
+   `Closes #{{ISSUE_NUMBER}}`, and stay under ~200 words. Never hard-wrap
+   prose in the body — GitHub renders a single newline as a line break there.
+
+Do not close the issue — merging the PR does that. Do not merge anything.
+
 # THE ISSUE
 
 If the task is not complete, leave a comment on the issue with what was done.
 
-Do not close the issue - this will be done later.
+Do not close the issue.
 
 Once complete, output <promise>COMPLETE</promise>.
 
