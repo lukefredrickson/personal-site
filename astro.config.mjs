@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig, fontProviders } from 'astro/config';
+import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
@@ -13,7 +14,10 @@ export default defineConfig({
   // before merge rather than shipping a permanent redirect hop.
   trailingSlash: 'always',
 
-  integrations: [sitemap()],
+  // Posts start as `.md` and graduate to `.mdx` when they need components
+  // (ADR 0013). No options: `.mdx` inherits the Markdown config, which is the
+  // default Sätteri processor with no plugins.
+  integrations: [mdx(), sitemap()],
 
   // Fonts are fetched from Fontsource at build time and emitted to
   // `_astro/fonts`, so visitors get first-party, year-cached files and Google
