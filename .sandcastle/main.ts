@@ -16,22 +16,34 @@
 //      A component of one issue is a plain standalone PR based on main.
 //      The result is printed for review and written to the plan file;
 //      planning never writes to GitHub.
-//   2. For each stack, for each issue in order: create a sandbox on
-//      sandcastle/issue-<n>, cut from the previous issue's branch (the
-//      first in each stack from main). The implementer runs first; it
-//      pushes the branch and opens a draft PR based on the previous branch.
-//      If it produced commits, the reviewer runs in the same sandbox and
-//      pushes any refinements. A step whose branch already has an open PR
-//      is complete — progress lives on GitHub, not in local state — so its
-//      sandbox is skipped, but the step stays in the walk as the base for
-//      its successor. Re-running after a partial failure therefore resumes
-//      at the first PR-less step of each incomplete stack. A branch with
-//      commits but no PR is incomplete and re-runs: the sandbox picks up
-//      the existing branch, finds the work done, and opens the missing PR.
-//   3. A failed or commit-less step aborts only its own stack — later
-//      layers of that stack would build on a missing foundation, but the
-//      other stacks share nothing with it, so they still run. The run
-//      exits non-zero if any stack aborted, with a per-stack summary.
+//   2. Each stack executes in the wave shape, one sandbox at a time. Its
+//      issues are grouped into the topological levels of the blocked-by
+//      graph (waveLevels): every issue in a level builds in its own
+//      sandbox on sandcastle/issue-<n>, cut from the same base — the
+//      current stack tip. The implementer pushes the branch and opens a
+//      draft PR; if it produced commits, the reviewer runs in the same
+//      sandbox. Then the level is restacked serially: siblings rebase
+//      onto the growing chain in ascending issue-number order, each
+//      rewritten tip is gated with `npm run check` (the semantic-drift
+//      tripwire for siblings that built blind to each other), rewritten
+//      branches are force-pushed, and each PR's base is retargeted to
+//      its actual predecessor. The final artifact is the same single
+//      linear chain per component the sequential walk produced — the
+//      plan's chain order is level-major precisely so the two coincide.
+//      A step whose branch already has an open PR is complete — progress
+//      lives on GitHub, not in local state — so its sandbox is skipped
+//      and its restack is a detected no-op; re-running after a partial
+//      failure therefore resumes at the first PR-less step. A branch
+//      with commits but no PR is incomplete and re-runs: the sandbox
+//      picks up the existing branch, finds the work done, and opens the
+//      missing PR.
+//   3. A step that cannot join the chain — a failed or commit-less
+//      build, a rebase conflict, or a failed check at its restacked
+//      tip — is pruned along with its dependency-descendants
+//      (pruneClosure). Siblings and later issues that never depended on
+//      it keep building and restack onto the last good tip. Other
+//      stacks share nothing with it, so they run regardless. The run
+//      exits non-zero if anything was pruned, with a per-stack summary.
 //
 // Nothing here merges branches or closes issues: the owner reviews each PR
 // bottom-up (`gh stack` locally) and merging a PR closes its issue via the
@@ -48,13 +60,22 @@
 // `run` consumes the file as-is, with no staleness check.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { z } from "zod";
 import {
   planStacks,
+  pruneClosure,
   screenMutations,
+  waveLevels,
   type Blocker,
   type EdgeMutation,
   type StackIssue,
@@ -98,7 +119,17 @@ interface Plan {
 
 function readPlan(): Plan | undefined {
   if (!existsSync(PLAN_FILE)) return undefined;
-  return JSON.parse(readFileSync(PLAN_FILE, "utf8")) as Plan;
+  const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as Plan;
+  // Wave execution needs each step's walk-internal dependencies; a plan
+  // written before the wave format lacks them, and guessing would
+  // silently mis-prune. Replanning is cheap and the plan file is local
+  // run state, so a stale format is a re-plan, not a migration.
+  if (plan.stacks.flat().some((step) => !Array.isArray(step.dependsOn))) {
+    throw new Error(
+      `${PLAN_FILE} predates the wave format — re-run \`npm run sandcastle plan\`.`,
+    );
+  }
+  return plan;
 }
 
 function writePlan(plan: Plan): void {
@@ -330,20 +361,28 @@ function printPlan(plan: Plan): void {
       `one draft PR each:\n`,
   );
   for (const [i, stack] of plan.stacks.entries()) {
+    const levels = waveLevels(stack);
     const shape =
       stack.length === 1
         ? `standalone PR based on ${stack[0]!.base}`
-        : `${stack.length} chained PRs`;
+        : `${stack.length} chained PRs, built in ${levels.length} wave(s)`;
     console.log(`Stack ${i + 1} of ${plan.stacks.length} — ${shape}:`);
-    for (const step of stack) {
-      console.log(`  #${step.issue.number} ${step.issue.title}`);
-      console.log(`      ${step.branch}  ←  based on ${step.base}`);
+    for (const [depth, level] of levels.entries()) {
+      if (stack.length > 1) {
+        console.log(`  wave ${depth + 1} — builds from ${level[0]!.base}:`);
+      }
+      for (const step of level) {
+        console.log(`    #${step.issue.number} ${step.issue.title}`);
+        console.log(`        ${step.branch}  ←  chains onto ${step.base}`);
+      }
     }
     console.log();
   }
 
   console.log(
-    "Grouping and order derived from the blocked-by graph as amended above.",
+    "Grouping, waves, and order derived from the blocked-by graph as " +
+      "amended above. Each wave's issues build from the wave's base, then " +
+      "restack serially into the single chain shown.",
   );
 }
 
@@ -488,135 +527,427 @@ function openPrUrl(branch: string): string | undefined {
   return prs[0]?.url;
 }
 
+// ---------------------------------------------------------------------------
+// Host-side git: the restack worktree
+// ---------------------------------------------------------------------------
+
+// Restacking rewrites branches with plain git, and git needs a working
+// tree that is not the operator's checkout. One detached worktree serves
+// the whole run; it is created fresh, seeded with the host's node_modules
+// so `npm run check` can run in it, and removed at the end.
+const RESTACK_DIR = ".sandcastle/restack";
+
+// Quiet by default so expected-failure probes (rev-parse on a missing
+// branch, merge-base as a boolean) don't spray "fatal:" noise; `show`
+// streams output for the operations the operator should watch.
+function git(
+  args: readonly string[],
+  opts: { readonly cwd?: string; readonly show?: boolean } = {},
+): string {
+  const out = execFileSync("git", args as string[], {
+    encoding: "utf8",
+    cwd: opts.cwd,
+    stdio: opts.show ? ["ignore", "inherit", "inherit"] : undefined,
+  });
+  return typeof out === "string" ? out.trim() : "";
+}
+
+function createRestackWorktree(): string {
+  // A dead run can leave the worktree behind; recreate it from scratch so
+  // this run never inherits stale state.
+  removeRestackWorktree();
+  git(["worktree", "add", "--detach", RESTACK_DIR]);
+  cpSync("node_modules", join(RESTACK_DIR, "node_modules"), {
+    recursive: true,
+  });
+  return RESTACK_DIR;
+}
+
+function removeRestackWorktree(): void {
+  try {
+    git(["worktree", "remove", "--force", RESTACK_DIR]);
+  } catch {
+    // Nothing to remove — the common case.
+  }
+}
+
+type RestackOutcome =
+  /** Branch already chains from the tip; nothing rewritten. */
+  | { readonly kind: "noop"; readonly sha: string }
+  /** Rebased, check passed, force-pushed. */
+  | { readonly kind: "restacked"; readonly sha: string }
+  | { readonly kind: "unpushed" }
+  | { readonly kind: "conflict" }
+  | { readonly kind: "check-failed" };
+
+// Rebase one branch onto the chain tip, entirely against origin refs —
+// local branch names are never created or moved, so nothing here can
+// collide with the operator's checkouts or need undoing on failure. Only
+// a rebase that rewrote the branch is gated with `npm run check`: a no-op
+// means this exact tree was already gated, in its sandbox on first build
+// or by a previous run's restack — that detection is also what makes
+// re-running a partially restacked wave safe.
+function restackBranch(
+  worktree: string,
+  branch: string,
+  tipSha: string,
+): RestackOutcome {
+  let originSha: string;
+  try {
+    originSha = git(["rev-parse", "--verify", `origin/${branch}`], {
+      cwd: worktree,
+    });
+  } catch {
+    return { kind: "unpushed" };
+  }
+
+  try {
+    git(["merge-base", "--is-ancestor", tipSha, originSha], { cwd: worktree });
+    return { kind: "noop", sha: originSha };
+  } catch {
+    // Not an ancestor — the branch really needs rebasing.
+  }
+
+  git(["switch", "--detach", originSha], { cwd: worktree });
+  try {
+    git(["rebase", tipSha], { cwd: worktree, show: true });
+  } catch {
+    try {
+      git(["rebase", "--abort"], { cwd: worktree });
+    } catch {
+      // Rebase died before starting; there is nothing to abort.
+    }
+    return { kind: "conflict" };
+  }
+  const sha = git(["rev-parse", "HEAD"], { cwd: worktree });
+
+  // The semantic-drift tripwire: each wave's siblings built blind to each
+  // other, so a rebase can apply cleanly yet break the combined tree. The
+  // install trues up dependencies an issue may have added.
+  try {
+    execFileSync("npm", ["install", "--no-audit", "--no-fund"], {
+      cwd: worktree,
+      stdio: ["ignore", "ignore", "inherit"],
+    });
+    execFileSync("npm", ["run", "check"], { cwd: worktree, stdio: "inherit" });
+  } catch {
+    return { kind: "check-failed" };
+  }
+
+  git(
+    [
+      "push",
+      `--force-with-lease=refs/heads/${branch}:${originSha}`,
+      "origin",
+      `HEAD:refs/heads/${branch}`,
+    ],
+    { cwd: worktree, show: true },
+  );
+  return { kind: "restacked", sha };
+}
+
+// True if origin/<inner>'s tip is an ancestor of origin/<outer> — outer's
+// history carries inner's commits. False when either branch is unpushed.
+function branchCarries(
+  worktree: string,
+  outer: string,
+  inner: string,
+): boolean {
+  try {
+    git(
+      [
+        "merge-base",
+        "--is-ancestor",
+        git(["rev-parse", "--verify", `origin/${inner}`], { cwd: worktree }),
+        git(["rev-parse", "--verify", `origin/${outer}`], { cwd: worktree }),
+      ],
+      { cwd: worktree },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The wave walk
+// ---------------------------------------------------------------------------
+
+interface PrunedStep {
+  readonly step: StackStep;
+  readonly reason: string;
+}
+
 interface StackOutcome {
   readonly stack: readonly StackStep[];
-  readonly completed: readonly StackStep[];
-  /** Steps skipped because their branch already had an open PR. */
+  /** Steps whose branch ended up on the final chain. */
+  readonly chained: readonly StackStep[];
+  /** Chained steps that skipped their sandbox (already had an open PR). */
   readonly skipped: readonly StackStep[];
-  readonly aborted?: { readonly step: StackStep; readonly reason: string };
+  readonly pruned: readonly PrunedStep[];
 }
 
 const missingPrs: string[] = [];
 const outcomes: StackOutcome[] = [];
 
-for (const [i, stack] of plan.stacks.entries()) {
-  console.log(`\n=== Stack ${i + 1}/${plan.stacks.length} ===`);
+const restackWt = createRestackWorktree();
+try {
+  for (const [i, stack] of plan.stacks.entries()) {
+    console.log(`\n=== Stack ${i + 1}/${plan.stacks.length} ===`);
 
-  const completed: StackStep[] = [];
-  const skipped: StackStep[] = [];
-  let aborted: StackOutcome["aborted"];
+    const levels = waveLevels(stack);
+    const skipped: StackStep[] = [];
+    const pruned = new Map<number, string>();
 
-  for (const step of stack) {
-    console.log(
-      `\n=== #${step.issue.number}: ${step.issue.title} (${step.base} → ${step.branch}) ===\n`,
-    );
-
-    // A crashed agent or sandbox is the same as a commit-less step from the
-    // stack's point of view: this layer is missing, so the stack must stop.
-    // The catch keeps the failure contained so the remaining stacks run.
-    let abortReason: string | undefined;
-    try {
-      // Already complete? Skip the sandbox but keep the step in the walk —
-      // its successor still chains from this branch. Inside the try so a
-      // flaked `gh` call aborts this stack, not the whole run.
-      const existingPr = openPrUrl(step.branch);
-      if (existingPr !== undefined) {
-        skipped.push(step);
-        console.log(
-          `✓ #${step.issue.number} already complete (open PR ${existingPr}) ` +
-            `— skipping.`,
-        );
-        continue;
-      }
-
-      // baseBranch cuts the new branch from the previous issue's tip, so
-      // each layer builds on dependencies that haven't merged yet. It's
-      // ignored when the branch already exists, which makes a re-run resume
-      // accumulated work.
-      const sandbox = await sandcastle.createSandbox({
-        branch: step.branch,
-        baseBranch: step.base,
-        sandbox: docker(),
-        hooks,
-        copyToWorktree,
-      });
-
-      try {
-        const implement = await sandbox.run({
-          name: `implementer #${step.issue.number}`,
-          maxIterations: 100,
-          agent: sandcastle.claudeCode("claude-opus-5"),
-          promptFile: "./.sandcastle/implement-prompt.md",
-          promptArgs: {
-            ISSUE_NUMBER: String(step.issue.number),
-            ISSUE_TITLE: step.issue.title,
-            BRANCH: step.branch,
-            BASE_BRANCH: step.base,
-          },
-        });
-
-        if (implement.commits.length === 0) {
-          abortReason = "produced no commits";
+    // Pruning removes the step and its dependency-descendants from the
+    // remaining walk; descendants record why so the summary reads whole.
+    const prune = (step: StackStep, reason: string): void => {
+      const closure = pruneClosure(stack, [step.issue.number]);
+      const descendants: number[] = [];
+      for (const n of closure) {
+        if (pruned.has(n)) continue;
+        if (n === step.issue.number) {
+          pruned.set(n, reason);
         } else {
-          // Only review if the implementer produced commits.
-          await sandbox.run({
-            name: `reviewer #${step.issue.number}`,
-            maxIterations: 1,
-            agent: sandcastle.claudeCode("claude-opus-5"),
-            promptFile: "./.sandcastle/review-prompt.md",
-            promptArgs: {
-              BRANCH: step.branch,
-              BASE_BRANCH: step.base,
-            },
-          });
+          pruned.set(n, `depends on pruned #${step.issue.number}`);
+          descendants.push(n);
         }
-      } finally {
-        await sandbox.close();
       }
-    } catch (error) {
-      abortReason = error instanceof Error ? error.message : String(error);
-    }
-
-    if (abortReason !== undefined) {
-      aborted = { step, reason: abortReason };
       console.error(
-        `\n✗ #${step.issue.number} ${abortReason}. Aborting this stack — ` +
-          `later issues in it build on this layer. Remaining stacks still run.`,
+        `\n✗ #${step.issue.number} pruned — ${reason}.` +
+          (descendants.length === 0
+            ? ""
+            : ` Its dependents ${descendants.map((n) => `#${n}`).join(", ")} ` +
+              `are pruned with it.`) +
+          ` Issues that never depended on it keep building.`,
       );
-      break;
+    };
+
+    // The chain tip this stack is growing: starts at the trunk, advances
+    // to each branch as it joins the chain.
+    git(["fetch", "origin"], { cwd: restackWt });
+    let tipName = stack[0]!.base;
+    let tipSha = git(["rev-parse", "--verify", `origin/${tipName}`], {
+      cwd: restackWt,
+    });
+
+    for (const [depth, level] of levels.entries()) {
+      const waveBase = tipName;
+
+      // -- Build phase: every survivor of this wave, one sandbox at a
+      // time, all cut from the same base — the current chain tip.
+      const toRestack: StackStep[] = [];
+      for (const step of level) {
+        const already = pruned.get(step.issue.number);
+        if (already !== undefined) {
+          console.log(`\n– #${step.issue.number} not built: ${already}.`);
+          continue;
+        }
+
+        console.log(
+          `\n=== #${step.issue.number}: ${step.issue.title} ` +
+            `(wave ${depth + 1}/${levels.length}: ${waveBase} → ${step.branch}) ===\n`,
+        );
+
+        // A crashed agent or sandbox is the same as a commit-less build:
+        // this layer is missing, so it prunes. The catch keeps the failure
+        // contained so its siblings and the other stacks still run.
+        let failure: string | undefined;
+        try {
+          // Already complete? Skip the sandbox — but the branch still
+          // takes its restack turn below, which detects the no-op. Inside
+          // the try so a flaked `gh` call prunes this step, not the run.
+          const existingPr = openPrUrl(step.branch);
+          if (existingPr !== undefined) {
+            skipped.push(step);
+            toRestack.push(step);
+            console.log(
+              `✓ #${step.issue.number} already complete (open PR ` +
+                `${existingPr}) — sandbox skipped.`,
+            );
+            continue;
+          }
+
+          // baseBranch cuts the new branch from the wave's base, so each
+          // wave builds on every earlier level even though nothing has
+          // merged. It's ignored when the branch already exists, which
+          // makes a re-run resume accumulated work.
+          const sandbox = await sandcastle.createSandbox({
+            branch: step.branch,
+            baseBranch: waveBase,
+            sandbox: docker(),
+            hooks,
+            copyToWorktree,
+          });
+
+          try {
+            const implement = await sandbox.run({
+              name: `implementer #${step.issue.number}`,
+              maxIterations: 100,
+              agent: sandcastle.claudeCode("claude-opus-5"),
+              promptFile: "./.sandcastle/implement-prompt.md",
+              promptArgs: {
+                ISSUE_NUMBER: String(step.issue.number),
+                ISSUE_TITLE: step.issue.title,
+                BRANCH: step.branch,
+                BASE_BRANCH: waveBase,
+              },
+            });
+
+            if (implement.commits.length === 0) {
+              failure = "produced no commits";
+            } else {
+              // Only review if the implementer produced commits.
+              await sandbox.run({
+                name: `reviewer #${step.issue.number}`,
+                maxIterations: 1,
+                agent: sandcastle.claudeCode("claude-opus-5"),
+                promptFile: "./.sandcastle/review-prompt.md",
+                promptArgs: {
+                  BRANCH: step.branch,
+                  BASE_BRANCH: waveBase,
+                },
+              });
+            }
+          } finally {
+            await sandbox.close();
+          }
+        } catch (error) {
+          failure = error instanceof Error ? error.message : String(error);
+        }
+
+        if (failure !== undefined) {
+          prune(step, failure);
+          continue;
+        }
+
+        // The stack is only a stack if every layer has its PR. The
+        // implementer opens it from inside the sandbox, where a flaked
+        // push or `gh pr create` would otherwise pass silently — verify
+        // from the host, with the same open-PR test the skip above uses,
+        // so a step is "complete" by one definition everywhere. A missing
+        // PR doesn't invalidate the chain (the branch still restacks), so
+        // warn and keep walking; a re-run treats the step as incomplete
+        // and effectively just opens the missing PR. A flaked verification
+        // reads as a missing PR: that path already exits non-zero and
+        // retains the plan, so the next run re-checks.
+        let pr: string | undefined;
+        try {
+          pr = openPrUrl(step.branch);
+        } catch {
+          pr = undefined;
+        }
+        if (pr !== undefined) {
+          console.log(`\n✓ #${step.issue.number} built: ${pr}`);
+        } else {
+          missingPrs.push(step.branch);
+          console.error(
+            `\n⚠ #${step.issue.number}: commits exist on ${step.branch} ` +
+              `but no PR was found. Continuing — open it manually with ` +
+              `gh pr create --draft --head ${step.branch} --base ${waveBase}, ` +
+              `or re-run \`npm run sandcastle run\` to have the step retried.`,
+          );
+        }
+        toRestack.push(step);
+      }
+
+      // -- Restack phase: serial, in ascending issue-number order (the
+      // level's own order), each sibling onto the tip the previous one
+      // left. The first sibling built from the wave base itself, so its
+      // turn is the no-op case.
+      if (toRestack.length === 0) continue;
+      console.log(
+        `\n--- Restacking wave ${depth + 1}/${levels.length} onto ${waveBase} ---`,
+      );
+      // The build phase pushed new branches; make origin refs current.
+      // The tip itself never moves during a build phase — trunk was
+      // resolved once at stack start and every later tip sha is one this
+      // run's own force-pushes produced.
+      git(["fetch", "origin"], { cwd: restackWt });
+
+      for (const step of toRestack) {
+        // A branch's history carries its whole chain as of when it was
+        // built, not just its dependencies. If a step chained on a
+        // previous run got pruned on this one, any branch cut on top of
+        // it would smuggle the pruned commits back into its own PR when
+        // rebased (or spuriously replay their conflict) — prune it too,
+        // naming the contamination, and let a re-run rebuild it clean.
+        const carrier = stack.find(
+          (s) =>
+            pruned.has(s.issue.number) &&
+            branchCarries(restackWt, step.branch, s.branch),
+        );
+        if (carrier !== undefined) {
+          prune(
+            step,
+            `its branch history contains pruned ${carrier.branch}`,
+          );
+          continue;
+        }
+
+        let outcome: RestackOutcome;
+        try {
+          outcome = restackBranch(restackWt, step.branch, tipSha);
+        } catch (error) {
+          prune(
+            step,
+            `restack failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          continue;
+        }
+
+        if (outcome.kind === "unpushed") {
+          prune(step, `${step.branch} was never pushed to origin`);
+          continue;
+        }
+        if (outcome.kind === "conflict") {
+          prune(step, `rebase onto ${tipName} conflicted`);
+          continue;
+        }
+        if (outcome.kind === "check-failed") {
+          prune(
+            step,
+            `npm run check failed at its tip restacked onto ${tipName}`,
+          );
+          continue;
+        }
+
+        console.log(
+          outcome.kind === "restacked"
+            ? `✓ ${step.branch} restacked onto ${tipName}: check passed, force-pushed.`
+            : `✓ ${step.branch} already chains from ${tipName} — no-op.`,
+        );
+
+        // Keep every PR based on its actual predecessor in the chain, so
+        // review diffs stay per-issue even after prunes reshaped the walk.
+        // Idempotent, so the no-op path retargets too.
+        try {
+          execFileSync("gh", ["pr", "edit", step.branch, "--base", tipName], {
+            encoding: "utf8",
+          });
+        } catch {
+          console.error(
+            `⚠ could not retarget the PR base of ${step.branch} — fix with ` +
+              `gh pr edit ${step.branch} --base ${tipName}.`,
+          );
+        }
+
+        tipName = step.branch;
+        tipSha = outcome.sha;
+      }
     }
 
-    completed.push(step);
-
-    // The stack is only a stack if every layer has its PR. The implementer
-    // opens it from inside the sandbox, where a flaked push or `gh pr create`
-    // would otherwise pass silently — verify from the host, with the same
-    // open-PR test the skip above uses, so a step is "complete" by one
-    // definition everywhere. A missing PR doesn't invalidate later layers
-    // (the branches still chain), so warn and keep walking; a re-run treats
-    // the step as incomplete and effectively just opens the missing PR.
-    // A flaked verification reads as a missing PR: the warning path already
-    // exits non-zero and retains the plan, so the next run re-checks.
-    let pr: string | undefined;
-    try {
-      pr = openPrUrl(step.branch);
-    } catch {
-      pr = undefined;
-    }
-    if (pr !== undefined) {
-      console.log(`\n✓ #${step.issue.number} complete: ${pr}`);
-    } else {
-      missingPrs.push(step.branch);
-      console.error(
-        `\n⚠ #${step.issue.number}: commits exist on ${step.branch} but no PR ` +
-          `was found. Continuing — open it manually with ` +
-          `gh pr create --draft --head ${step.branch} --base ${step.base}, ` +
-          `or re-run \`npm run sandcastle run\` to have the step retried.`,
-      );
-    }
+    outcomes.push({
+      stack,
+      chained: stack.filter((s) => !pruned.has(s.issue.number)),
+      skipped: skipped.filter((s) => !pruned.has(s.issue.number)),
+      pruned: stack
+        .filter((s) => pruned.has(s.issue.number))
+        .map((s) => ({ step: s, reason: pruned.get(s.issue.number)! })),
+    });
   }
-
-  outcomes.push({ stack, completed, skipped, aborted });
+} finally {
+  removeRestackWorktree();
 }
 
 // ---------------------------------------------------------------------------
@@ -625,31 +956,32 @@ for (const [i, stack] of plan.stacks.entries()) {
 
 console.log(`\n=== Run summary ===\n`);
 for (const [i, outcome] of outcomes.entries()) {
-  const doneSteps = [...outcome.skipped, ...outcome.completed];
   const done =
-    doneSteps.length === 0
+    outcome.chained.length === 0
       ? "none"
-      : doneSteps.map((s) => `#${s.issue.number}`).join(", ");
+      : outcome.chained.map((s) => `#${s.issue.number}`).join(", ");
   const skippedSuffix =
     outcome.skipped.length === 0
       ? ""
       : `, ${outcome.skipped.length} already complete`;
-  if (outcome.aborted) {
+  if (outcome.pruned.length > 0) {
     console.log(
-      `✗ Stack ${i + 1}/${outcomes.length}: ${doneSteps.length}/` +
-        `${outcome.stack.length} step(s) complete (${done}${skippedSuffix}); ` +
-        `aborted at #${outcome.aborted.step.issue.number} ` +
-        `(${outcome.aborted.step.branch}) — ${outcome.aborted.reason}`,
+      `✗ Stack ${i + 1}/${outcomes.length}: ${outcome.chained.length}/` +
+        `${outcome.stack.length} step(s) chained (${done}${skippedSuffix}); ` +
+        `pruned:`,
     );
+    for (const { step, reason } of outcome.pruned) {
+      console.log(`    #${step.issue.number} (${step.branch}) — ${reason}`);
+    }
   } else {
     console.log(
       `✓ Stack ${i + 1}/${outcomes.length}: all ${outcome.stack.length} ` +
-        `step(s) complete (${done}${skippedSuffix})`,
+        `step(s) chained (${done}${skippedSuffix})`,
     );
   }
 }
 
-const abortedCount = outcomes.filter((o) => o.aborted).length;
+const prunedCount = outcomes.filter((o) => o.pruned.length > 0).length;
 
 if (missingPrs.length > 0) {
   console.error(
@@ -658,10 +990,10 @@ if (missingPrs.length > 0) {
   );
 }
 
-if (abortedCount > 0 || missingPrs.length > 0) {
-  // Keep the plan: a resume re-executes identical walks, skipping every
-  // step that already has an open PR, so each incomplete stack picks back
-  // up at its first PR-less step.
+if (prunedCount > 0 || missingPrs.length > 0) {
+  // Keep the plan: a resume re-executes identical walks — steps with open
+  // PRs skip their sandboxes and no-op their restacks, so each stack picks
+  // back up at its first incomplete step and pruned work gets retried.
   console.error(
     `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle run\` ` +
       `to resume the same walks.`,

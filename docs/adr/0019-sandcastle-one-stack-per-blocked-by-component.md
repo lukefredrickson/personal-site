@@ -6,6 +6,8 @@ Status: Accepted, amended by
 (`--dry-run` retired in favor of `plan`/`run` with a persisted plan file)
 and [ADR 0021](0021-sandcastle-planning-agent-blocked-by-mutations.md)
 (stacks derive from the blocked-by graph as amended by the planning agent)
+and [ADR 0023](0023-sandcastle-wave-restack-pipeline.md) (the chain order
+within a component becomes level-major)
 
 Amends [ADR 0018](0018-sandcastle-sequential-stacked-pr-orchestration.md).
 Resolves

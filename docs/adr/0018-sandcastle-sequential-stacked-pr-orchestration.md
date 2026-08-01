@@ -7,7 +7,10 @@ stack per blocked-by component instead of a single chain) and
 [ADR 0020](0020-sandcastle-plan-and-run-commands-with-plan-file.md)
 (`--dry-run` retired in favor of `plan`/`run` with a persisted plan file)
 and [ADR 0022](0022-sandcastle-resume-via-open-pr-marker.md) (a step
-whose branch has an open PR is skipped, making re-runs resume)
+whose branch has an open PR is skipped, making re-runs resume) and
+[ADR 0023](0023-sandcastle-wave-restack-pipeline.md) (execution moves to
+the wave shape — levels build from a common base and restack serially,
+with prune-on-conflict instead of abort-the-stack)
 
 Resolves
 [#57](https://github.com/lukefredrickson/personal-site/issues/57). Reshapes

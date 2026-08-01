@@ -16,8 +16,14 @@ export interface StackStep {
   readonly issue: StackIssue;
   /** Branch this issue's work lands on: sandcastle/issue-<number>. */
   readonly branch: string;
-  /** Branch this one is cut from and its PR is based on. */
+  /** Branch this one is ultimately based on in the final chain. */
   readonly base: string;
+  /**
+   * Direct blockers among walk members. Drives the wave shape: the step's
+   * level is one past its deepest dependency, and a pruned step takes its
+   * transitive dependents with it.
+   */
+  readonly dependsOn: readonly number[];
 }
 
 /** A blocking issue from GitHub's native blocked-by graph. */
@@ -163,11 +169,17 @@ export function screenMutations(
  * one-step stack — a plain standalone PR based on `trunk`. Nothing tagged
  * is ever excluded; grouping replaces gatekeeping.
  *
- * Within a component the order is a topological sort (Kahn's algorithm).
- * Whenever more than one issue is ready, the lowest issue number goes
- * first — that tie-break is what makes the order deterministic, so no LLM
- * judgment call decides what gets built when. Stacks themselves are
- * ordered by their lowest member's issue number, for the same reason.
+ * Within a component the order is level-major: issues are grouped into
+ * topological levels of the blocked-by graph (a level-0 issue has no
+ * blockers in the walk; a deeper issue sits one past its deepest
+ * dependency), levels come out shallowest first, and within a level the
+ * lowest issue number goes first. That is a valid topological order —
+ * every dependency lives on a strictly shallower level — it is
+ * deterministic, so no LLM judgment call decides what gets built when,
+ * and it is exactly the order the wave restack chains branches in, so
+ * the sequential walk and the wave path produce the same chain by
+ * construction (see `waveLevels`). Stacks themselves are ordered by
+ * their lowest member's issue number, for the same reason.
  *
  * A blocker outside the walk counts as satisfied if it is closed; an open
  * one is an error, since the stack would build on a missing layer. A cycle
@@ -189,10 +201,12 @@ export function planStacks(
   // or fatal (open) — either way they never gate the sort or grouping.
   const inDegree = new Map<number, number>();
   const dependents = new Map<number, number[]>();
+  const blockersOf = new Map<number, number[]>();
   // Undirected adjacency, used to find the components.
   const neighbors = new Map<number, number[]>();
   for (const issue of issues) {
     inDegree.set(issue.number, 0);
+    blockersOf.set(issue.number, []);
     neighbors.set(issue.number, []);
   }
   for (const issue of issues) {
@@ -202,6 +216,7 @@ export function planStacks(
         const list = dependents.get(blocker.number) ?? [];
         list.push(issue.number);
         dependents.set(blocker.number, list);
+        blockersOf.get(issue.number)!.push(blocker.number);
         neighbors.get(issue.number)!.push(blocker.number);
         neighbors.get(blocker.number)!.push(issue.number);
       } else if (blocker.state !== "closed") {
@@ -238,16 +253,16 @@ export function planStacks(
     components.push(members);
   }
 
-  // Kahn's algorithm within each component. `ready` stays sorted ascending
-  // so the lowest issue number is always placed first — the deterministic
-  // tie-break. (Edges never cross components, so sorting each component
-  // alone changes nothing about the order it would get in a global sort.)
+  // Kahn's algorithm within each component, for cycle detection only —
+  // the chain order comes from the levels computed just after. (Edges
+  // never cross components, so handling each component alone changes
+  // nothing about a global sort.)
   const stacks: StackStep[][] = [];
   for (const members of components) {
-    const ready = members
-      .filter((n) => inDegree.get(n) === 0)
-      .sort((a, b) => a - b);
+    const ready = members.filter((n) => inDegree.get(n) === 0);
 
+    // Kahn order visits every dependency before its dependents, so it
+    // doubles as the evaluation order for the level computation below.
     const orderedNumbers: number[] = [];
     while (ready.length > 0) {
       const n = ready.shift()!;
@@ -256,9 +271,7 @@ export function planStacks(
         const remaining = inDegree.get(dependent)! - 1;
         inDegree.set(dependent, remaining);
         if (remaining === 0) {
-          // Insert keeping `ready` sorted; backlogs are small.
           ready.push(dependent);
-          ready.sort((a, b) => a - b);
         }
       }
     }
@@ -275,12 +288,24 @@ export function planStacks(
       continue;
     }
 
+    // The chain order is the wave levels flattened, ascending issue
+    // number within each level. Deriving it through `waveLevels` itself —
+    // over the Kahn order, which is topological as `waveLevels` requires —
+    // is what makes "the sequential chain and the wave-built chain
+    // coincide" structural rather than two computations kept in sync.
+    const provisional = orderedNumbers.map((n) => ({
+      issue: byNumber.get(n)!,
+      dependsOn: [...blockersOf.get(n)!].sort((a, b) => a - b),
+    }));
+    const chainOrder = waveLevels(provisional).flatMap((level) =>
+      [...level].sort((a, b) => a.issue.number - b.issue.number),
+    );
+
     let base = trunk;
     stacks.push(
-      orderedNumbers.map((n) => {
-        const issue = byNumber.get(n)!;
+      chainOrder.map(({ issue, dependsOn }) => {
         const branch = `sandcastle/issue-${issue.number}`;
-        const step: StackStep = { issue, branch, base };
+        const step: StackStep = { issue, branch, base, dependsOn };
         base = branch;
         return step;
       }),
@@ -295,4 +320,60 @@ export function planStacks(
   }
 
   return stacks;
+}
+
+/**
+ * Group one stack's steps into its topological levels — the wave shape.
+ * Every step in a level has all its dependencies in strictly earlier
+ * levels, so a level's issues are mutually independent: they can all
+ * build from the same base (the chain tip left by the previous level)
+ * and then restack serially in ascending issue-number order.
+ *
+ * The input must be a topological order (each step's dependencies before
+ * it); within a level the input order is preserved. `planStacks` derives
+ * its chain order through this function, so on a planned stack the
+ * levels are consecutive runs of the chain and flattening them back
+ * yields the chain order unchanged. Levels are recomputed from
+ * `dependsOn` rather than persisted, so a plan file round-trip cannot
+ * disagree with the graph it recorded.
+ */
+export function waveLevels<
+  T extends {
+    readonly issue: StackIssue;
+    readonly dependsOn: readonly number[];
+  },
+>(stack: readonly T[]): T[][] {
+  const level = new Map<number, number>();
+  const levels: T[][] = [];
+  for (const step of stack) {
+    const depth =
+      step.dependsOn.length === 0
+        ? 0
+        : Math.max(...step.dependsOn.map((d) => level.get(d)!)) + 1;
+    level.set(step.issue.number, depth);
+    (levels[depth] ??= []).push(step);
+  }
+  return levels;
+}
+
+/**
+ * The issues a prune takes with it: the seeds plus every transitive
+ * dependent among the stack's members. A step whose branch cannot join
+ * the chain — rebase conflict, failed check, failed build — leaves its
+ * dependents without their foundation, so they are pruned too; steps
+ * that never depended on it are untouched and keep building.
+ */
+export function pruneClosure(
+  stack: readonly StackStep[],
+  seeds: Iterable<number>,
+): Set<number> {
+  const pruned = new Set(seeds);
+  // Chain order visits dependencies before dependents, so one pass
+  // propagates the closure all the way down.
+  for (const step of stack) {
+    if (step.dependsOn.some((d) => pruned.has(d))) {
+      pruned.add(step.issue.number);
+    }
+  }
+  return pruned;
 }
