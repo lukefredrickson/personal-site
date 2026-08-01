@@ -13,8 +13,8 @@
 
   No @layer and no subfolders yet — both stay deferred until a utility
   framework or third-party CSS needs arbitrating (ADR 0006/0011). Everything
-  under `src/styles/` ships; the reference-only design tokens live at
-  `docs/design/` (see ADR 0007).
+  under `src/styles/` ships; the design reference these tokens came from is
+  retired (ADR 0019), so this is the only copy.
 */
 
 @import "./reset.css";

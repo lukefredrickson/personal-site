@@ -1,0 +1,24 @@
+---
+/**
+ * Row of ride stats — slot in `StatChip`s. The chips size themselves; the row
+ * owns only the gap and the narrow-viewport wrap, so a post body never has to
+ * carry layout markup of its own.
+ */
+---
+
+<div class="stat-row"><slot /></div>
+
+<style>
+	.stat-row {
+		display: flex;
+		gap: var(--space-3);
+	}
+
+	/* Four across is a desktop shape. Wrapping here meets StatChip's 40% floor,
+	   which turns the row two-up rather than four cramped columns. */
+	@media (max-width: 40rem) {
+		.stat-row {
+			flex-wrap: wrap;
+		}
+	}
+</style>

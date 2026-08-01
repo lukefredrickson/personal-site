@@ -1,8 +1,12 @@
 # 7. Quarantine the reference design tokens under `docs/design/`
 
 Date: 2026-07-22
-Status: Accepted
+Status: Accepted (retired by ADR 0019)
 Amends: ADR 0005 and ADR 0006 (token location only — both decisions stand)
+
+`docs/design/` no longer exists — ADR 0019 deleted it once the four screens
+shipped. The rule this ADR established outlives it: `src/styles/` contains
+only styles that ship.
 
 ## Context
 

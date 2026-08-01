@@ -1,22 +1,62 @@
 ---
 title: Kelly Brook loop — first century of the year
-description: 102 miles, 6,400 ft of climbing, one gas-station burrito. Notes from the first hundred of 2026.
+description: 102 miles counterclockwise around the Kelly Brook loop, with the gravel cut-through at mile 40 and one burrito.
 pubDate: 2026-06-21
-tags: [bikes, vlog]
+tags: ['bikes', 'vlog']
+hero: ./hero.png
+heroAlt: Placeholder hero art — a flat hatched panel standing in for the summit photo.
+heroCaption: top of the gap, mile 61
 ---
+
+import { YouTube } from '@astro-community/astro-embed-youtube';
+import FramedFigure from '../../../../components/FramedFigure.astro';
+import PhotoPair from '../../../../components/PhotoPair.astro';
+import StatChip from '../../../../components/StatChip.astro';
+import StatRow from '../../../../components/StatRow.astro';
+import gravel from './gravel-cut-through.png';
+import storeStop from './store-stop.png';
+
+<StatRow>
+	<StatChip value="102" unit="mi" label="Distance" />
+	<StatChip value="6,400" unit="ft" label="Climbing" />
+	<StatChip value="6:48" unit="hrs" label="Moving" />
+	<StatChip value="1" unit="🌯" label="Burritos" />
+</StatRow>
 
 Left at 6am to beat the heat, which worked for exactly two hours. The plan: the
 full Kelly Brook loop, counterclockwise this time, with the gravel cut-through
-at mile 40 that I have been eyeing since March.
+at mile 40 — the one section I had only ever ridden downhill.
 
-Counterclockwise turns out to be the right call. The long climb out of the
-valley comes at mile 25 instead of mile 75, and the fast descent lands at the
-point in the day where morale needs it most. The gravel section is two miles of
-loose baby-head rock and I would do it again immediately.
+{/* Placeholder video: Blender's Big Buck Bunny, standing in until the real
+    vlog is uploaded. Swap the id; the title is already the one on the post. */}
 
-Mile 80 is where centuries get honest. Everything above 80 is a negotiation
-between your legs and the last store stop, and the negotiation goes better with
-more water than I brought.
+<YouTube id="aqz-KE-bpKQ" title="Century vlog: Kelly Brook loop" />
 
-Notes for next time: two bottles at the store instead of one, start thirty
-minutes earlier, and never trust a road named "Brook" to be flat.
+<PhotoPair>
+	<FramedFigure
+		src={gravel}
+		alt="Placeholder photo — a flat hatched panel standing in for the gravel cut-through."
+		variant="photo"
+		height={130}
+	/>
+	<FramedFigure
+		src={storeStop}
+		alt="Placeholder photo — a flat hatched panel standing in for the store stop."
+		variant="photo"
+		height={130}
+	/>
+</PhotoPair>
+
+Mile 80 is where centuries get honest. Notes for next time: more water at the
+store stop, and never trust a road named "Brook" to be flat.
+
+## What the loop actually asks for
+
+Three things, in the order they bite:
+
+- Water. There is exactly one store between mile 52 and the finish.
+- Gearing. The gap averages 7% for two miles, on tired legs, in the sun.
+- Patience. Counterclockwise front-loads the climbing and saves the fast
+  descent for when you have stopped enjoying descending.
+
+Clockwise next time, probably. Ask me again in June.
