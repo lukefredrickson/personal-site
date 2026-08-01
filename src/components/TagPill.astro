@@ -1,0 +1,67 @@
+---
+interface Props {
+	/**
+	 * Tag slug. When set the chip links to that tag's page (ADR 0014); omit for
+	 * badges that are not tags, such as "latest".
+	 */
+	tag?: string;
+	/** Topic tint. Color in a post row only ever appears on these chips. */
+	topic?: 'code' | 'bikes' | 'video' | 'neutral';
+	/** Outlined badge treatment, used for "latest". */
+	outlined?: boolean;
+}
+
+const { tag, topic = 'neutral', outlined = false } = Astro.props;
+
+const Element = tag ? 'a' : 'span';
+---
+
+<Element
+	class:list={['tag-pill', topic, { outlined }]}
+	href={tag ? `/blog/tags/${tag}/` : undefined}
+>
+	<slot />
+</Element>
+
+<style>
+	.tag-pill {
+		display: inline-block;
+		padding: 2px 7px;
+		border-radius: var(--radius-chip);
+		font-family: var(--font-mono);
+		font-size: var(--text-chip);
+		/* Undo the body's 1.5 so the chip hugs its label. */
+		line-height: normal;
+		white-space: nowrap;
+		text-decoration: none;
+	}
+
+	.neutral {
+		background: var(--tint-sand);
+		color: var(--text-body);
+	}
+
+	.code {
+		background: var(--topic-code-bg);
+		color: var(--topic-code-fg);
+	}
+
+	.bikes {
+		background: var(--topic-bikes-bg);
+		color: var(--topic-bikes-fg);
+	}
+
+	.video {
+		background: var(--video-pill-bg);
+		color: var(--video-pill-fg);
+	}
+
+	/* Last so it wins over the topic tints at equal specificity. */
+	.outlined {
+		/* The 1px border eats a pixel of the vertical padding. */
+		padding: 1px 7px;
+		border: 1px solid var(--latest-border);
+		background: var(--latest-bg);
+		color: var(--latest-fg);
+	}
+</style>
