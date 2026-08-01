@@ -55,10 +55,12 @@
 
 .prose ul,
 .prose ol {
+  /* The hanging ▸ is placed against this, so the two stay one number. */
+  --list-indent: 1.375em;
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  padding-left: 1.375em;
+  padding-left: var(--list-indent);
 }
 
 /* ▸ markers in gold are the site's list idiom, résumé bullets included. */
@@ -73,7 +75,7 @@
 .prose ul li::before {
   content: '▸';
   position: absolute;
-  left: -1.375em;
+  left: calc(var(--list-indent) * -1);
   color: var(--bullet);
   font-weight: 700;
 }
