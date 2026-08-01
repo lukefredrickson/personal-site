@@ -12,7 +12,7 @@ interface Props {
 const { logo, tint = 'sand' } = Astro.props;
 ---
 
-<div class:list={['logo-tile', logo ? 'bare' : tint]}>
+<div class:list={['logo-tile', !logo && tint]}>
 	{/* Decorative — the entity's name is always right beside the tile. Rendered
 	    at twice the tile so the raster holds up on dense displays; CSS fits it. */}
 	{logo ? <Image src={logo} alt="" width={88} /> : <slot />}
