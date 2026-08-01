@@ -1,7 +1,9 @@
 # 20. Sandcastle: plan and run commands with a persisted plan file
 
 Date: 2026-07-31
-Status: Accepted
+Status: Accepted, amended by
+[ADR 0021](0021-sandcastle-planning-agent-blocked-by-mutations.md)
+(the planning agent now fills the `mutations` slot this ADR reserved)
 
 Amends [ADR 0018](0018-sandcastle-sequential-stacked-pr-orchestration.md)
 (retires its `--dry-run` seam) and

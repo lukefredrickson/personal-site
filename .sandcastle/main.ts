@@ -4,14 +4,18 @@
 // them; `run` executes a persisted plan and leaves one GitHub stacked-PR
 // stack per connected component of the blocked-by graph:
 //
-//   1. Planning fetches open issues labeled `Sandcastle`, partitions them
-//      into the connected components of GitHub's native blocked-by graph,
-//      and orders each component with a deterministic topological sort —
-//      all in a pure function (stack.ts), no planner agent, no LLM
-//      judgment call in the grouping or ordering. A component of one issue
-//      is a plain standalone PR based on main. The result is printed for
-//      review and written to the plan file; planning never writes to
-//      GitHub.
+//   1. Planning fetches open issues labeled `Sandcastle` and their
+//      blocked-by edges, then runs a read-only judgment agent that
+//      proposes edge additions and removals (over-tagged backlogs rarely
+//      have every real dependency drawn). Host code screens the proposal
+//      mechanically — cycle-creating or unknown-issue mutations are
+//      dropped with a reason — then partitions the amended graph into
+//      connected components and orders each with a deterministic
+//      topological sort (stack.ts). The agent has no write authority;
+//      grouping and ordering stay pure functions of the (amended) graph.
+//      A component of one issue is a plain standalone PR based on main.
+//      The result is printed for review and written to the plan file;
+//      planning never writes to GitHub.
 //   2. For each stack, for each issue in order: create a sandbox on
 //      sandcastle/issue-<n>, cut from the previous issue's branch (the
 //      first in each stack from main). The implementer runs first; it
@@ -25,7 +29,7 @@
 //
 // Nothing here merges branches or closes issues: the owner reviews each PR
 // bottom-up (`gh stack` locally) and merging a PR closes its issue via the
-// closing keyword in the PR body. See ADR 0018, ADR 0019, and ADR 0020.
+// closing keyword in the PR body. See ADR 0018 through ADR 0021.
 //
 // Usage:
 //   npm run sandcastle plan  # compute, print, and persist the plan
@@ -41,7 +45,15 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import { planStacks, type Blocker, type StackIssue, type StackStep } from "./stack.ts";
+import { z } from "zod";
+import {
+  planStacks,
+  screenMutations,
+  type Blocker,
+  type EdgeMutation,
+  type StackIssue,
+  type StackStep,
+} from "./stack.ts";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -67,14 +79,15 @@ const PLAN_FILE = ".sandcastle/plan.json";
 // ---------------------------------------------------------------------------
 
 // The persisted plan is the proposal contract between planning and
-// execution. `mutations` is always empty at this layer: it reserves the
-// slot a future judgment agent would fill with proposed backlog mutations,
-// so the file shape doesn't change when one arrives. The file's existence
-// is the marker that planning ran — a plan with no stacks means planning
-// found nothing to change, while a missing file means no plan exists.
+// execution. `mutations` holds the judgment agent's screened blocked-by
+// edge changes — `run` applies them to GitHub before walking the stacks,
+// which were already derived from the graph as amended by them. The
+// file's existence is the marker that planning ran — a plan with no
+// stacks means planning found nothing to change, while a missing file
+// means no plan exists.
 interface Plan {
   readonly stacks: readonly (readonly StackStep[])[];
-  readonly mutations: readonly unknown[];
+  readonly mutations: readonly EdgeMutation[];
 }
 
 function readPlan(): Plan | undefined {
@@ -91,8 +104,112 @@ function deletePlan(): void {
 }
 
 // ---------------------------------------------------------------------------
+// The planning agent: judgment in, proposal out, no write authority
+// ---------------------------------------------------------------------------
+
+const PLAN_PROMPT_FILE = ".sandcastle/plan-prompt.md";
+
+const proposalSchema = z.object({
+  mutations: z.array(
+    z.object({
+      op: z.enum(["add", "remove"]),
+      blocked: z.int(),
+      blocker: z.int(),
+      reasoning: z.string(),
+    }),
+  ),
+});
+
+// The judgment agent runs on the host, not in a sandbox: it needs nothing
+// a sandbox provides (no branch, no worktree, no npm install) and it must
+// not write anyway. Read-only is enforced by the harness, not the prompt:
+// in -p mode every tool call outside --allowedTools is auto-denied, and
+// the only shell commands allowed are read-only gh subcommands. The
+// prompt tells it to fan exploration out to subagents (which inherit the
+// same tool restrictions) so its own context stays for judgment.
+function runPlanningAgent(
+  issues: readonly StackIssue[],
+  blockedBy: ReadonlyMap<number, readonly Blocker[]>,
+): EdgeMutation[] {
+  const prompt = readFileSync(PLAN_PROMPT_FILE, "utf8")
+    .replace("{{ISSUES_JSON}}", JSON.stringify(issues, null, 2))
+    .replace(
+      "{{BLOCKED_BY_JSON}}",
+      JSON.stringify(
+        Object.fromEntries(
+          [...blockedBy].map(([n, blockers]) => [
+            n,
+            blockers.map((b) => b.number),
+          ]),
+        ),
+        null,
+        2,
+      ),
+    );
+
+  console.log(
+    "Running the planning agent (claude-fable-5, read-only) over the " +
+      "blocked-by graph…",
+  );
+  const output = execFileSync(
+    "claude",
+    [
+      "-p",
+      "--model",
+      "claude-fable-5",
+      "--output-format",
+      "json",
+      "--allowedTools",
+      "Read",
+      "Glob",
+      "Grep",
+      "Task",
+      "Agent",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "--disallowedTools",
+      "Write",
+      "Edit",
+      "NotebookEdit",
+    ],
+    {
+      encoding: "utf8",
+      input: prompt,
+      stdio: ["pipe", "pipe", "inherit"],
+      maxBuffer: 32 * 1024 * 1024,
+      timeout: 30 * 60 * 1000,
+    },
+  );
+
+  const result = JSON.parse(output) as {
+    is_error?: boolean;
+    result?: string;
+  };
+  if (result.is_error || typeof result.result !== "string") {
+    throw new Error(`Planning agent failed: ${JSON.stringify(result)}`);
+  }
+
+  // The prompt forbids code fences, but strip them anyway — a fenced
+  // proposal is still a proposal.
+  const text = result.result
+    .trim()
+    .replace(/^```(?:json)?\s*/, "")
+    .replace(/\s*```$/, "");
+  return proposalSchema.parse(JSON.parse(text)).mutations;
+}
+
+// ---------------------------------------------------------------------------
 // Planning: GitHub reads only, no writes
 // ---------------------------------------------------------------------------
+
+function repoNameWithOwner(): string {
+  const { nameWithOwner } = JSON.parse(
+    execFileSync("gh", ["repo", "view", "--json", "nameWithOwner"], {
+      encoding: "utf8",
+    }),
+  ) as { nameWithOwner: string };
+  return nameWithOwner;
+}
 
 function computePlan(): Plan {
   const issues: StackIssue[] = JSON.parse(
@@ -114,17 +231,15 @@ function computePlan(): Plan {
     ),
   );
 
+  // Nothing to judge and nothing to stack — skip the (paid) planning
+  // agent entirely.
   if (issues.length === 0) {
     return { stacks: [], mutations: [] };
   }
 
   // Fetch each issue's blocked-by edges — grouping and ordering are derived
   // from them. N+1 API calls; fine at this backlog size.
-  const { nameWithOwner } = JSON.parse(
-    execFileSync("gh", ["repo", "view", "--json", "nameWithOwner"], {
-      encoding: "utf8",
-    }),
-  ) as { nameWithOwner: string };
+  const nameWithOwner = repoNameWithOwner();
 
   const blockedBy = new Map<number, readonly Blocker[]>(
     issues.map((issue) => [
@@ -144,7 +259,31 @@ function computePlan(): Plan {
     ]),
   );
 
-  return { stacks: planStacks(issues, blockedBy), mutations: [] };
+  // Judgment, then a mechanical gate: the agent proposes edge changes,
+  // screenMutations drops anything cycle-creating or out-of-walk, and the
+  // stacks are derived from the graph as amended by the survivors. The
+  // rejects are logged here, once, at proposal time — they are not part
+  // of the plan because they will never be applied.
+  const proposed = runPlanningAgent(issues, blockedBy);
+  const { accepted, rejected, amended } = screenMutations(
+    issues,
+    blockedBy,
+    proposed,
+  );
+  for (const { mutation, reason } of rejected) {
+    console.error(
+      `✗ dropped ${describeMutation(mutation)} — ${reason}. ` +
+        `(agent's reasoning: ${mutation.reasoning})`,
+    );
+  }
+
+  return { stacks: planStacks(issues, amended), mutations: accepted };
+}
+
+function describeMutation(mutation: EdgeMutation): string {
+  return mutation.op === "add"
+    ? `add: #${mutation.blocked} blocked by #${mutation.blocker}`
+    : `remove: #${mutation.blocked} no longer blocked by #${mutation.blocker}`;
 }
 
 function printPlan(plan: Plan): void {
@@ -153,6 +292,30 @@ function printPlan(plan: Plan): void {
       "Empty plan: no open issues labeled Sandcastle, nothing to change.",
     );
     return;
+  }
+
+  // The agent's surviving proposal, before the stacks it reshaped.
+  // Removals get ANSI bold: an addition only serializes work, but a
+  // removal un-gates it, so it deserves the harder look.
+  if (plan.mutations.length === 0) {
+    console.log(
+      "Planning agent proposed no blocked-by changes — the graph stands " +
+        "as the owner drew it.\n",
+    );
+  } else {
+    console.log(
+      `Planning agent proposed ${plan.mutations.length} blocked-by ` +
+        `mutation(s), applied to GitHub when this plan runs:\n`,
+    );
+    for (const mutation of plan.mutations) {
+      const line = `  ${mutation.op === "add" ? "+" : "−"} ${describeMutation(mutation)}`;
+      // Bold only when stdout is a terminal; piped output keeps the "−"
+      // marker without escape-code garbage.
+      const bold = mutation.op === "remove" && process.stdout.isTTY;
+      console.log(bold ? `\x1b[1m${line}\x1b[22m` : line);
+      console.log(`      ${mutation.reasoning}`);
+    }
+    console.log();
   }
 
   const issueCount = plan.stacks.reduce((n, stack) => n + stack.length, 0);
@@ -173,7 +336,9 @@ function printPlan(plan: Plan): void {
     console.log();
   }
 
-  console.log("Grouping and order derived from the blocked-by graph.");
+  console.log(
+    "Grouping and order derived from the blocked-by graph as amended above.",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +392,74 @@ if (plan.stacks.length === 0) {
   deletePlan();
   console.log("\nNothing needed changing. Plan file deleted.");
   process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Apply the plan's blocked-by mutations to GitHub, then walk the stacks
+// ---------------------------------------------------------------------------
+
+// Only host code ever writes edges — the planning agent proposed these,
+// screening accepted them, and this is the first moment they touch
+// GitHub. Application is idempotent against the live graph (adding a
+// present edge or removing an absent one is a logged no-op), so re-running
+// a retained plan after a failure re-applies safely.
+function applyMutationsToGitHub(mutations: readonly EdgeMutation[]): void {
+  if (mutations.length === 0) return;
+
+  const nameWithOwner = repoNameWithOwner();
+  console.log(
+    `\nApplying ${mutations.length} blocked-by mutation(s) to GitHub:`,
+  );
+  for (const mutation of mutations) {
+    const path = `repos/${nameWithOwner}/issues/${mutation.blocked}/dependencies/blocked_by`;
+    const current = JSON.parse(
+      execFileSync("gh", ["api", path], { encoding: "utf8" }),
+    ) as { id: number; number: number }[];
+    const existing = current.find((b) => b.number === mutation.blocker);
+
+    if (mutation.op === "add") {
+      if (existing) {
+        console.log(`  • no-op (edge already present): ${describeMutation(mutation)}`);
+        continue;
+      }
+      // POST takes the blocking issue's database id, not its number.
+      const { id } = JSON.parse(
+        execFileSync(
+          "gh",
+          ["api", `repos/${nameWithOwner}/issues/${mutation.blocker}`],
+          { encoding: "utf8" },
+        ),
+      ) as { id: number };
+      execFileSync(
+        "gh",
+        ["api", "-X", "POST", path, "-F", `issue_id=${id}`],
+        { encoding: "utf8" },
+      );
+    } else {
+      if (!existing) {
+        console.log(`  • no-op (edge already absent): ${describeMutation(mutation)}`);
+        continue;
+      }
+      execFileSync("gh", ["api", "-X", "DELETE", `${path}/${existing.id}`], {
+        encoding: "utf8",
+      });
+    }
+    console.log(`  ✓ applied ${describeMutation(mutation)}`);
+  }
+}
+
+try {
+  applyMutationsToGitHub(plan.mutations);
+} catch (error) {
+  // A half-applied proposal must not walk: the stacks assume the amended
+  // graph. The plan is retained and application is idempotent, so a
+  // re-run picks up where this one stopped.
+  console.error(
+    `\n✗ Failed applying blocked-by mutations: ` +
+      `${error instanceof Error ? error.message : String(error)}\n` +
+      `Plan retained at ${PLAN_FILE} — fix and re-run \`npm run sandcastle run\`.`,
+  );
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
