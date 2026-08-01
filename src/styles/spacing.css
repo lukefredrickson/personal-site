@@ -25,7 +25,7 @@
   --radius-pill: 99px;    /* filter pills, theme toggle */
   --radius-card: 16px;    /* all cards & figures (major cards, inner cards, code blocks, prev/next) */
   --radius-sm: 10px;      /* stat chips, photo thumbs, logo tiles */
-  --radius-btn: 10px;     /* buttons */
+  --radius-btn: 10px;     /* buttons — same tier as --radius-sm, named apart */
   --radius-chip: 5px;     /* tag pills */
 
   /* borders */
