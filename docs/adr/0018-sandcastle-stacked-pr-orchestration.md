@@ -4,9 +4,10 @@ Date: 2026-07-31
 
 Status: Accepted
 
-Resolves [#57](https://github.com/lukefredrickson/personal-site/issues/57)
-and [#59](https://github.com/lukefredrickson/personal-site/issues/59)–
-[#65](https://github.com/lukefredrickson/personal-site/issues/65).
+Resolves [#57](https://github.com/lukefredrickson/personal-site/issues/57),
+[#59](https://github.com/lukefredrickson/personal-site/issues/59)–
+[#65](https://github.com/lukefredrickson/personal-site/issues/65), and
+[#76](https://github.com/lukefredrickson/personal-site/issues/76).
 Reshapes the Sandcastle setup landed in
 [#17](https://github.com/lukefredrickson/personal-site/pull/17) before its
 first real run over the build backlog (#42–52). This ADR is the single
@@ -181,12 +182,27 @@ The agents' gate is `npm run check`; the repo intentionally has no test
 runner and the prompts forbid adding one. `CODING_STANDARDS.md` is a
 fully self-contained rule sheet loaded by the implementer and reviewer.
 A repo-level `.mcp.json` registers the Astro docs MCP so sandboxed
-agents inherit it. Nothing merges branches or closes issues: the owner
-reviews each stack bottom-up with the `gh-stack` extension — a local,
-human-side tool, deliberately not in the agent image — and merging a PR
-closes its issue via the closing keyword in the PR body. Branch
-protection evaluates against `main`, so the required typecheck check
-guards every layer despite intermediate bases.
+agents inherit it.
+
+### Run output: linked stacks
+
+The run's deliverable is a set of GitHub stacks, not just base-chained
+PRs. At run end the host binds each multi-PR stack with the `gh-stack`
+CLI: `gh stack link <PRs bottom-to-top>`, passing the full chained
+membership — `link` refuses partial updates, so the full set both
+creates a new stack and updates an existing one, making re-linking on
+resume idempotent and keeping a prune-reshaped chain's stack current.
+Standalone PRs need no link. A link failure warns and exits non-zero
+with the plan retained, like a missing PR; the next run skips completed
+work and just re-links. The extension is host-side only — sandboxed
+agents never run `gh stack` (it is not in the agent image), and
+`gh stack view` cannot verify the links, since it reads local tracking
+state while `link`-created stacks live on GitHub.
+
+Nothing merges branches or closes issues: the owner reviews each stack
+bottom-up, and merging a PR closes its issue via the closing keyword in
+the PR body. Branch protection evaluates against `main`, so the
+required typecheck check guards every layer despite intermediate bases.
 
 ## Alternatives considered
 
@@ -218,8 +234,12 @@ guards every layer despite intermediate bases.
 
 ## Consequences
 
-- One AFK run leaves per-component stacks of draft PRs; merging a bottom
-  PR auto-retargets and rebases the rest server-side, re-running CI.
+- One AFK run leaves linked per-component stacks of draft PRs; merging a
+  bottom PR auto-retargets and rebases the rest server-side, re-running
+  CI.
+- A re-run that prunes a previously linked step can make the link update
+  refuse (removing a member needs the full remaining set); this surfaces
+  as a link failure for the operator to resolve.
 - The stacking tax: changes requested on a middle PR force a rebase of
   everything above (`gh stack sync` automates the mechanics; the
   mostly-disjoint files across build issues keep conflicts rare).
@@ -238,7 +258,9 @@ guards every layer despite intermediate bases.
 - The sandbox's GitHub token needs Contents read/write on top of issues
   and pull-request scopes. `plan` and the resolver require the `claude`
   CLI on the host, running with the operator's credentials; for the
-  resolver the tool allowlist is the containment boundary.
+  resolver the tool allowlist is the containment boundary. `run` also
+  requires the `gh-stack` extension (`gh extension install
+  github/gh-stack`) on the host.
 - Agent-resolved tips contain authored resolution code gated only by
   `npm run check` and PR review; the summary's audit markers exist so
   that review actually happens.

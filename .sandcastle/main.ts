@@ -60,9 +60,10 @@
 //      if anything was pruned, with a per-stack summary that
 //      distinguishes agent-resolved conflicts from pruned subtrees.
 //
-// Nothing here merges branches or closes issues: the owner reviews each PR
-// bottom-up (`gh stack` locally) and merging a PR closes its issue via the
-// closing keyword in the PR body.
+// Nothing here merges branches or closes issues: each multi-PR stack is
+// linked on GitHub with `gh stack link` at run end, the owner reviews each
+// PR bottom-up, and merging a PR closes its issue via the closing keyword
+// in the PR body.
 //
 // Usage:
 //   npm run sandcastle plan  # compute, print, and persist the plan
@@ -1248,6 +1249,40 @@ for (const [i, outcome] of outcomes.entries()) {
   }
 }
 
+// The run's deliverable is linked stacks, not just base-chained PRs. Link
+// each multi-PR stack with the gh-stack CLI, full chained membership
+// bottom-to-top: `gh stack link` refuses partial updates, so passing the
+// full set both creates and updates — re-linking on resume is idempotent,
+// and a chain reshaped by prunes updates its existing stack. Standalone
+// PRs need no link. (`gh stack view` cannot verify these links — it reads
+// local tracking state only; `link`-created stacks live on GitHub.)
+const linkFailures: string[] = [];
+for (const [i, outcome] of outcomes.entries()) {
+  if (outcome.chained.length < 2) continue;
+  const label = `stack ${i + 1}/${outcomes.length}`;
+  try {
+    const urls = outcome.chained.map((step) => {
+      const url = openPrUrl(step.branch);
+      if (url === undefined) {
+        throw new Error(`no open PR on ${step.branch}`);
+      }
+      return url;
+    });
+    execFileSync("gh", ["stack", "link", ...urls], {
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    console.log(`✓ ${label}: ${urls.length} PRs linked via gh stack link.`);
+  } catch (error) {
+    linkFailures.push(label);
+    console.error(
+      `⚠ ${label}: gh stack link failed — ` +
+        `${error instanceof Error ? error.message : String(error)}. ` +
+        `Re-run \`npm run sandcastle run\` to re-link, or link by hand ` +
+        `with gh stack link <bottom PR> … <top PR>.`,
+    );
+  }
+}
+
 const prunedCount = outcomes.filter((o) => o.pruned.length > 0).length;
 
 if (missingPrs.length > 0) {
@@ -1257,7 +1292,7 @@ if (missingPrs.length > 0) {
   );
 }
 
-if (prunedCount > 0 || missingPrs.length > 0) {
+if (prunedCount > 0 || missingPrs.length > 0 || linkFailures.length > 0) {
   // Keep the plan: a resume re-executes identical walks — steps with open
   // PRs skip their sandboxes and no-op their restacks, so each stack picks
   // back up at its first incomplete step and pruned work gets retried.
@@ -1270,7 +1305,7 @@ if (prunedCount > 0 || missingPrs.length > 0) {
 
 deletePlan();
 console.log(
-  `\nAll done; plan file deleted. Review each stack bottom-up: bind its ` +
-    `PRs with gh stack, merge the bottom PR first, and let auto-retargeting ` +
-    `handle the rest.`,
+  `\nAll done; plan file deleted. Stacks are linked on GitHub — review ` +
+    `each one bottom-up, merge the bottom PR first, and let ` +
+    `auto-retargeting handle the rest.`,
 );
