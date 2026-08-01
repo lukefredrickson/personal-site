@@ -48,3 +48,97 @@ Worker runs. Used to send `www.dev`, `.com`, `www.com` → `lukefredrickson.dev`
 
 **`_atproto` TXT** — DNS record on `.dev` that verifies the Bluesky handle.
 Preserved through all DNS changes.
+
+## Sandcastle
+
+The name is overloaded three ways; each gets its own term. Full design:
+ADR 0018.
+
+**Orchestrator** — the stacked-PR system in `.sandcastle/` at this repo's
+root, run via `npm run sandcastle <plan|run>`. When "Sandcastle" appears
+unqualified in this repo, it means this.
+_Avoid_: bare "Sandcastle" where the library or label could be meant.
+
+**Sandcastle library** — `@ai-hero/sandcastle`, the upstream npm package
+(github.com/mattpocock/sandcastle) that provides sandbox lifecycle and
+agent invocation. The orchestrator is a consumer; stacking, planning, and
+restacking are all this repo's code, not the library's.
+
+**Sandcastle label** — the GitHub issue label that is the orchestrator's
+queue: planning reads exactly the open issues carrying it. Meta-fixes to
+the orchestrator itself are deliberately not labeled.
+
+### Planning
+
+**Plan** — the persisted proposal (`.sandcastle/plan.json`, gitignored)
+that `run` executes byte-for-byte. Records intent, never progress; spent
+(deleted) on a fully successful run, retained on failure for resume.
+_Avoid_: treating the plan as run state or a progress log.
+
+**Replan** — overwriting the plan by re-running `plan`. The only refresh
+gesture; there is no separate command.
+
+**Judgment agent** — the read-only host-run agent that proposes blocked-by
+edge additions and removals during planning. Proposes only; host code
+screens and applies.
+_Avoid_: planner, planning agent.
+
+**Mutation** — one proposed blocked-by edge addition or removal.
+Screened mechanically (`screenMutations`): cycle-creating or
+unknown-issue mutations drop with a logged reason. `run` is the only
+writer of surviving mutations to GitHub.
+
+### Stacks
+
+**Blocked-by graph** — GitHub's native issue-dependency edges over the
+labeled issues, as amended by screened mutations. The sole input to
+grouping and ordering; its accuracy is load-bearing.
+
+**Stack** — one ordered chain of steps per connected component of the
+blocked-by graph, chained from `main`. A one-issue component is a
+standalone PR, not a stack.
+
+**Step** — one issue's unit of work: (issue, branch `sandcastle/issue-<n>`,
+base). Complete exactly when its branch has an open PR — progress lives
+on GitHub, not in local state.
+
+**Level** — one topological rank of a stack's blocked-by graph: the
+issues with no unbuilt blockers, ordered ascending by issue number
+(level-major order).
+
+**Wave** — the concurrent execution of one level: each member builds in
+its own sandbox cut from the same chain tip. Level is graph structure;
+wave is its execution.
+
+### Execution
+
+**Sandbox** — the isolated Docker environment (via the Sandcastle
+library) in which one step's agents build. Drawn from a global pool
+capped at 3, shared across all stacks.
+
+**Implementer / Reviewer** — the sandboxed agents for one step: the
+implementer builds, pushes, and opens the draft PR; the reviewer runs
+after it in the same sandbox, only if commits were produced.
+
+**Check gate** — `npm run check`, the single mechanical pass/fail signal.
+Gates the implementer in the sandbox and every rewritten tip on the host;
+the repo intentionally has no test runner.
+
+**Restack** — the serial post-wave rebase of each branch onto the growing
+chain in a dedicated host worktree under a lock, gated per tip, then
+force-pushed with its PR base retargeted. Owns all raw git for the run
+(structural invariant).
+
+**Detected no-op** — a restack step whose branch already descends from
+the chain tip: nothing rewritten, no re-check, no push. How completed
+steps resume for free.
+
+**Resolver agent** — the host-run agent given one attempt at a conflicted
+rebase, inside the restack worktree. Judged mechanically by the git state
+it leaves; its self-report is ignored (as is the implementer's).
+
+**Prune** — removing from the chain a step that cannot join it, together
+with its dependency-descendants (prune closure) — including any branch
+whose history contains a pruned step's commits. Pruned branches and PRs
+are left untouched for the operator or a re-run; any prune makes the run
+exit non-zero.
