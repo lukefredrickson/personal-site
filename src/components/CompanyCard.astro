@@ -1,0 +1,66 @@
+---
+import type { ImageMetadata } from 'astro';
+import Card from './Card.astro';
+import LogoTile from './LogoTile.astro';
+
+interface Props {
+	name: string;
+	/** e.g. "2022–now · 4 yrs" or "summer 2021" — ranges use – (en-dash). */
+	dates: string;
+	/** Employer logo; falls back to the monogram when absent. */
+	logo?: ImageMetadata;
+	/** 1–2 letters, used until a real logo is supplied. */
+	monogram?: string;
+	/** Tint behind the monogram. */
+	tint?: 'sand' | 'pine' | 'gold' | 'green';
+}
+
+const { name, dates, logo, monogram, tint } = Astro.props;
+---
+
+{/* One card per employer — a single-role internship keeps the same anatomy so
+    the cards match down the page. Roles go in the default slot, newest first. */}
+<Card>
+	<Fragment slot="header">
+		<LogoTile logo={logo} tint={tint}>{monogram}</LogoTile>
+		<div class="identity">
+			<h3 class="name">{name}</h3>
+			<span class="dates">{dates}</span>
+		</div>
+	</Fragment>
+	<div class="roles">
+		<slot />
+	</div>
+</Card>
+
+<style>
+	.identity {
+		display: flex;
+		flex: 1;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: var(--space-4);
+	}
+
+	.name {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-card-title);
+		font-weight: 700;
+	}
+
+	.dates {
+		flex: none;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	/* Each role carries its own bottom spacing (RoleEntry's `last`), so the
+	   column needs no gap. */
+	.roles {
+		display: flex;
+		flex-direction: column;
+		padding: var(--space-5) var(--space-6) var(--space-6);
+	}
+</style>

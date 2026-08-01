@@ -1,0 +1,137 @@
+---
+interface Props {
+	title: string;
+	/** "2025–now" — omit on single-role cards, where the header carries them. */
+	dates?: string;
+	/** Verb-first, quantified. 3–4 for the current role, ~3 for past ones. */
+	bullets?: string[];
+	/** The role held today: accent dot and colored markers. One per page. */
+	current?: boolean;
+	/** Last role in the card: no rail below the dot, no bottom padding. */
+	last?: boolean;
+}
+
+const { title, dates, bullets = [], current = false, last = false } = Astro.props;
+---
+
+<div class:list={['role', { current, last }]}>
+	{/* Promotion ladder: the dot marks this role, the rail reaches to the next
+	    one down. */}
+	<div class="timeline">
+		<span class="dot"></span>
+		{!last && <span class="rail"></span>}
+	</div>
+	<div class="entry">
+		<div class="heading">
+			<h4 class="title">{title}</h4>
+			{dates && <span class="dates">{dates}</span>}
+		</div>
+		{
+			bullets.length > 0 && (
+				<ul class="bullets">
+					{bullets.map((bullet) => (
+						<li>{bullet}</li>
+					))}
+				</ul>
+			)
+		}
+	</div>
+</div>
+
+<style>
+	.role {
+		display: flex;
+		gap: var(--space-5);
+	}
+
+	.timeline {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		flex: none;
+		width: 12px;
+		/* Drops the dot onto the title's cap height. */
+		padding-top: 2px;
+	}
+
+	.dot {
+		width: 12px;
+		height: 12px;
+		border: var(--border-w) solid var(--marker-muted);
+		border-radius: 50%;
+		background: var(--surface);
+	}
+
+	.rail {
+		flex: 1;
+		width: var(--border-w);
+		margin: var(--space-1) 0;
+		background: var(--rail);
+	}
+
+	.current .dot {
+		border-color: var(--dot-current-ring);
+		background: var(--accent);
+	}
+
+	.entry {
+		flex: 1;
+		padding-bottom: var(--space-6);
+	}
+
+	.last .entry {
+		padding-bottom: 0;
+	}
+
+	.heading {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: var(--space-4);
+	}
+
+	.title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-item-title);
+		font-weight: 700;
+	}
+
+	.dates {
+		flex: none;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	.bullets {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin-top: var(--space-2);
+		padding: 0;
+		list-style: none;
+	}
+
+	.bullets li {
+		display: flex;
+		gap: var(--space-3);
+		color: var(--text-body);
+		font-family: var(--font-body);
+		font-size: var(--text-small);
+		line-height: 1.5;
+	}
+
+	/* Marker as a pseudo-element: decorative, and it keeps the bullet text a
+	   clean string in the accessibility tree. */
+	.bullets li::before {
+		content: '▸';
+		flex: none;
+		color: var(--marker-muted);
+		font-weight: 700;
+	}
+
+	.current .bullets li::before {
+		color: var(--bullet);
+	}
+</style>
