@@ -1,11 +1,273 @@
 ---
-import Welcome from '../components/Welcome.astro';
+import { ExternalLink, FileText, MoveRight, Send } from '@lucide/astro';
+import { Image } from 'astro:assets';
+import energyhubLogo from '../assets/energyhub.jpeg';
+import headshot from '../assets/luke-headshot.jpg';
+import packetizedLogo from '../assets/packetized-energy.png';
+import Button from '../components/Button.astro';
+import CompanyCard from '../components/CompanyCard.astro';
+import EducationLine from '../components/EducationLine.astro';
+import FeaturedPostCard from '../components/FeaturedPostCard.astro';
+import PostListItem from '../components/PostListItem.astro';
+import RoleEntry from '../components/RoleEntry.astro';
+import SectionTitle from '../components/SectionTitle.astro';
+import type { Tag, Topic } from '../components/TagPill.astro';
 import Layout from '../layouts/Layout.astro';
+import { getPublishedPosts } from '../lib/posts';
+
+// The newest post leads the section; the rest are rows. Four keeps the home
+// list a teaser — /blog/ is where the archive lives.
+const [featured, ...older] = await getPublishedPosts();
+const recent = older.slice(0, 4);
+
+// The tag→topic map is the screen's: the chip takes a tint, not a vocabulary.
+// An unmapped tag is still a working chip, just neutral.
+const TOPICS: Record<string, Topic> = { code: 'code', bikes: 'bikes', video: 'video' };
+const chips = (tags: string[]): Tag[] => tags.map((tag) => ({ tag, topic: TOPICS[tag] }));
+
+// The cards take a pre-formatted date, so the shaping is the screen's. UTC, or
+// a date stamped at midnight renders as the day before in western timezones.
+// Lowercase because the design's mono meta always is.
+const exactDate = (date: Date) =>
+	date
+		.toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			timeZone: 'UTC',
+		})
+		.toLowerCase();
+
+// Month precision: rows sit under a featured card that carries the exact date.
+const monthDate = (date: Date) =>
+	date
+		.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+		.toLowerCase();
+
+// The schema pairs a hero with its alt text; testing both is what proves that
+// pairing to TypeScript here, where the card takes them as a unit.
+const hero =
+	featured?.data.hero && featured.data.heroAlt
+		? { hero: featured.data.hero, heroAlt: featured.data.heroAlt }
+		: {};
 ---
 
 {/* Home is the one page with no `title`, so it renders the bare site name. */}
 <Layout
 	description="Luke Fredrickson — full-stack engineer with a front-end focus. I build products end to end and write about what I learn along the way."
 >
-	<Welcome />
+	<div class="page">
+		<header class="hero">
+			<Image class="portrait" src={headshot} alt="Luke Fredrickson" width={150} />
+			<div class="greeting">
+				<h1>Hey, I'm <span class="mark">Luke</span></h1>
+				<p class="intro">
+					Full-stack engineer with a front-end focus. I build products end to end and write about
+					what I learn along the way.
+				</p>
+			</div>
+		</header>
+
+		{/* Only the github link is real: the résumé PDF, the LinkedIn profile and
+		    the address are placeholders, like the career content below. */}
+		<div class="links">
+			<Button variant="primary" href="/resume.pdf">résumé <FileText size={13} /></Button>
+			<Button href="https://github.com/lukefredrickson">github <ExternalLink size={13} /></Button>
+			<Button href="https://www.linkedin.com/in/lukefredrickson/">
+				linkedin <ExternalLink size={13} />
+			</Button>
+			<Button href="mailto:hello@lukefredrickson.dev">email <Send size={13} /></Button>
+		</div>
+
+		<section class="section">
+			<SectionTitle>Where I've worked</SectionTitle>
+
+			{/* The design's placeholder career copy, verbatim — real history is a
+			    content pass of its own. */}
+			<CompanyCard name="EnergyHub" dates="2022–now · 4 yrs" logo={energyhubLogo}>
+				<RoleEntry
+					current
+					title="Senior Software Engineer"
+					dates="2025–now"
+					bullets={[
+						'Own front-end architecture across three product teams (~25 engineers)',
+						'Led the design-system rebuild: 90+ components, adopted by every team in two quarters',
+						'Drove the Webpack→Vite migration, cutting CI build times 70%',
+						'Mentor two junior engineers; run the front-end guild',
+					]}
+				/>
+				<RoleEntry
+					title="Software Engineer II"
+					dates="2023–25"
+					bullets={[
+						'Shipped the customer dashboard end to end — React front end, Node/Postgres services',
+						"Cut p95 page-load from 4.2s to 1.1s; wrote the team's UI performance playbook",
+						'Interviewed 30+ candidates; built the front-end take-home exercise still in use',
+					]}
+				/>
+				<RoleEntry
+					last
+					title="Software Engineer I"
+					dates="2022–23"
+					bullets={[
+						'Full-stack feature work across the React/Node codebase',
+						'Rebuilt onboarding flow, cutting signup drop-off 18%',
+						'Wrote the internal CLI for local env setup, now used company-wide',
+					]}
+				/>
+			</CompanyCard>
+
+			{/* Carries the timeline across the gap between employers. */}
+			<div class="connector" aria-hidden="true"></div>
+
+			<CompanyCard name="Packetized Energy" dates="summer 2021" logo={packetizedLogo}>
+				<RoleEntry
+					last
+					title="Software Engineering Intern"
+					bullets={['Built internal tooling for the data team; returned an offer, chose EnergyHub']}
+				/>
+			</CompanyCard>
+
+			<EducationLine degree="B.S. Computer Science" school="State University" year="2021" />
+		</section>
+
+		<section class="section">
+			<SectionTitle>Writing</SectionTitle>
+
+			{
+				featured && (
+					<FeaturedPostCard
+						title={featured.data.title}
+						href={`/blog/${featured.id}/`}
+						excerpt={featured.data.description}
+						date={exactDate(featured.data.pubDate)}
+						tags={chips(featured.data.tags)}
+						placeholder="post hero image"
+						{...hero}
+					/>
+				)
+			}
+
+			{/* PostListItem closes its own group, so the rows need no divider prop. */}
+			<div class="rows">
+				{
+					recent.map((post) => (
+						<PostListItem
+							compact
+							title={post.data.title}
+							href={`/blog/${post.id}/`}
+							date={monthDate(post.data.pubDate)}
+							tags={chips(post.data.tags)}
+						/>
+					))
+				}
+			</div>
+
+			<a class="more" href="/blog/">all posts <MoveRight size={14} /></a>
+		</section>
+	</div>
 </Layout>
+
+<style>
+	.page {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-8);
+	}
+
+	.hero {
+		display: flex;
+		align-items: center;
+		gap: var(--space-7);
+	}
+
+	.portrait {
+		flex: none;
+		width: 150px;
+		height: 150px;
+		border: var(--border-w) solid var(--border-strong);
+		border-radius: var(--radius-card);
+		box-shadow: var(--shadow-photo);
+		object-fit: cover;
+	}
+
+	.greeting {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	h1 {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-hero);
+		font-weight: 800;
+		letter-spacing: var(--tracking-display);
+		line-height: var(--leading-tight);
+	}
+
+	/* Highlighter stroke: the gradient starts partway up the line, so the ink
+	   sits on the word rather than boxing it. */
+	.mark {
+		background: linear-gradient(transparent 64%, var(--highlight) 64%);
+	}
+
+	.intro {
+		/* Measure: the intro reads as three short lines beside the portrait. */
+		max-width: 440px;
+		color: var(--text-body);
+		font-family: var(--font-body);
+		font-size: var(--text-article);
+		line-height: var(--leading-body);
+	}
+
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
+	}
+
+	.section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-5);
+	}
+
+	.connector {
+		display: flex;
+		justify-content: center;
+		/* Pulls the dotted run tight against both cards, inside the section gap. */
+		height: 22px;
+		margin: -5px 0;
+	}
+
+	.connector::before {
+		content: '';
+		border-left: 2.5px dotted var(--rail);
+	}
+
+	.rows {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.more {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		width: fit-content;
+		color: var(--link);
+		font-family: var(--font-display);
+		font-size: var(--text-small);
+		font-weight: 700;
+		text-decoration: none;
+	}
+
+	/* Portrait and greeting stop fitting side by side before the column does. */
+	@media (max-width: 40rem) {
+		.hero {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+	}
+</style>
