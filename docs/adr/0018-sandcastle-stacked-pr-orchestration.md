@@ -109,9 +109,10 @@ though nothing has merged. The implementer (claude-opus-5, gated on
 `npm run check`) pushes the branch and opens a draft PR with stock `gh`;
 if it produced commits, a reviewer runs in the same sandbox. All stacks
 launch at once, and every build draws from one global sandbox pool — a
-FIFO counting semaphore capped at `SANDCASTLE_MAX_SANDBOXES` (default 3,
-env var, no code change to tune). The binding resources (containers,
-paid agents) are machine- and budget-wide, so the limit is too.
+FIFO counting semaphore capped at `MAX_SANDBOXES` (a plain constant, 3;
+an env-var override existed briefly and was removed as unused knob
+machinery). The binding resources (containers, paid agents) are machine-
+and budget-wide, so the limit is too.
 
 After the whole wave settles, the level restacks serially in ascending
 issue-number order, in a throwaway host worktree under a lock (the
