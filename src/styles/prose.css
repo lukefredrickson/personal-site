@@ -1,0 +1,111 @@
+/*
+  prose.css — typography for rendered markdown.
+
+  ADR 0010's one global-CSS exception: the `<p>`/`<h2>`/`<a>` a post body
+  compiles to cannot carry scoped classes, so their styles live here, under a
+  `.prose` wrapper that keeps them off the rest of the site. Typography only —
+  anything in prose with chrome (figures, code frames, video embeds) is a
+  component or an integration and styles itself.
+
+  Vertical rhythm is authored in rem/em rather than the px spacing scale
+  (ADR 0011): article measure should scale with the reader's font size.
+*/
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  /* Flex gap rather than margins: one spacing rule, no collapsing to reason about. */
+  gap: 1.125rem;
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--text-article);
+  line-height: var(--leading-article);
+}
+
+.prose h2,
+.prose h3 {
+  color: var(--ink);
+  font-family: var(--font-display);
+  /* On top of the flex gap — a new section needs more air than a paragraph. */
+  margin-top: 1rem;
+}
+
+.prose h2 {
+  font-size: var(--text-section);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.prose h3 {
+  font-size: var(--text-card-title);
+  font-weight: 700;
+}
+
+.prose a {
+  border-bottom: var(--border-w) solid var(--link);
+  color: var(--link);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.prose strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.prose ul,
+.prose ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-left: 1.375em;
+}
+
+/* ▸ markers in gold are the site's list idiom, résumé bullets included. */
+.prose ul {
+  list-style: none;
+}
+
+.prose ul li {
+  position: relative;
+}
+
+.prose ul li::before {
+  content: '▸';
+  position: absolute;
+  left: -1.375em;
+  color: var(--bullet);
+  font-weight: 700;
+}
+
+.prose ol li::marker {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.prose blockquote {
+  border-left: 3px solid var(--accent);
+  /* Optical: the rule wants breathing room the text block doesn't. */
+  padding: 2px 0 2px 18px;
+  /* No job token covers a pull quote; the design's 17px snaps to the `lg` step. */
+  font-size: var(--font-size-lg);
+  font-style: italic;
+  line-height: var(--leading-body);
+}
+
+/* Inline code only — a fenced block is Expressive Code's frame (ADR 0016),
+   which brings its own surface. */
+.prose :not(pre) > code {
+  padding: 1px 6px;
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-chip);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.prose hr {
+  border: none;
+  border-top: 1px solid var(--hairline);
+}

@@ -8,7 +8,8 @@
 
   Import order encodes the one real dependency: the reset first, then the token
   definitions, then base.css — the only consumer, and the layer where tokens
-  become paint.
+  become paint. prose.css comes last: it is the one global exception for
+  rendered markdown (ADR 0010), and it builds on both the tokens and base.
 
   No @layer and no subfolders yet — both stay deferred until a utility
   framework or third-party CSS needs arbitrating (ADR 0006/0011). Everything
@@ -21,3 +22,4 @@
 @import "./typography.css";
 @import "./spacing.css";
 @import "./base.css";
+@import "./prose.css";
