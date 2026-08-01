@@ -13,7 +13,7 @@ import RoleEntry from '../components/RoleEntry.astro';
 import SectionTitle from '../components/SectionTitle.astro';
 import type { Tag, Topic } from '../components/TagPill.astro';
 import Layout from '../layouts/Layout.astro';
-import { getPublishedPosts } from '../lib/posts';
+import { formatPostDate, getPublishedPosts } from '../lib/posts';
 
 // The newest post leads the section; the rest are rows. Four keeps the home
 // list a teaser — /blog/ is where the archive lives.
@@ -24,25 +24,6 @@ const recent = older.slice(0, 4);
 // An unmapped tag is still a working chip, just neutral.
 const TOPICS: Record<string, Topic> = { code: 'code', bikes: 'bikes', video: 'video' };
 const chips = (tags: string[]): Tag[] => tags.map((tag) => ({ tag, topic: TOPICS[tag] }));
-
-// The cards take a pre-formatted date, so the shaping is the screen's. UTC, or
-// a date stamped at midnight renders as the day before in western timezones.
-// Lowercase because the design's mono meta always is.
-const exactDate = (date: Date) =>
-	date
-		.toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
-			timeZone: 'UTC',
-		})
-		.toLowerCase();
-
-// Month precision: rows sit under a featured card that carries the exact date.
-const monthDate = (date: Date) =>
-	date
-		.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
-		.toLowerCase();
 
 // The schema pairs a hero with its alt text; testing both is what proves that
 // pairing to TypeScript here, where the card takes them as a unit.
@@ -140,7 +121,7 @@ const hero =
 						title={featured.data.title}
 						href={`/blog/${featured.id}/`}
 						excerpt={featured.data.description}
-						date={exactDate(featured.data.pubDate)}
+						date={formatPostDate(featured.data.pubDate)}
 						tags={chips(featured.data.tags)}
 						placeholder="post hero image"
 						{...hero}
@@ -148,7 +129,8 @@ const hero =
 				)
 			}
 
-			{/* PostListItem closes its own group, so the rows need no divider prop. */}
+			{/* Month precision: rows sit under a card that carries the exact date.
+			    PostListItem closes its own group, so the rows need no divider prop. */}
 			<div class="rows">
 				{
 					recent.map((post) => (
@@ -156,7 +138,7 @@ const hero =
 							compact
 							title={post.data.title}
 							href={`/blog/${post.id}/`}
-							date={monthDate(post.data.pubDate)}
+							date={formatPostDate(post.data.pubDate, 'month')}
 							tags={chips(post.data.tags)}
 						/>
 					))
