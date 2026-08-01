@@ -75,10 +75,12 @@
 // Re-running `plan` overwrites the plan file — that is the replan gesture.
 // `run` consumes the file as-is, with no staleness check.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
   cpSync,
+  createWriteStream,
   existsSync,
+  mkdirSync,
   readFileSync,
   unlinkSync,
   writeFileSync,
@@ -204,6 +206,252 @@ function deletePlan(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Host-run agents: streaming execution
+// ---------------------------------------------------------------------------
+
+// Both host-run `claude -p` invocations (planning, conflict resolution)
+// spawn through here, with stream-json output — one JSON event per stdout
+// line as the run progresses, so a legitimately long multi-subagent run
+// is always distinguishable from a hang. The helper narrates those events
+// as compact tagged progress lines, tees the raw stream to a per-run log
+// file under LOGS_DIR (the same place the sandboxed agents log), and
+// returns the final result text; it throws on timeout, non-zero exit, or
+// an error result. Observability only: prompts, tool allowlists, working
+// directory, and environment pass through from the call sites.
+
+// Shared with the sandcastle library's own sandbox logs; gitignored.
+const LOGS_DIR = ".sandcastle/logs";
+
+const HOST_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
+
+interface HostAgentOptions {
+  /** Tags every progress line and names the log file, e.g. "plan". */
+  readonly role: string;
+  readonly model: string;
+  readonly prompt: string;
+  readonly allowedTools: readonly string[];
+  readonly disallowedTools: readonly string[];
+  readonly cwd?: string;
+  readonly env?: NodeJS.ProcessEnv;
+}
+
+// The slice of a stream-json event the formatter reads. One event per
+// stdout line; assistant/user events wrap an API message whose content
+// blocks carry the interesting parts. `parent_tool_use_id` attributes an
+// event to the subagent spawned by that Task tool call.
+interface StreamBlock {
+  readonly type: string;
+  readonly id?: string;
+  readonly name?: string;
+  readonly input?: Readonly<Record<string, unknown>>;
+  readonly text?: string;
+  readonly tool_use_id?: string;
+  readonly content?: unknown;
+}
+
+interface StreamEvent {
+  readonly type: string;
+  readonly subtype?: string;
+  readonly model?: string;
+  readonly parent_tool_use_id?: string | null;
+  readonly message?: { readonly content?: readonly StreamBlock[] };
+  readonly is_error?: boolean;
+  readonly result?: string;
+}
+
+// A Task/Agent tool call fans work out to a subagent; both the spawn
+// line and the tool_use-id bookkeeping key off the same test.
+function isSubagentSpawn(block: StreamBlock): boolean {
+  return (
+    block.type === "tool_use" &&
+    (block.name === "Task" || block.name === "Agent")
+  );
+}
+
+// Compress a tool call to its most telling argument.
+function toolSummary(input: Readonly<Record<string, unknown>>): string {
+  for (const key of ["command", "file_path", "pattern", "description", "prompt", "query"]) {
+    const value = input[key];
+    if (typeof value === "string" && value !== "") return value;
+  }
+  return JSON.stringify(input);
+}
+
+function oneLine(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length <= 120 ? flat : `${flat.slice(0, 119)}…`;
+}
+
+// A tool_result's content is a string or a list of text blocks.
+function toolResultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return (content as readonly StreamBlock[])
+    .map((block) => (typeof block.text === "string" ? block.text : ""))
+    .join(" ");
+}
+
+// One terminal line per meaningful event — main-agent tool call, subagent
+// spawn, forwarded subagent text, subagent report — everything else
+// (thinking, token counts, interim main-agent text) stays in the raw log.
+// Pure: which tool_use ids were subagent spawns is passed in, not tracked
+// here.
+function progressLines(
+  event: StreamEvent,
+  subagentIds: ReadonlySet<string>,
+): string[] {
+  if (event.type === "system" && event.subtype === "init") {
+    return [`session started (${event.model})`];
+  }
+  const blocks = event.message?.content ?? [];
+  if (event.type === "assistant") {
+    // Forwarded subagent text (--forward-subagent-text): the liveness
+    // signal while all the work is inside a fan-out.
+    if (event.parent_tool_use_id != null) {
+      return blocks.flatMap((block) =>
+        block.type === "text" &&
+        typeof block.text === "string" &&
+        block.text.trim() !== ""
+          ? [`  ⤶ subagent: ${oneLine(block.text)}`]
+          : [],
+      );
+    }
+    return blocks.flatMap((block) => {
+      if (block.type !== "tool_use" || block.name === undefined) return [];
+      const summary = oneLine(toolSummary(block.input ?? {}));
+      return isSubagentSpawn(block)
+        ? [`⤷ subagent spawned: ${summary}`]
+        : [`→ ${block.name}: ${summary}`];
+    });
+  }
+  if (event.type === "user" && event.parent_tool_use_id == null) {
+    return blocks.flatMap((block) => {
+      if (
+        block.type !== "tool_result" ||
+        block.tool_use_id === undefined ||
+        !subagentIds.has(block.tool_use_id)
+      ) {
+        return [];
+      }
+      const text = oneLine(toolResultText(block.content));
+      // An async subagent acks its launch immediately and reports later
+      // as forwarded text; the ack says nothing the spawn line didn't.
+      if (text.startsWith("Async agent launched successfully")) return [];
+      return [`⤶ subagent reported: ${text}`];
+    });
+  }
+  return [];
+}
+
+async function runHostAgent(opts: HostAgentOptions): Promise<string> {
+  mkdirSync(LOGS_DIR, { recursive: true });
+  const logFile = join(
+    LOGS_DIR,
+    `${opts.role}-${new Date().toISOString().replaceAll(":", "-")}.jsonl`,
+  );
+  const rawLog = createWriteStream(logFile);
+  const startedAt = Date.now();
+  const elapsed = (): string => {
+    const total = Math.round((Date.now() - startedAt) / 1000);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+  };
+  const say = (line: string): void => {
+    console.log(`  [${opts.role} ${elapsed()}] ${line}`);
+  };
+  console.log(`  [${opts.role}] raw event stream → ${logFile}`);
+
+  const child = spawn(
+    "claude",
+    [
+      "-p",
+      "--model",
+      opts.model,
+      "--output-format",
+      "stream-json",
+      // stream-json in -p mode hard-requires verbose.
+      "--verbose",
+      "--forward-subagent-text",
+      "--allowedTools",
+      ...opts.allowedTools,
+      "--disallowedTools",
+      ...opts.disallowedTools,
+    ],
+    { cwd: opts.cwd, env: opts.env, stdio: ["pipe", "pipe", "inherit"] },
+  );
+  child.stdin.write(opts.prompt);
+  child.stdin.end();
+
+  const subagentIds = new Set<string>();
+  let sessionAnnounced = false;
+  let finalEvent: StreamEvent | undefined;
+  let buffered = "";
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    buffered += chunk;
+    const lines = buffered.split("\n");
+    buffered = lines.pop()!;
+    for (const line of lines) {
+      if (line.trim() === "") continue;
+      rawLog.write(line + "\n");
+      let event: StreamEvent;
+      try {
+        event = JSON.parse(line) as StreamEvent;
+      } catch {
+        continue; // unparseable lines are still in the raw log
+      }
+      if (event.type === "result") finalEvent = event;
+      // The CLI re-emits the init event mid-run; announce the session
+      // once and leave the duplicates to the raw log.
+      if (event.type === "system" && event.subtype === "init") {
+        if (sessionAnnounced) continue;
+        sessionAnnounced = true;
+      }
+      for (const out of progressLines(event, subagentIds)) say(out);
+      if (event.parent_tool_use_id == null) {
+        for (const block of event.message?.content ?? []) {
+          if (isSubagentSpawn(block) && block.id !== undefined) {
+            subagentIds.add(block.id);
+          }
+        }
+      }
+    }
+  });
+
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, HOST_AGENT_TIMEOUT_MS);
+
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", resolve);
+  }).finally(() => {
+    clearTimeout(timer);
+    rawLog.end();
+  });
+
+  const result = finalEvent;
+  if (
+    timedOut ||
+    exitCode !== 0 ||
+    result === undefined ||
+    result.is_error === true ||
+    typeof result.result !== "string"
+  ) {
+    const why = timedOut
+      ? `timed out after ${HOST_AGENT_TIMEOUT_MS / 60_000} minutes`
+      : exitCode !== 0
+        ? `exited with code ${exitCode}`
+        : `returned an error result: ${oneLine(JSON.stringify(result))}`;
+    say(`✗ failed after ${elapsed()} — ${why}`);
+    throw new Error(`${opts.role} agent ${why} (raw stream: ${logFile})`);
+  }
+  say(`✓ finished in ${elapsed()}`);
+  return result.result;
+}
+
+// ---------------------------------------------------------------------------
 // The planning agent: judgment in, proposal out, no write authority
 // ---------------------------------------------------------------------------
 
@@ -227,10 +475,10 @@ const proposalSchema = z.object({
 // the only shell commands allowed are read-only gh subcommands. The
 // prompt tells it to fan exploration out to subagents (which inherit the
 // same tool restrictions) so its own context stays for judgment.
-function runPlanningAgent(
+async function runPlanningAgent(
   issues: readonly StackIssue[],
   blockedBy: ReadonlyMap<number, readonly Blocker[]>,
-): EdgeMutation[] {
+): Promise<EdgeMutation[]> {
   const prompt = readFileSync(PLAN_PROMPT_FILE, "utf8")
     .replace("{{ISSUES_JSON}}", JSON.stringify(issues, null, 2))
     .replace(
@@ -251,15 +499,11 @@ function runPlanningAgent(
     "Running the planning agent (claude-fable-5, read-only) over the " +
       "blocked-by graph…",
   );
-  const output = execFileSync(
-    "claude",
-    [
-      "-p",
-      "--model",
-      "claude-fable-5",
-      "--output-format",
-      "json",
-      "--allowedTools",
+  const result = await runHostAgent({
+    role: "plan",
+    model: "claude-fable-5",
+    prompt,
+    allowedTools: [
       "Read",
       "Glob",
       "Grep",
@@ -267,31 +511,13 @@ function runPlanningAgent(
       "Agent",
       "Bash(gh issue view:*)",
       "Bash(gh issue list:*)",
-      "--disallowedTools",
-      "Write",
-      "Edit",
-      "NotebookEdit",
     ],
-    {
-      encoding: "utf8",
-      input: prompt,
-      stdio: ["pipe", "pipe", "inherit"],
-      maxBuffer: 32 * 1024 * 1024,
-      timeout: 30 * 60 * 1000,
-    },
-  );
-
-  const result = JSON.parse(output) as {
-    is_error?: boolean;
-    result?: string;
-  };
-  if (result.is_error || typeof result.result !== "string") {
-    throw new Error(`Planning agent failed: ${JSON.stringify(result)}`);
-  }
+    disallowedTools: ["Write", "Edit", "NotebookEdit"],
+  });
 
   // The prompt forbids code fences, but strip them anyway — a fenced
   // proposal is still a proposal.
-  const text = result.result
+  const text = result
     .trim()
     .replace(/^```(?:json)?\s*/, "")
     .replace(/\s*```$/, "");
@@ -311,7 +537,7 @@ function repoNameWithOwner(): string {
   return nameWithOwner;
 }
 
-function computePlan(): Plan {
+async function computePlan(): Promise<Plan> {
   const issues: StackIssue[] = JSON.parse(
     execFileSync(
       "gh",
@@ -364,7 +590,7 @@ function computePlan(): Plan {
   // stacks are derived from the graph as amended by the survivors. The
   // rejects are logged here, once, at proposal time — they are not part
   // of the plan because they will never be applied.
-  const proposed = runPlanningAgent(issues, blockedBy);
+  const proposed = await runPlanningAgent(issues, blockedBy);
   const { accepted, rejected, amended } = screenMutations(
     issues,
     blockedBy,
@@ -469,7 +695,7 @@ if (command !== "plan" && command !== "run") {
 }
 
 if (command === "plan") {
-  const plan = computePlan();
+  const plan = await computePlan();
   writePlan(plan);
   printPlan(plan);
   console.log(
@@ -486,7 +712,7 @@ if (command === "plan") {
 let plan = readPlan();
 if (plan === undefined) {
   console.log(`No plan file at ${PLAN_FILE} — planning first.\n`);
-  plan = computePlan();
+  plan = await computePlan();
   writePlan(plan);
 } else {
   console.log(
@@ -671,21 +897,22 @@ function rebaseInProgress(worktree: string): boolean {
 // `git rebase --continue` from opening an editor. Success is never taken
 // from the agent's output — the caller judges the git state afterward and
 // runs the check gate itself.
-function runResolverAgent(
+async function runResolverAgent(
   worktree: string,
   branch: string,
   tipName: string,
-): void {
+): Promise<void> {
   const prompt = readFileSync(RESOLVE_PROMPT_FILE, "utf8")
     .replaceAll("{{BRANCH}}", branch)
     .replaceAll("{{TIP}}", tipName);
-  execFileSync(
-    "claude",
-    [
-      "-p",
-      "--model",
-      "claude-opus-5",
-      "--allowedTools",
+  // Role carries the full branch — the tag every other log line for this
+  // step uses — keeping this run's progress lines and log file
+  // attributable when stacks interleave.
+  await runHostAgent({
+    role: `resolve-${branch.replaceAll("/", "-")}`,
+    model: "claude-opus-5",
+    prompt,
+    allowedTools: [
       "Read",
       "Glob",
       "Grep",
@@ -700,20 +927,15 @@ function runResolverAgent(
       "Bash(git commit --amend:*)",
       "Bash(npm install:*)",
       "Bash(npm run check:*)",
-      "--disallowedTools",
+    ],
+    disallowedTools: [
       "Bash(git rebase --abort)",
       "Bash(git rebase --skip)",
       "Bash(git push:*)",
     ],
-    {
-      encoding: "utf8",
-      input: prompt,
-      cwd: worktree,
-      stdio: ["pipe", "inherit", "inherit"],
-      env: { ...process.env, GIT_EDITOR: "true" },
-      timeout: 30 * 60 * 1000,
-    },
-  );
+    cwd: worktree,
+    env: { ...process.env, GIT_EDITOR: "true" },
+  });
 }
 
 // One attempt, judged mechanically. Returns undefined when the worktree
@@ -721,18 +943,18 @@ function runResolverAgent(
 // descends from the tip — and a reason string otherwise. The check gate
 // is not run here: the caller gates every rewritten tip the same way,
 // resolved or not.
-function attemptResolution(
+async function attemptResolution(
   worktree: string,
   branch: string,
   tipName: string,
   tipSha: string,
-): string | undefined {
+): Promise<string | undefined> {
   console.log(
     `\n↻ ${branch}: rebase onto ${tipName} conflicted — giving the ` +
       `resolver agent (claude-opus-5) one attempt before pruning…`,
   );
   try {
-    runResolverAgent(worktree, branch, tipName);
+    await runResolverAgent(worktree, branch, tipName);
   } catch (error) {
     return `conflicted and the resolver agent failed: ${error instanceof Error ? error.message : String(error)}`;
   }
@@ -771,12 +993,12 @@ function abandonRebase(worktree: string, originSha: string): void {
 // means this exact tree was already gated, in its sandbox on first build
 // or by a previous run's restack — that detection is also what makes
 // re-running a partially restacked wave safe.
-function restackBranch(
+async function restackBranch(
   worktree: string,
   branch: string,
   tipName: string,
   tipSha: string,
-): RestackOutcome {
+): Promise<RestackOutcome> {
   let originSha: string;
   try {
     originSha = git(["rev-parse", "--verify", `origin/${branch}`], {
@@ -801,7 +1023,7 @@ function restackBranch(
     // A conflict stops the rebase mid-flight; anything else (a rebase
     // that died before starting) has no conflict state to resolve.
     const failure = rebaseInProgress(worktree)
-      ? attemptResolution(worktree, branch, tipName, tipSha)
+      ? await attemptResolution(worktree, branch, tipName, tipSha)
       : "failed without leaving a conflict the resolver could work on";
     if (failure !== undefined) {
       abandonRebase(worktree, originSha);
@@ -1088,7 +1310,7 @@ async function runStack(
     // turn is the no-op case. Under the worktree lock, since another
     // stack may be taking its restack turn right now.
     if (toRestack.length === 0) continue;
-    await restackLock.use(() => {
+    await restackLock.use(async () => {
       console.log(
         `\n--- Restacking wave ${depth + 1}/${levels.length} of ${label} onto ${waveBase} ---`,
       );
@@ -1120,7 +1342,7 @@ async function runStack(
 
         let outcome: RestackOutcome;
         try {
-          outcome = restackBranch(restackWt, step.branch, tipName, tipSha);
+          outcome = await restackBranch(restackWt, step.branch, tipName, tipSha);
         } catch (error) {
           prune(
             step,
