@@ -29,14 +29,124 @@ const RESTACK_DIR = ".sandcastle/restack";
 // streams output for the operations the operator should watch.
 function git(
   args: readonly string[],
-  opts: { readonly cwd?: string; readonly show?: boolean } = {},
+  opts: {
+    readonly cwd?: string;
+    readonly show?: boolean;
+    readonly env?: NodeJS.ProcessEnv;
+  } = {},
 ): string {
   const out = execFileSync("git", args as string[], {
     encoding: "utf8",
     cwd: opts.cwd,
+    env: opts.env,
     stdio: opts.show ? ["ignore", "inherit", "inherit"] : undefined,
   });
   return typeof out === "string" ? out.trim() : "";
+}
+
+// ---------------------------------------------------------------------------
+// Push auth: the token from .sandcastle/.env, never operator-machine state
+// ---------------------------------------------------------------------------
+
+// Host pushes authenticate explicitly rather than through ambient git
+// state (keychain helpers, gh auth, ~/.gitconfig): sandboxes get their
+// GH_TOKEN from .sandcastle/.env, and a host that authenticated any
+// other way could disagree with them about which token a run uses — or
+// work on one machine and die at the first push on another. Only the
+// push is authenticated; fetch and the read-only probes stay anonymous
+// because the repo is public. If it ever goes private, fetch breaks
+// loudly and the authenticated surface widens consciously then.
+const ENV_FILE = ".sandcastle/.env";
+
+// Mirror of the sandcastle library's env-file parsing (first `=` splits,
+// quotes stripped, double-quote escapes expanded) so host and sandbox
+// read the same value from the same line.
+function parseEnvFile(path: string): Record<string, string> {
+  if (!existsSync(path)) return {};
+  const vars: Record<string, string> = {};
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    const doubleQuoted = value.startsWith('"') && value.endsWith('"');
+    const singleQuoted = value.startsWith("'") && value.endsWith("'");
+    if (value.length >= 2 && (doubleQuoted || singleQuoted)) {
+      value = value.slice(1, -1);
+      if (doubleQuoted) {
+        value = value.replace(
+          /\\([nrt\\])/g,
+          (_, ch: string) =>
+            ({ n: "\n", r: "\r", t: "\t", "\\": "\\" })[ch] ?? ch,
+        );
+      }
+    }
+    vars[key] = value;
+  }
+  return vars;
+}
+
+// Same resolution rule as the library's resolveEnv: the key must appear
+// in the file, and an empty file value falls back to the process
+// environment. Absent-from-file does not fall back — a token only the
+// host could see would let host pushes succeed while sandboxes fail.
+function resolveGhToken(): string | undefined {
+  const fileVars = parseEnvFile(ENV_FILE);
+  if (!("GH_TOKEN" in fileVars)) return undefined;
+  const token = fileVars["GH_TOKEN"] || process.env["GH_TOKEN"];
+  return token ? token : undefined;
+}
+
+// Called by the run command before any sandbox is created, so a run
+// that cannot push fails in milliseconds instead of after the build
+// phase has already spent its time and tokens.
+export function preflightGhToken(): void {
+  if (resolveGhToken() === undefined) {
+    throw new Error(
+      `GH_TOKEN is missing or empty in ${ENV_FILE} — host restack pushes ` +
+        `and sandbox GitHub access both authenticate with it. Set ` +
+        `GH_TOKEN=<fine-grained PAT> in ${ENV_FILE}, or leave its value ` +
+        `empty there and export GH_TOKEN in the environment.`,
+    );
+  }
+}
+
+// The helper's shell expands $GH_TOKEN from the child environment at
+// push time, so argv carries the literal variable name — the secret
+// never appears in a `ps` listing, git config, or on disk outside .env.
+const PUSH_CREDENTIAL_HELPER =
+  '!f() { echo "username=x-access-token"; echo "password=$GH_TOKEN"; }; f';
+
+// GIT_TERMINAL_PROMPT=0 turns any residual auth gap (expired or
+// under-scoped token) into an immediate error instead of an interactive
+// prompt no unattended run will answer.
+function pushEnv(token: string): NodeJS.ProcessEnv {
+  return { ...process.env, GH_TOKEN: token, GIT_TERMINAL_PROMPT: "0" };
+}
+
+// The empty credential.helper entry first clears inherited helpers
+// (e.g. osxkeychain) so a stale machine credential can't shadow the
+// run's token.
+function pushToOrigin(worktree: string, args: readonly string[]): void {
+  const token = resolveGhToken();
+  if (token === undefined) {
+    // Preflight guaranteed a token at run start; this catches a .env
+    // emptied mid-run.
+    throw new Error(`cannot push: GH_TOKEN is missing or empty in ${ENV_FILE}`);
+  }
+  git(
+    [
+      "-c",
+      "credential.helper=",
+      "-c",
+      `credential.helper=${PUSH_CREDENTIAL_HELPER}`,
+      "push",
+      ...args,
+    ],
+    { cwd: worktree, show: true, env: pushEnv(token) },
+  );
 }
 
 export function createRestackWorktree(): string {
@@ -253,15 +363,11 @@ export async function restackBranch(
     return { kind: "check-failed", resolvedConflict };
   }
 
-  git(
-    [
-      "push",
-      `--force-with-lease=refs/heads/${branch}:${originSha}`,
-      "origin",
-      `HEAD:refs/heads/${branch}`,
-    ],
-    { cwd: worktree, show: true },
-  );
+  pushToOrigin(worktree, [
+    `--force-with-lease=refs/heads/${branch}:${originSha}`,
+    "origin",
+    `HEAD:refs/heads/${branch}`,
+  ]);
   return { kind: resolvedConflict ? "resolved" : "restacked", sha };
 }
 

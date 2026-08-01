@@ -88,6 +88,7 @@ import {
 import {
   createRestackWorktree,
   fetchOrigin,
+  preflightGhToken,
   removeRestackWorktree,
 } from "./restack.ts";
 import {
@@ -110,6 +111,17 @@ async function planCommand(): Promise<never> {
 }
 
 async function runCommand(): Promise<never> {
+  // A run that cannot push must fail here, in milliseconds — before
+  // planning (which runs an agent) and before any sandbox is created.
+  try {
+    preflightGhToken();
+  } catch (error) {
+    console.error(
+      `✗ ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  }
+
   // Load (or make) the plan to run.
   let plan = readPlan();
   if (plan === undefined) {
