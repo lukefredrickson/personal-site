@@ -1,0 +1,172 @@
+---
+import FilterPill from '../components/FilterPill.astro';
+import PostListItem from '../components/PostListItem.astro';
+import type { Topic } from '../components/TagPill.astro';
+import type { Post } from '../lib/posts';
+import { getTagCounts } from '../lib/tags';
+import Layout from './Layout.astro';
+
+interface Props {
+	/** Every published post: the pill counts are of the blog, not of the view. */
+	posts: Post[];
+	/** The tag this page filters to; absent on `/blog/`, which shows everything. */
+	activeTag?: string;
+}
+
+const { posts, activeTag } = Astro.props;
+
+// The whole variance between the index and a tag page: which posts show, and
+// which pill is lit (ADR 0014).
+const visible = activeTag ? posts.filter((post) => post.data.tags.includes(activeTag)) : posts;
+
+// Posts arrive newest-first, so the years come out newest-first and each group
+// keeps that order.
+const byYear = Map.groupBy(visible, (post) => post.data.pubDate.getUTCFullYear());
+
+/** The tints a chip and a filter pill both know how to wear. */
+type ChipTopic = Extract<Topic, 'code' | 'bikes' | 'neutral'>;
+
+// Presentation-side map, the one place a tag meets a color — the screen's job,
+// not the chip's. An unmapped tag is fully functional, just neutral (ADR 0013).
+const topics: Record<string, ChipTopic> = {
+	code: 'code',
+	bikes: 'bikes',
+};
+const topicOf = (tag: string): ChipTopic => topics[tag] ?? 'neutral';
+
+// UTC, or a date stamped at midnight renders as the day before in western
+// timezones. No year in the row — the group heading carries it; zero-padded so
+// the mono dates stack as an even column.
+const dayOf = (post: Post) =>
+	post.data.pubDate
+		.toLocaleDateString('en-US', { month: 'short', day: '2-digit', timeZone: 'UTC' })
+		.toLowerCase();
+
+const tagCounts = getTagCounts(posts);
+
+const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes all three at once.";
+---
+
+{/* Tag pages are the same screen filtered, down to the heading and lede, so
+    only the head meta says which page you are on (ADR 0014). Generated pages
+    are the one place a description is templated rather than written. */}
+<Layout
+	title={activeTag ? `Posts tagged ${activeTag}` : 'The blog'}
+	description={activeTag ? `Every post tagged ${activeTag}. ${LEDE}` : LEDE}
+>
+	<div class="page">
+		<header class="intro">
+			<h1 class="title">The blog</h1>
+			<p class="lede">{LEDE}</p>
+		</header>
+
+		{/* Filtering is navigation: each pill is a link to a page that exists, so
+		    the filtered view is shareable and ships no JS (ADR 0010 §6). */}
+		<nav class="filters" aria-label="Filter posts by tag">
+			<FilterPill href="/blog/" label="everything" count={posts.length} active={!activeTag} />
+			{
+				tagCounts.map(({ tag, count }) => (
+					<FilterPill
+						href={`/blog/tags/${tag}/`}
+						label={tag}
+						count={count}
+						topic={topicOf(tag)}
+						active={tag === activeTag}
+					/>
+				))
+			}
+		</nav>
+
+		{
+			[...byYear].map(([year, group], index) => {
+				// The newest year reads as a feed; the years below it are an index.
+				const excerpts = index === 0;
+
+				return (
+					<section class="year">
+						<h2 class="year-label">{year}</h2>
+						{/* Rows in their own box: the section's gap would push them apart,
+						    and a row drops its divider by being the last child here. */}
+						<div>
+							{group.map((post) => (
+								<PostListItem
+									title={post.data.title}
+									href={`/blog/${post.id}/`}
+									date={dayOf(post)}
+									excerpt={excerpts ? post.data.description : undefined}
+									tags={post.data.tags.map((tag) => ({ tag, topic: topicOf(tag) }))}
+								/>
+							))}
+						</div>
+					</section>
+				);
+			})
+		}
+	</div>
+</Layout>
+
+<style>
+	/* The design's 28px column gap and 44px tail snap to the spacing scale. */
+	.page {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-7);
+		max-width: var(--page-max);
+		margin: 0 auto;
+		padding: var(--page-pad-top) var(--page-pad-x) var(--space-8);
+	}
+
+	.intro {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-page-title);
+		font-weight: 800;
+		letter-spacing: var(--tracking-display);
+		line-height: var(--leading-heading);
+	}
+
+	/* Measure in rem: line length is one of the things that should grow with the
+	   reader's font size (ADR 0011 §3). */
+	.lede {
+		max-width: 30rem;
+		color: var(--text-body);
+		font-size: var(--text-article);
+		line-height: var(--leading-body);
+	}
+
+	.filters {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.year {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	/* Rows carry their own vertical padding, so the year heading is the only
+	   thing this gap separates. */
+	.year-label {
+		color: var(--text-faint);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+		font-weight: 400;
+		letter-spacing: var(--tracking-caps);
+	}
+
+	/* The page padding is desktop-sized; a phone wants the words, not the margin. */
+	@media (max-width: 40rem) {
+		.page {
+			padding-inline: var(--space-6);
+		}
+	}
+</style>
