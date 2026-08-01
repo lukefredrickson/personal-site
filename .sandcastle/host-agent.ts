@@ -4,11 +4,15 @@
 // spawn through here, with stream-json output — one JSON event per stdout
 // line as the run progresses, so a legitimately long multi-subagent run
 // is always distinguishable from a hang. The runner narrates those events
-// as compact tagged progress lines, tees the raw stream to a per-run log
-// file under LOGS_DIR (the same place the sandboxed agents log), and
-// returns the final result text; it throws on timeout, non-zero exit, or
-// an error result. Observability only: prompts, tool allowlists, working
-// directory, and environment pass through from the call sites.
+// as compact tagged progress lines written to a per-run `.log` file, tees
+// the raw stream to a sibling `.jsonl`, both under LOGS_DIR (the same
+// place the sandboxed agents log), and returns the final result text; it
+// throws on timeout, non-zero exit, or an error result. The console gets
+// the same three lines a sandboxed agent gets — a start line, a `tail -f`
+// pointer, and the outcome — so concurrent stacks stay readable; the
+// play-by-play lives in the tailable log. Observability only: prompts,
+// tool allowlists, working directory, and environment pass through from
+// the call sites.
 
 import { spawn } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
@@ -140,20 +144,31 @@ function progressLines(
 
 export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
   mkdirSync(LOGS_DIR, { recursive: true });
-  const logFile = join(
+  const logBase = join(
     LOGS_DIR,
-    `${opts.role}-${new Date().toISOString().replaceAll(":", "-")}.jsonl`,
+    `${opts.role}-${new Date().toISOString().replaceAll(":", "-")}`,
   );
+  const logFile = `${logBase}.jsonl`;
+  const progressFile = `${logBase}.log`;
   const rawLog = createWriteStream(logFile);
+  const progressLog = createWriteStream(progressFile);
   const startedAt = Date.now();
   const elapsed = (): string => {
     const total = Math.round((Date.now() - startedAt) / 1000);
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
   };
+  // Play-by-play goes to the tailable log; `announce` is for the few
+  // lines the console should carry (start, outcome).
   const say = (line: string): void => {
+    progressLog.write(`[${elapsed()}] ${line}\n`);
+  };
+  const announce = (line: string): void => {
+    say(line);
     console.log(`  [${opts.role} ${elapsed()}] ${line}`);
   };
-  console.log(`  [${opts.role}] raw event stream → ${logFile}`);
+  say(`raw event stream → ${logFile}`);
+  console.log(`[${opts.role}] Started (${opts.model})`);
+  console.log(`  tail -f ${progressFile}`);
 
   const child = spawn(
     "claude",
@@ -225,6 +240,7 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
     clearTimeout(timer);
     rawLog.end();
   });
+  // Ended after the outcome lines below are written.
 
   const result = finalEvent;
   if (
@@ -239,9 +255,11 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
       : exitCode !== 0
         ? `exited with code ${exitCode}`
         : `returned an error result: ${oneLine(JSON.stringify(result))}`;
-    say(`✗ failed after ${elapsed()} — ${why}`);
+    announce(`✗ failed after ${elapsed()} — ${why}`);
+    progressLog.end();
     throw new Error(`${opts.role} agent ${why} (raw stream: ${logFile})`);
   }
-  say(`✓ finished in ${elapsed()}`);
+  announce(`✓ finished in ${elapsed()}`);
+  progressLog.end();
   return result.result;
 }

@@ -61,9 +61,10 @@
 //      distinguishes agent-resolved conflicts from pruned subtrees.
 //
 // Nothing here merges branches or closes issues: each multi-PR stack is
-// linked on GitHub with `gh stack link` at run end, the owner reviews each
-// PR bottom-up, and merging a PR closes its issue via the closing keyword
-// in the PR body.
+// linked on GitHub with `gh stack link` — wave by wave as the chain grows,
+// with a full re-link at run end — the owner reviews each PR bottom-up,
+// and merging a PR closes its issue via the closing keyword in the PR
+// body.
 //
 // Usage:
 //   npm run sandcastle plan  # compute, print, and persist the plan
@@ -75,7 +76,6 @@
 // Re-running `plan` overwrites the plan file — that is the replan gesture.
 // `run` consumes the file as-is, with no staleness check.
 
-import { execFileSync } from "node:child_process";
 import {
   applyMutationsToGitHub,
   computePlan,
@@ -92,8 +92,8 @@ import {
   removeRestackWorktree,
 } from "./restack.ts";
 import {
+  linkChainedPrs,
   MAX_SANDBOXES,
-  openPrUrl,
   runStack,
   Semaphore,
   type StackOutcome,
@@ -221,38 +221,18 @@ async function runCommand(): Promise<never> {
     }
   }
 
-  // The run's deliverable is linked stacks, not just base-chained PRs. Link
-  // each multi-PR stack with the gh-stack CLI, full chained membership
-  // bottom-to-top: `gh stack link` refuses partial updates, so passing the
-  // full set both creates and updates — re-linking on resume is idempotent,
-  // and a chain reshaped by prunes updates its existing stack. Standalone
-  // PRs need no link. (`gh stack view` cannot verify these links — it reads
-  // local tracking state only; `link`-created stacks live on GitHub.)
+  // The run's deliverable is linked stacks, not just base-chained PRs.
+  // The walks already linked each chain wave by wave as it grew; this
+  // final pass re-links every stack with its full chained membership so
+  // resumes, prune-reshaped chains, and any per-wave link that failed all
+  // settle to the finished state — and a failure *here* is what retains
+  // the plan. Standalone PRs need no link. (`gh stack view` cannot verify
+  // these links — it reads local tracking state only; `link`-created
+  // stacks live on GitHub.)
   const linkFailures: string[] = [];
   for (const [i, outcome] of outcomes.entries()) {
-    if (outcome.chained.length < 2) continue;
     const label = `stack ${i + 1}/${outcomes.length}`;
-    try {
-      const urls = outcome.chained.map((step) => {
-        const url = openPrUrl(step.branch);
-        if (url === undefined) {
-          throw new Error(`no open PR on ${step.branch}`);
-        }
-        return url;
-      });
-      execFileSync("gh", ["stack", "link", ...urls], {
-        stdio: ["ignore", "inherit", "inherit"],
-      });
-      console.log(`✓ ${label}: ${urls.length} PRs linked via gh stack link.`);
-    } catch (error) {
-      linkFailures.push(label);
-      console.error(
-        `⚠ ${label}: gh stack link failed — ` +
-          `${error instanceof Error ? error.message : String(error)}. ` +
-          `Re-run \`npm run sandcastle run\` to re-link, or link by hand ` +
-          `with gh stack link <bottom PR> … <top PR>.`,
-      );
-    }
+    if (!linkChainedPrs(outcome.chained, label)) linkFailures.push(label);
   }
 
   const prunedCount = outcomes.filter((o) => o.pruned.length > 0).length;
