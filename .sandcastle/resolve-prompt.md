@@ -25,6 +25,19 @@ Resolve the rebase:
 - Never run `git rebase --abort` or `git rebase --skip`. A commit you cannot
   resolve means the attempt fails: leave the rebase where it stands and
   explain what blocked you.
+- Never resolve `package-lock.json` by hand or leave it as a plain
+  `npm install` wrote it. The recipe: take the tip's version
+  (`git checkout --ours -- package-lock.json`), resolve `package.json`
+  properly, then — after any `npm install` you need for `npm run check` —
+  finish with `npm install --package-lock-only`, which rebuilds the
+  lockfile from `package.json` alone. A plain `npm install` reconciles the
+  lockfile against the installed `node_modules` and silently drops other
+  platforms' optional binaries (npm/cli#4828); CI installs with `npm ci`
+  and then fails. The host gates your result with `npm ci --dry-run` —
+  run it yourself to confirm the lockfile is in sync before you finish.
+- Run tool commands one at a time, not chained with `&&` or `;`. The
+  harness matches each Bash call against single-command patterns; a chain
+  of individually allowed commands is denied as a whole.
 - Never push, merge, add new commits, or switch branches. Touch nothing
   outside this worktree.
 - Do not "resolve" by discarding one side wholesale. If both sides changed

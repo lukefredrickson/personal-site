@@ -241,9 +241,12 @@ async function runResolverAgent(
       "Bash(git log:*)",
       "Bash(git show:*)",
       "Bash(git add:*)",
+      "Bash(git checkout --ours:*)",
+      "Bash(git restore:*)",
       "Bash(git rebase --continue)",
       "Bash(git commit --amend:*)",
       "Bash(npm install:*)",
+      "Bash(npm ci --dry-run)",
       "Bash(npm run check:*)",
     ],
     disallowedTools: [
@@ -354,6 +357,16 @@ export async function restackBranch(
   // install trues up dependencies an issue may have added. An agent
   // resolution passes the same gate or prunes like any other bad tip.
   try {
+    // Lockfile-sync tripwire first: `npm ci --dry-run` proves the
+    // committed lockfile can satisfy package.json on every platform — the
+    // same test Workers Builds' `npm clean-install` applies per PR. A
+    // lockfile regenerated against an installed node_modules tree
+    // (npm/cli#4828) silently drops other platforms' optional binaries
+    // and fails only in CI; this catches it before anything is pushed.
+    execFileSync("npm", ["ci", "--dry-run"], {
+      cwd: worktree,
+      stdio: ["ignore", "ignore", "inherit"],
+    });
     execFileSync("npm", ["install", "--no-audit", "--no-fund"], {
       cwd: worktree,
       stdio: ["ignore", "ignore", "inherit"],
@@ -361,6 +374,12 @@ export async function restackBranch(
     execFileSync("npm", ["run", "check"], { cwd: worktree, stdio: "inherit" });
   } catch {
     return { kind: "check-failed", resolvedConflict };
+  } finally {
+    // That `npm install` can rewrite the worktree's lockfile with the
+    // same #4828 pruning. HEAD is already committed, so the rewrite can
+    // never be pushed — but left in place it would dirty the worktree
+    // and block the next branch's `git switch`.
+    git(["checkout", "--", "package-lock.json"], { cwd: worktree });
   }
 
   pushToOrigin(worktree, [
