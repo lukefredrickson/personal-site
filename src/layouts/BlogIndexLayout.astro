@@ -1,9 +1,9 @@
 ---
 import FilterPill from '../components/FilterPill.astro';
 import PostListItem from '../components/PostListItem.astro';
-import type { Topic } from '../components/TagPill.astro';
 import type { Post } from '../lib/posts';
 import { getTagCounts } from '../lib/tags';
+import { topicOf } from '../lib/topics';
 import Layout from './Layout.astro';
 
 interface Props {
@@ -22,17 +22,6 @@ const visible = activeTag ? posts.filter((post) => post.data.tags.includes(activ
 // Posts arrive newest-first, so the years come out newest-first and each group
 // keeps that order.
 const byYear = Map.groupBy(visible, (post) => post.data.pubDate.getUTCFullYear());
-
-/** The tints a chip and a filter pill both know how to wear. */
-type ChipTopic = Extract<Topic, 'code' | 'bikes' | 'neutral'>;
-
-// Presentation-side map, the one place a tag meets a color — the screen's job,
-// not the chip's. An unmapped tag is fully functional, just neutral (ADR 0013).
-const topics: Record<string, ChipTopic> = {
-	code: 'code',
-	bikes: 'bikes',
-};
-const topicOf = (tag: string): ChipTopic => topics[tag] ?? 'neutral';
 
 // UTC, or a date stamped at midnight renders as the day before in western
 // timezones. No year in the row — the group heading carries it; zero-padded so
@@ -80,7 +69,7 @@ const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes a
 		{
 			[...byYear].map(([year, group], index) => {
 				// The newest year reads as a feed; the years below it are an index.
-				const excerpts = index === 0;
+				const showExcerpts = index === 0;
 
 				return (
 					<section class="year">
@@ -93,7 +82,7 @@ const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes a
 									title={post.data.title}
 									href={`/blog/${post.id}/`}
 									date={dayOf(post)}
-									excerpt={excerpts ? post.data.description : undefined}
+									excerpt={showExcerpts ? post.data.description : undefined}
 									tags={post.data.tags.map((tag) => ({ tag, topic: topicOf(tag) }))}
 								/>
 							))}
