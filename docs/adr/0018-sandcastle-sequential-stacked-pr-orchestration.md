@@ -1,7 +1,9 @@
 # 18. Sandcastle: sequential stacked-PR orchestration
 
 Date: 2026-07-30
-Status: Accepted
+Status: Accepted, amended by
+[ADR 0019](0019-sandcastle-one-stack-per-blocked-by-component.md) (one
+stack per blocked-by component instead of a single chain)
 
 Resolves
 [#57](https://github.com/lukefredrickson/personal-site/issues/57). Reshapes
