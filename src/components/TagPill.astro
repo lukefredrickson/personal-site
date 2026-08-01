@@ -1,12 +1,24 @@
 ---
+/** One name for the tints below, shared with everything that passes one. */
+export type Topic = 'code' | 'bikes' | 'video' | 'neutral';
+
+/** A post's tag as the cards and rows take it, one chip's worth. */
+export interface Tag {
+	/** Tag slug — the chip's label and its tag page (ADR 0014). */
+	tag: string;
+	/** The tag→topic map belongs to the screen, not the card. */
+	topic?: Topic;
+}
+
 interface Props {
 	/**
-	 * Tag slug. When set the chip links to that tag's page (ADR 0014); omit for
-	 * badges that are not tags, such as "latest".
+	 * Tag slug: labels the chip and links it to that tag's page (ADR 0014). Omit
+	 * for badges that are not tags — they pass their label as children, as
+	 * "latest" does.
 	 */
 	tag?: string;
 	/** Topic tint. Color in a post row only ever appears on these chips. */
-	topic?: 'code' | 'bikes' | 'video' | 'neutral';
+	topic?: Topic;
 	/** Outlined badge treatment, used for "latest". */
 	outlined?: boolean;
 }
@@ -18,7 +30,7 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 ---
 
 <Element class:list={['tag-pill', topic, { outlined }]} href={href}>
-	<slot />
+	<slot>{tag}</slot>
 </Element>
 
 <style>

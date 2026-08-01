@@ -1,12 +1,5 @@
 ---
-import TagPill from './TagPill.astro';
-
-interface Tag {
-	/** Tag slug — the chip's label and its tag page (ADR 0014). */
-	tag: string;
-	/** Chip tint; the tag→topic map belongs to the screen, not the row. */
-	topic?: 'code' | 'bikes' | 'video' | 'neutral';
-}
+import TagPill, { type Tag } from './TagPill.astro';
 
 interface Props {
 	title: string;
@@ -37,11 +30,7 @@ const { title, href, date, excerpt, readTime, tags = [], compact = false } = Ast
 	{
 		(tags.length > 0 || readTime) && (
 			<div class="tags">
-				{tags.map(({ tag, topic }) => (
-					<TagPill tag={tag} topic={topic}>
-						{tag}
-					</TagPill>
-				))}
+				{tags.map(({ tag, topic }) => <TagPill tag={tag} topic={topic} />)}
 				{readTime && <span class="read-time">{readTime}</span>}
 			</div>
 		)

@@ -1,20 +1,13 @@
 ---
 import type { ImageMetadata } from 'astro';
 import { Image } from 'astro:assets';
-import TagPill from './TagPill.astro';
+import TagPill, { type Tag } from './TagPill.astro';
 
 /**
  * Hero and its alt text travel together, mirroring the collection schema's
  * `heroAlt`-required-with-`hero` refinement. Omit both for the placeholder.
  */
 type Hero = { hero: ImageMetadata; heroAlt: string } | { hero?: undefined; heroAlt?: undefined };
-
-interface Tag {
-	/** Tag slug — the chip's label and its tag page (ADR 0014). */
-	tag: string;
-	/** Chip tint; the tag→topic map belongs to the screen, not the card. */
-	topic?: 'code' | 'bikes' | 'video' | 'neutral';
-}
 
 type Props = Hero & {
 	title: string;
@@ -54,7 +47,7 @@ const { title, href, date, excerpt, readTime, tags = [], placeholder } = props;
 					</Fragment>
 				)
 			}
-			{tags.map(({ tag, topic }) => <TagPill tag={tag} topic={topic}>{tag}</TagPill>)}
+			{tags.map(({ tag, topic }) => <TagPill tag={tag} topic={topic} />)}
 		</div>
 		{/* h3: the card sits under a section heading on every screen that uses it. */}
 		<h3 class="title"><a href={href}>{title}</a></h3>
