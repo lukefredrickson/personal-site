@@ -3,10 +3,9 @@ import { Moon, Sun } from '@lucide/astro';
 ---
 
 {/*
-	The DOM is the source of truth for the theme (ADR 0012), so there is nothing
-	to pass in: `data-theme` on <html> drives the knob through CSS, and the
-	layout's init script owns `aria-pressed`. The rendered value below is the
-	untouched-visitor default; the script corrects it once <body> exists.
+	No props: the DOM is the source of truth (ADR 0012). `data-theme` on <html>
+	drives the knob through CSS, and the layout's init script owns
+	`aria-pressed` — so the value here is only the untouched-visitor default.
 */}
 <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Dark mode">
 	<Sun class="track sun" size={13} />
@@ -19,13 +18,15 @@ import { Moon, Sun } from '@lucide/astro';
 
 <style>
 	.theme-toggle {
-		/* Light values; the two dark rules below flip all three at once. */
+		/* Light values; the two dark rules below flip all three at once. 28px of
+		   travel lands the knob on the mirrored 2px inset at the right end. */
 		--knob-x: 0;
 		--sun-display: block;
 		--moon-display: none;
 
 		position: relative;
 		flex: none;
+		/* The kit's pill is a fixed 56×28; every offset below is measured off it. */
 		width: 56px;
 		height: 28px;
 		padding: 0;
@@ -118,10 +119,13 @@ import { Moon, Sun } from '@lucide/astro';
 	// Delegated: bundled scripts run once ever, so a listener bound to the button
 	// itself would be lost the first time a client-router swap replaced it.
 	document.addEventListener('click', (event) => {
-		if (!(event.target as Element).closest('[data-theme-toggle]')) return;
+		const target = event.target;
+		if (!(target instanceof Element) || !target.closest('[data-theme-toggle]')) return;
 
-		const stored = document.documentElement.dataset.theme;
-		const dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+		// The attribute is stamped only for a stored choice; without one the OS
+		// decides, so that is what there is to flip.
+		const chosen = document.documentElement.dataset.theme;
+		const dark = chosen ? chosen === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
 		try {
 			localStorage.setItem(STORAGE_KEY, dark ? 'light' : 'dark');
 		} catch {
