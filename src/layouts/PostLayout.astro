@@ -1,0 +1,127 @@
+---
+import { MoveLeft } from '@lucide/astro';
+import headshot from '../assets/luke-headshot.jpg';
+import AuthorCard from '../components/AuthorCard.astro';
+import FramedFigure from '../components/FramedFigure.astro';
+import PrevNext from '../components/PrevNext.astro';
+import TagPill from '../components/TagPill.astro';
+import type { Post } from '../lib/posts';
+import Layout from './Layout.astro';
+
+interface Props {
+	post: Post;
+	/** The older post; absent on the first one. */
+	prev?: Post;
+	/** The newer post; absent on the latest. */
+	next?: Post;
+}
+
+const { post, prev, next } = Astro.props;
+const { title, description, pubDate, updatedDate, tags, hero, heroAlt, heroCaption } = post.data;
+
+// Every post URL is built here, so the trailing-slash form is decided once.
+const neighbor = (entry?: Post) => entry && { title: entry.data.title, href: `/blog/${entry.id}/` };
+
+// UTC, or a date stamped at midnight renders as the day before in western
+// timezones. Lowercase because the design's mono meta always is.
+const published = pubDate
+	.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+	.toLowerCase();
+---
+
+<Layout
+	title={title}
+	description={description}
+	ogImage={hero}
+	article={{ publishedTime: pubDate, modifiedTime: updatedDate }}
+>
+	<div class="page">
+		<a class="back" href="/blog/"><MoveLeft size={13} /> all posts</a>
+
+		<article class="post">
+			<header class="head">
+				<h1 class="title">{title}</h1>
+				<div class="meta">
+					<time datetime={pubDate.toISOString()}>{published}</time>
+					{
+						tags.map((tag) => (
+							<>
+								<span aria-hidden="true">·</span>
+								<TagPill tag={tag} />
+							</>
+						))
+					}
+				</div>
+			</header>
+
+			{/* The schema pairs hero with heroAlt; testing both is what proves it here. */}
+			{hero && heroAlt && <FramedFigure src={hero} alt={heroAlt} caption={heroCaption} />}
+
+			{/* Typography for the rendered markdown is global (ADR 0010): bare tags
+			    from a post body cannot carry scoped classes. */}
+			<div class="prose"><slot /></div>
+		</article>
+
+		<AuthorCard photo={headshot} />
+		<PrevNext prev={neighbor(prev)} next={neighbor(next)} />
+	</div>
+</Layout>
+
+<style>
+	/* The design's 26px column gap and 44px tail snap to the spacing scale. */
+	.page,
+	.post {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-7);
+	}
+
+	.page {
+		max-width: var(--page-max);
+		margin: 0 auto;
+		padding: var(--page-pad-top) var(--page-pad-x) var(--space-8);
+	}
+
+	.back {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		width: fit-content;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-ui);
+		text-decoration: none;
+	}
+
+	.head {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-page-title);
+		font-weight: var(--weight-voice);
+		letter-spacing: var(--tracking-display);
+		line-height: var(--leading-heading);
+	}
+
+	.meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-3);
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	/* The page padding is desktop-sized; a phone wants the words, not the margin. */
+	@media (max-width: 40rem) {
+		.page {
+			padding-inline: var(--space-6);
+		}
+	}
+</style>

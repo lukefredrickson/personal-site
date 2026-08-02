@@ -3,6 +3,9 @@ title: Why I still hand-roll my CSS
 description: Every year someone tells me my stylesheet workflow is obsolete. Every year I ship faster than the person telling me.
 pubDate: 2026-06-14
 tags: [code]
+hero: ./hero.png
+heroAlt: Placeholder hero art — a flat hatched panel standing in for a real photo.
+heroCaption: optional caption or image credit
 ---
 
 Every year someone tells me my stylesheet workflow is obsolete. Every year I

@@ -2,6 +2,28 @@
 import { defineConfig, fontProviders } from 'astro/config';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
+import expressiveCode, { ExpressiveCodeTheme } from 'astro-expressive-code';
+import dawnfox from './src/styles/code-themes/dawnfox.json';
+import duskfox from './src/styles/code-themes/duskfox.json';
+
+/**
+ * Vendored dawnfox/duskfox VS Code themes (ADR 0016). The theme name drives
+ * Expressive Code's default `[data-theme='<name>']` selector, so naming them
+ * `light`/`dark` lands them straight on ADR 0012's attribute.
+ * @param {{ colors: Record<string, string> }} json
+ * @param {'light' | 'dark'} name
+ */
+const foxTheme = ({ colors, ...theme }, name) =>
+  new ExpressiveCodeTheme({
+    ...theme,
+    name,
+    // duskfox ships `tab.activeBorderTop: "default"`; Expressive Code takes hex
+    // only and throws on anything else. Dropping the stray key beats editing
+    // the vendored file, which stays a verbatim copy.
+    colors: Object.fromEntries(
+      Object.entries(colors).filter(([, value]) => String(value).startsWith('#')),
+    ),
+  });
 
 // https://astro.build/config
 export default defineConfig({
@@ -13,11 +35,6 @@ export default defineConfig({
   // this makes dev 404 it instead, so a sloppy internal link breaks loudly
   // before merge rather than shipping a permanent redirect hop.
   trailingSlash: 'always',
-
-  // Posts start as `.md` and graduate to `.mdx` when they need components
-  // (ADR 0013). No options: `.mdx` inherits the Markdown config, which is the
-  // default Sätteri processor with no plugins.
-  integrations: [mdx(), sitemap()],
 
   // Fonts are fetched from Fontsource at build time and emitted to
   // `_astro/fonts`, so visitors get first-party, year-cached files and Google
@@ -57,4 +74,54 @@ export default defineConfig({
     // default), markdown images render at intrinsic width and overflow.
     responsiveStyles: true,
   },
+
+  // Expressive Code goes first: it rewrites code blocks in the Markdown
+  // pipeline, and MDX inherits that config only if it is already registered.
+  // MDX itself takes no options — `.mdx` inherits the Markdown config, which is
+  // the default Sätteri processor with no plugins (ADR 0013).
+  integrations: [
+    // Every fenced code block in every post, `.md` and `.mdx` alike (ADR 0016).
+    // Fox palettes supply the syntax colors; everything around the code — frame,
+    // filename tab, copy button — is the site's own tokens.
+    expressiveCode({
+      themes: [foxTheme(dawnfox, 'light'), foxTheme(duskfox, 'dark')],
+      // A visitor who never touches the toggle has no `data-theme` at all
+      // (ADR 0012), so the media query is what themes their code blocks.
+      useDarkModeMediaQuery: true,
+      styleOverrides: {
+        borderColor: 'var(--border-strong)',
+        borderWidth: 'var(--border-w)',
+        borderRadius: 'var(--radius-card)',
+        codeBackground: 'var(--code-bg)',
+        codeFontFamily: 'var(--font-mono)',
+        codeFontSize: 'var(--text-code)',
+        codeLineHeight: 'var(--leading-code)',
+        codePaddingBlock: 'var(--space-4)',
+        codePaddingInline: 'var(--space-5)',
+        uiFontFamily: 'var(--font-mono)',
+        uiFontSize: 'var(--text-caption)',
+        uiPaddingBlock: 'var(--space-2)',
+        uiPaddingInline: 'var(--space-5)',
+        frames: {
+          // The design's header is a flat strip with a hairline under it, not a
+          // raised editor tab: every tab-shaped affordance resolves away.
+          editorTabBarBackground: 'transparent',
+          editorTabBarBorderBottomColor: 'var(--code-border)',
+          editorActiveTabBackground: 'transparent',
+          editorActiveTabForeground: 'var(--text-muted)',
+          editorActiveTabBorderColor: 'transparent',
+          editorActiveTabIndicatorHeight: '0',
+          editorActiveTabIndicatorTopColor: 'transparent',
+          editorActiveTabIndicatorBottomColor: 'transparent',
+          editorTabBorderRadius: '0',
+          // Code cards sit flat in the prose; the lift belongs to real cards.
+          frameBoxShadowCssValue: 'none',
+          inlineButtonForeground: 'var(--text-muted)',
+          inlineButtonBorder: 'var(--code-border)',
+        },
+      },
+    }),
+    mdx(),
+    sitemap(),
+  ],
 });

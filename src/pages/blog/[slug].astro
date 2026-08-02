@@ -1,0 +1,28 @@
+---
+import type { InferGetStaticPropsType } from 'astro';
+import { render } from 'astro:content';
+import PostLayout from '../../layouts/PostLayout.astro';
+import { getPublishedPosts } from '../../lib/posts';
+
+export async function getStaticPaths() {
+	const posts = await getPublishedPosts();
+	// `.at()` would wrap a -1 back onto the newest post; the bounds check is the
+	// whole reason this exists.
+	const nth = (index: number) => (index >= 0 && index < posts.length ? posts[index] : undefined);
+
+	return posts.map((post, index) => ({
+		params: { slug: post.id },
+		// The list runs newest first, so the older neighbor is the next one along.
+		props: { post, prev: nth(index + 1), next: nth(index - 1) },
+	}));
+}
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+
+const { post, prev, next } = Astro.props;
+const { Content } = await render(post);
+---
+
+<PostLayout post={post} prev={prev} next={next}>
+	<Content />
+</PostLayout>

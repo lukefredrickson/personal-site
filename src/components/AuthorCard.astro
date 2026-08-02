@@ -25,7 +25,9 @@ const {
 
 {/* Bio beside the post it closes, not part of it. */}
 <aside class="author-card">
-	<div class="photo">{photo && <Image src={photo} alt={name} />}</div>
+	{/* The declared width is the rendered width: without it the responsive
+	    pipeline sizes a full-bleed image and ships megabytes for a 52px thumb. */}
+	<div class="photo">{photo && <Image src={photo} alt={name} width={52} />}</div>
 	{/* The sentence around the link is chrome, not content — one author, one
 	    destination, and only the words worth varying are props. */}
 	<p class="bio">
