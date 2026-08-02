@@ -1,0 +1,13 @@
+{
+  // Scoped typecheck for the factory. The root tsconfig's `**/*` include
+  // skips dot-directories, so `npm run check` never sees these files
+  // (issue #82); CI runs `tsc --noEmit -p .sandcastle` against this
+  // config instead. Runtime dirs (restack/, logs/, worktrees/) hold
+  // throwaway repo copies during runs and must stay out of `include`.
+  "extends": "../tsconfig.json",
+  "include": ["src/**/*.ts", "vitest.config.ts"],
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  }
+}

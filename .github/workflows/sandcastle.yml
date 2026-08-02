@@ -1,0 +1,30 @@
+# Factory CI: scoped typecheck + Vitest suite for `.sandcastle/`. The
+# root typecheck gate never sees the dot-directory (tsconfig `**/*`
+# skips it — issue #82), so this job carries that coverage. Path-filtered
+# so site PRs never run it, and intentionally NOT a required check on
+# `main` (ADR 0028) — promotion can happen later if a red X gets ignored.
+name: Sandcastle
+
+on:
+  pull_request:
+    paths:
+      - ".sandcastle/**"
+      - ".github/workflows/sandcastle.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".sandcastle/**"
+      - ".github/workflows/sandcastle.yml"
+
+jobs:
+  sandcastle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # matches `engines.node: >=22.12.0`
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit -p .sandcastle
+      - run: npm run test:sandcastle

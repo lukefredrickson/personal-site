@@ -24,7 +24,7 @@ Here are the last 10 commits:
 
 # STANDARDS
 
-Follow @.sandcastle/CODING_STANDARDS.md. In short: idiomatic Astro, zero
+Follow @.sandcastle/prompts/CODING_STANDARDS.md. In short: idiomatic Astro, zero
 client JS by default, scoped styles on the design tokens, and the Astro docs
 MCP (`astro-docs`) beats training data — consult it for any Astro question.
 

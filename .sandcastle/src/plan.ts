@@ -75,7 +75,7 @@ export function deletePlan(): void {
 // The planning agent: judgment in, proposal out, no write authority
 // ---------------------------------------------------------------------------
 
-const PLAN_PROMPT_FILE = ".sandcastle/plan-prompt.md";
+const PLAN_PROMPT_FILE = ".sandcastle/prompts/plan-prompt.md";
 
 const proposalSchema = z.object({
   mutations: z.array(
