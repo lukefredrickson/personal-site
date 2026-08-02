@@ -28,8 +28,8 @@ const {
 	{/* The declared width is the rendered width: without it the responsive
 	    pipeline sizes a full-bleed image and ships megabytes for a 52px thumb. */}
 	<div class="photo">{photo && <Image src={photo} alt={name} width={52} />}</div>
-	{/* The sentence around the link is chrome, not content — one author, one
-	    destination, and only the words worth varying are props. */}
+	{/* The sentence around the link is boilerplate, not content — one author,
+	    one destination, and only the words worth varying are props. */}
 	<p class="bio">
 		<b>{name}</b> — {blurb} More about me + career highlights on the <a href={href}>{linkLabel}</a>.
 	</p>
@@ -40,7 +40,6 @@ const {
 		display: flex;
 		align-items: center;
 		gap: var(--space-4);
-		/* The kit shows 18px horizontal; snapped to the spacing scale. */
 		padding: var(--space-4) var(--space-5);
 		border: var(--border-w) solid var(--border-strong);
 		border-radius: var(--radius-card);

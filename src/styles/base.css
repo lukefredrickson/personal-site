@@ -3,8 +3,9 @@
    import manifest); this is where future page-level defaults land. */
 
 :root {
-  /* Never fake a weight or an italic. Public Sans 500 is off-spec and Fira Code
-     has no italic; without these the browser would synthesize both. */
+  /* Never fake a weight or an italic. 500 is Fira Code only
+     (--weight-mono-active) and Fira Code has no italic; without these the
+     browser would synthesize both. */
   font-synthesis-weight: none;
   font-synthesis-style: none;
 }

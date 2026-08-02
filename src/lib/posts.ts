@@ -23,7 +23,7 @@ export async function getPublishedPosts(): Promise<Post[]> {
 }
 
 /**
- * A post date as the design's mono meta writes it: `jun 21, 2026`, or
+ * A post date as the mono meta line writes it: `jun 21, 2026`, or
  * `jun 2026` at month precision. Lowercase because that meta always is, and
  * UTC — a date stamped at midnight renders as the day before out west.
  */

@@ -4,7 +4,7 @@
   ADR 0010's one global-CSS exception: the `<p>`/`<h2>`/`<a>` a post body
   compiles to cannot carry scoped classes, so their styles live here, under a
   `.prose` wrapper that keeps them off the rest of the site. Typography only —
-  anything in prose with chrome (figures, code frames, video embeds) is a
+  anything in prose with its own framing (figures, code frames, video embeds) is a
   component or an integration and styles itself.
 
   Vertical rhythm is authored in rem/em rather than the px spacing scale
@@ -87,10 +87,9 @@
 
 .prose blockquote {
   border-left: 3px solid var(--accent);
-  /* The design shows 18px off the rule; snapped to the spacing scale. The 2px
-     vertical is an optical nudge with no near token. */
+  /* The 2px vertical is an optical nudge with no near token. */
   padding: 2px 0 2px var(--space-5);
-  /* No job token covers a pull quote; the design's 17px snaps to the `lg` step. */
+  /* No job token covers a pull quote. */
   font-size: var(--font-size-lg);
   font-style: italic;
   line-height: var(--leading-body);

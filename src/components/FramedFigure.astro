@@ -3,7 +3,7 @@ import type { ImageMetadata } from 'astro';
 import { Image } from 'astro:assets';
 
 /**
- * Media and its alt text travel together — an image the kit cannot describe is
+ * Media and its alt text travel together — an image with no description is
  * not a state worth rendering. Omit both for the placeholder treatment.
  */
 type Media = { src: ImageMetadata; alt: string } | { src?: undefined; alt?: undefined };

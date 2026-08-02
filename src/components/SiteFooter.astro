@@ -1,7 +1,7 @@
 ---
-// The spec's `left`/`right` props are dropped: the footer is site chrome
-// rendered once by the layout, and its copy is factual and fixed. A build-time
-// year beats a literal nobody remembers to bump.
+// Prop-less: the footer is site furniture rendered once by the layout, and its
+// copy is factual and fixed. A build-time year beats a literal nobody
+// remembers to bump.
 const year = new Date().getFullYear();
 ---
 
@@ -17,7 +17,6 @@ const year = new Date().getFullYear();
 		/* Both halves fit one line until the narrowest phones. */
 		flex-wrap: wrap;
 		gap: var(--space-2);
-		/* The kit shows 18px under the hairline; snapped to the spacing scale. */
 		padding-top: var(--space-5);
 		border-top: 1px solid var(--hairline);
 		color: var(--text-muted);

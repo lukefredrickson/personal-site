@@ -16,7 +16,7 @@
 
    Sizes are a named scale (primitive) that the job tokens alias into
    (semantic) — the same two-layer shape as colors.css. Components read the job
-   tokens; the scale is what the design snaps to. rem throughout, because type
+   tokens. rem throughout, because type
    should scale with the reader's default font-size preference. */
 
 :root {
