@@ -94,7 +94,7 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 		color: var(--ink);
 		font-family: var(--font-display);
 		font-size: var(--text-item-title);
-		font-weight: 700;
+		font-weight: var(--weight-title);
 	}
 
 	.dates {
@@ -119,7 +119,7 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 		color: var(--text-body);
 		font-family: var(--font-body);
 		font-size: var(--text-small);
-		line-height: 1.5;
+		line-height: var(--leading-body);
 	}
 
 	/* Marker as a pseudo-element: decorative, and it keeps the bullet text a
@@ -128,7 +128,7 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 		content: '▸';
 		flex: none;
 		color: var(--marker-muted);
-		font-weight: 700;
+		font-weight: var(--weight-title);
 	}
 
 	.current .bullets li::before {
