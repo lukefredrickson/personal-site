@@ -1,0 +1,57 @@
+---
+interface Props {
+	/**
+	 * Hard offset shadow. Off by default: of the kit's cards only the featured
+	 * post lifts off the page.
+	 */
+	shadow?: boolean;
+	/** Quiet cards drop to the soft border — prev/next, secondary content. */
+	quiet?: boolean;
+}
+
+const { shadow = false, quiet = false } = Astro.props;
+---
+
+{/* Body padding is the caller's: contents run from padded role lists to
+    full-bleed hero images. */}
+<div class:list={['card', { shadow, quiet }]}>
+	{
+		Astro.slots.has('header') && (
+			<div class="header">
+				<slot name="header" />
+			</div>
+		)
+	}
+	<slot />
+</div>
+
+<style>
+	.card {
+		/* One line color for the outline and the header rule, so `quiet` moves
+		   both from one place. */
+		--card-line: var(--border-strong);
+
+		border: var(--border-w) solid var(--card-line);
+		border-radius: var(--radius-card);
+		background: var(--surface);
+		/* Clips the header strip's background to the rounded corners. */
+		overflow: hidden;
+	}
+
+	.quiet {
+		--card-line: var(--border-soft);
+	}
+
+	.shadow {
+		box-shadow: var(--shadow-card);
+	}
+
+	.header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-4);
+		padding: var(--space-5) var(--space-6);
+		border-bottom: var(--border-w) solid var(--card-line);
+		background: var(--surface-raised);
+	}
+</style>
