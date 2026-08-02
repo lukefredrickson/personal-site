@@ -1,0 +1,22 @@
+---
+/**
+ * Two in-body photos side by side — slot in `FramedFigure variant="photo"`.
+ * Stacks to one column on a phone, where two 130px-tall crops read as stamps.
+ */
+---
+
+<div class="photo-pair"><slot /></div>
+
+<style>
+	.photo-pair {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--space-3);
+	}
+
+	@media (max-width: 40rem) {
+		.photo-pair {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

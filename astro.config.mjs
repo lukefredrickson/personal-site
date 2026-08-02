@@ -121,6 +121,10 @@ export default defineConfig({
         },
       },
     }),
+    // Posts graduate to `.mdx` when they need components in the body — stat
+    // rows, framed photos, video embeds (ADR 0013). Stays behind
+    // `expressiveCode()`, which only reaches MDX code blocks when registered
+    // ahead of it.
     mdx(),
     sitemap(),
   ],
