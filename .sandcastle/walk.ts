@@ -17,8 +17,10 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import {
   branchCarries,
   fetchOrigin,
+  gateBranchAncestry,
   resolveOriginTip,
   restackBranch,
+  type ConflictResolution,
   type RestackOutcome,
 } from "./restack.ts";
 import { pruneClosure, waveLevels, type StackStep } from "./stack.ts";
@@ -129,17 +131,32 @@ interface PrunedStep {
   readonly reason: string;
 }
 
+export interface ResolvedStep {
+  readonly step: StackStep;
+  /** What finished the conflicted rebase: recorded rerere hunks or the agent. */
+  readonly via: ConflictResolution;
+}
+
+/** One local branch ref the run moved to follow a force-push. */
+export interface LocalRefMove {
+  readonly branch: string;
+  readonly from: string;
+  readonly to: string;
+}
+
 export interface StackOutcome {
   readonly stack: readonly StackStep[];
   /** Steps whose branch ended up on the final chain. */
   readonly chained: readonly StackStep[];
   /** Chained steps that skipped their sandbox (already had an open PR). */
   readonly skipped: readonly StackStep[];
-  /** Chained steps whose rebase conflict the resolver agent fixed. */
-  readonly resolved: readonly StackStep[];
+  /** Chained steps whose rebase conflict rerere or the resolver fixed. */
+  readonly resolved: readonly ResolvedStep[];
   readonly pruned: readonly PrunedStep[];
   /** Branches left with commits but no PR — warned, not pruned. */
   readonly missingPrs: readonly string[];
+  /** Every local-ref move this stack made, for the run-summary audit. */
+  readonly localRefMoves: readonly LocalRefMove[];
 }
 
 // The run-wide state every concurrent stack shares: one sandbox pool,
@@ -164,8 +181,9 @@ export async function runStack(
 
   const levels = waveLevels(stack);
   const skipped: StackStep[] = [];
-  const resolved: StackStep[] = [];
+  const resolved: ResolvedStep[] = [];
   const missingPrs: string[] = [];
+  const localRefMoves: LocalRefMove[] = [];
   const pruned = new Map<number, string>();
   // Steps in the order they joined the chain — the membership each
   // per-wave link passes to `gh stack link`.
@@ -203,6 +221,7 @@ export async function runStack(
   const buildStep = async (
     step: StackStep,
     waveBase: string,
+    waveBaseSha: string,
     depth: number,
   ): Promise<{
     readonly failure?: string;
@@ -226,6 +245,32 @@ export async function runStack(
             `${existingPr}) — sandbox skipped.`,
         );
         return { skippedSandbox: true };
+      }
+
+      // The resume ancestry gate: a leftover branch from a dead run may
+      // not descend from the base this wave assigns, and the sandbox
+      // library would reuse it as-is — smuggling pre-restack ancestry
+      // into the chain. Stale refs reset to the base so the sandbox
+      // rebuilds fresh; refs the gate must not touch prune the step
+      // with the recovery command in the reason. Under the restack lock:
+      // the gate reads origin refs and pushes through the shared worktree.
+      const gate = await ctx.restackLock.use(() =>
+        gateBranchAncestry(ctx.restackWorktree, step.branch, waveBaseSha),
+      );
+      if (gate.kind === "blocked") {
+        return { failure: gate.reason, skippedSandbox: false };
+      }
+      if (gate.kind === "rebuilt") {
+        // A gate reset that moved the local ref is audited in the run
+        // summary alongside the restack-time moves — story is the same:
+        // the run touched something outside origin.
+        if (gate.localMove !== undefined) {
+          localRefMoves.push({ branch: step.branch, ...gate.localMove });
+        }
+        console.log(
+          `↺ #${step.issue.number}: stale ${step.branch} rebuilt — ` +
+            `${gate.details.join("; ")}.`,
+        );
       }
 
       await ctx.sandboxPool.use(async () => {
@@ -256,7 +301,18 @@ export async function runStack(
           });
 
           if (implement.commits.length === 0) {
-            failure = "produced no commits";
+            // The implement prompt's missing-dependency tripwire: an
+            // implementer whose tree lacks a foundation the issue's spec
+            // references stops with a tagged report instead of blindly
+            // re-implementing it. Surfacing the report as the prune
+            // reason puts the suspected missing blocked-by edge in the
+            // run summary, where the operator can act on it.
+            const report = /<missing-dependency>([\s\S]*?)<\/missing-dependency>/.exec(
+              implement.stdout,
+            );
+            failure = report
+              ? `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`
+              : "produced no commits";
           } else {
             // Only review if the implementer produced commits.
             await sandbox.run({
@@ -322,6 +378,10 @@ export async function runStack(
 
   for (const [depth, level] of levels.entries()) {
     const waveBase = tipName;
+    // The sha the wave's sandboxes are cut from — later the replay
+    // window's start, so each branch's restack replays only the commits
+    // the branch itself added on top of this sha.
+    const waveBaseSha = tipSha;
 
     // -- Build phase: every survivor of this wave concurrently, capped
     // by the global pool, all cut from the same base — the current
@@ -334,7 +394,7 @@ export async function runStack(
       return false;
     });
     const results = await Promise.all(
-      survivors.map((step) => buildStep(step, waveBase, depth)),
+      survivors.map((step) => buildStep(step, waveBase, waveBaseSha, depth)),
     );
 
     // The wave barrier: prunes land only after every member has
@@ -394,6 +454,7 @@ export async function runStack(
             step.branch,
             tipName,
             tipSha,
+            waveBaseSha,
           );
         } catch (error) {
           prune(
@@ -414,23 +475,50 @@ export async function runStack(
         if (outcome.kind === "check-failed") {
           prune(
             step,
-            outcome.resolvedConflict
+            outcome.resolution === "agent"
               ? `the resolver finished its rebase onto ${tipName} but npm run check failed`
-              : `npm run check failed at its tip restacked onto ${tipName}`,
+              : outcome.resolution === "rerere"
+                ? `rerere replayed recorded resolutions onto ${tipName} but npm run check failed`
+                : `npm run check failed at its tip restacked onto ${tipName}`,
           );
           continue;
         }
 
-        if (outcome.kind === "resolved") resolved.push(step);
+        if (outcome.kind === "resolved") {
+          resolved.push({ step, via: outcome.via });
+        }
         console.log(
           outcome.kind === "restacked"
             ? `✓ ${step.branch} restacked onto ${tipName}: check passed, force-pushed.`
             : outcome.kind === "resolved"
-              ? `✓ ${step.branch} restacked onto ${tipName}: conflict ` +
-                `agent-resolved, check passed, force-pushed. Audit the ` +
-                `resolution when reviewing the PR.`
+              ? outcome.via === "agent"
+                ? `✓ ${step.branch} restacked onto ${tipName}: conflict ` +
+                  `agent-resolved, check passed, force-pushed. Audit the ` +
+                  `resolution when reviewing the PR.`
+                : `✓ ${step.branch} restacked onto ${tipName}: conflict ` +
+                  `auto-resolved from recorded rerere resolutions, check ` +
+                  `passed, force-pushed.`
               : `✓ ${step.branch} already chains from ${tipName} — no-op.`,
         );
+
+        // The force-push may have moved the operator's matching local
+        // branch under lease; report every move for the audit trail, and
+        // every skip with its recovery command.
+        if (outcome.kind === "restacked" || outcome.kind === "resolved") {
+          const { localRef } = outcome;
+          if (localRef.kind === "moved") {
+            localRefMoves.push({ branch: step.branch, ...localRef });
+            console.log(
+              `  ↪ local ${step.branch} followed the force-push ` +
+                `(${localRef.from.slice(0, 12)} → ${localRef.to.slice(0, 12)}).`,
+            );
+          } else if (localRef.kind === "skipped") {
+            console.error(
+              `  ⚠ local ${step.branch} not moved — ${localRef.reason}. ` +
+                `Recover with: ${localRef.recovery}`,
+            );
+          }
+        }
 
         // Keep every PR based on its actual predecessor in the chain, so
         // review diffs stay per-issue even after prunes reshaped the walk.
@@ -468,10 +556,11 @@ export async function runStack(
     stack,
     chained: stack.filter((s) => !pruned.has(s.issue.number)),
     skipped: skipped.filter((s) => !pruned.has(s.issue.number)),
-    resolved: resolved.filter((s) => !pruned.has(s.issue.number)),
+    resolved: resolved.filter((r) => !pruned.has(r.step.issue.number)),
     pruned: stack
       .filter((s) => pruned.has(s.issue.number))
       .map((s) => ({ step: s, reason: pruned.get(s.issue.number)! })),
     missingPrs,
+    localRefMoves,
   };
 }

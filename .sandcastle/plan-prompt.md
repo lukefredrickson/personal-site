@@ -32,6 +32,15 @@ in topological order; unrelated components run as independent stacks. So:
   API one issue defines and another consumes. Semantically related issues
   with no edge land in separate stacks and conflict; that is the failure
   you exist to prevent.
+- **Producer → consumer edges are the ones most often missing.** For each
+  issue, predict the concrete artifacts it will create or reshape —
+  components, layouts, schema, styles, routes — and check every other
+  issue whose spec references one of those artifacts. A consumer whose
+  foundation is not in its branch's ancestry builds blind: its implementer
+  either re-creates the foundation (duplicated implementations the restack
+  must reconcile) or stops on a missing dependency. Propose the
+  foundation → consumer edge whenever one issue consumes what another
+  produces, even if the issues seem thematically distinct.
 - **Remove** edges that do not reflect a real build-order dependency —
   stale edges, or edges that chain unrelated work into one
   needlessly-serial stack.

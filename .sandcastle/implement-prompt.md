@@ -33,6 +33,28 @@ MCP (`astro-docs`) beats training data — consult it for any Astro question.
 Explore the repo and fill your context window with relevant information that
 will allow you to complete the task.
 
+# MISSING FOUNDATION — STOP, DON'T RE-IMPLEMENT
+
+If the issue's spec references components, layouts, schema, or content
+plumbing that do not exist in your tree, a foundation issue that should have
+built before yours is missing from your branch's ancestry. Do NOT re-implement
+that foundation blind — a duplicate implementation pollutes your PR diff and
+forces the restack to reconcile two versions.
+
+Instead, stop and report:
+
+1. Make no commits.
+2. Leave a comment on issue #{{ISSUE_NUMBER}} naming what is missing and
+   which issue you suspect should have provided it.
+3. Output a single line of the form
+   `<missing-dependency>#<suspected foundation issue> should block #{{ISSUE_NUMBER}}: <what is missing></missing-dependency>`
+   followed by `<promise>COMPLETE</promise>` to end the run. The host prunes
+   this step, surfaces your report in the run summary, and the operator adds
+   the blocked-by edge and re-runs.
+
+Only trip this wire for genuine foundations the spec builds on — not for
+nice-to-haves you could reasonably create as part of your own issue.
+
 # FEEDBACK LOOPS
 
 Before committing, run `npm run check` and fix every error it reports. This is

@@ -212,11 +212,25 @@ async function runCommand(): Promise<never> {
       );
     }
     // The audit trail for the owner: these branches carry conflict
-    // resolutions an agent authored, not just replayed commits.
-    for (const step of outcome.resolved) {
+    // resolutions an agent authored (or rerere replayed from one), not
+    // just replayed commits.
+    for (const { step, via } of outcome.resolved) {
       console.log(
-        `    ↻ #${step.issue.number} (${step.branch}) — rebase conflict ` +
-          `agent-resolved; audit the resolution when reviewing.`,
+        via === "agent"
+          ? `    ↻ #${step.issue.number} (${step.branch}) — rebase conflict ` +
+              `agent-resolved; audit the resolution when reviewing.`
+          : `    ↻ #${step.issue.number} (${step.branch}) — rebase conflict ` +
+              `auto-resolved from recorded rerere resolutions.`,
+      );
+    }
+    // Everything the run touched outside origin: each local branch ref
+    // moved to follow a force-push, so the operator can audit their own
+    // checkout's state against this list.
+    for (const move of outcome.localRefMoves) {
+      console.log(
+        `    ↪ local ${move.branch} moved ${move.from.slice(0, 12)} → ` +
+          `${move.to.slice(0, 12)} (followed a force-push or a ` +
+          `stale-branch rebuild).`,
       );
     }
   }
