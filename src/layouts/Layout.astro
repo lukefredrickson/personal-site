@@ -1,6 +1,8 @@
 ---
 import type { ComponentProps } from 'astro/types';
 import BaseHead from '../components/BaseHead.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
 import '../styles/global.css';
 
 // The layout adds nothing to the head API, so it forwards BaseHead's props
@@ -74,6 +76,39 @@ type Props = ComponentProps<typeof BaseHead>;
 		<slot name="head" />
 	</head>
 	<body>
-		<slot />
+		<div class="page">
+			<SiteHeader />
+			<main>
+				<slot />
+			</main>
+			<SiteFooter />
+		</div>
 	</body>
 </html>
+
+<style>
+	/* The one content column. The chrome renders inside it, so header and footer
+	   line up with whatever the page puts between them. Screens own their own
+	   internal rhythm; this gap is only the seam around them. */
+	.page {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-8);
+		min-height: 100vh;
+		max-width: var(--page-max);
+		margin-inline: auto;
+		padding: var(--page-pad-top) var(--page-pad-x);
+	}
+
+	/* Holds the footer at the bottom of a short page. */
+	main {
+		flex: 1;
+	}
+
+	/* 52px of gutter is most of a phone screen. */
+	@media (max-width: 40rem) {
+		.page {
+			padding-inline: var(--space-6);
+		}
+	}
+</style>

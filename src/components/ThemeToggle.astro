@@ -1,0 +1,142 @@
+---
+import { Moon, Sun } from '@lucide/astro';
+---
+
+{/*
+	No props: the DOM is the source of truth (ADR 0012). `data-theme` on <html>
+	drives the knob through CSS, and the layout's init script owns
+	`aria-pressed` — so the value here is only the untouched-visitor default.
+*/}
+<button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Dark mode">
+	<Sun class="track sun" size={13} />
+	<Moon class="track moon" size={13} />
+	<span class="knob">
+		<Sun class="sun" size={12} />
+		<Moon class="moon" size={12} />
+	</span>
+</button>
+
+<style>
+	.theme-toggle {
+		/* Light values; the two dark rules below flip all three at once. 28px of
+		   travel lands the knob on the mirrored 2px inset at the right end. */
+		--knob-x: 0;
+		--sun-display: block;
+		--moon-display: none;
+
+		position: relative;
+		flex: none;
+		/* The kit's pill is a fixed 56×28; every offset below is measured off it. */
+		width: 56px;
+		height: 28px;
+		padding: 0;
+		border: var(--border-w) solid var(--ink);
+		border-radius: var(--radius-pill);
+		background: var(--surface);
+		box-shadow: var(--shadow-sm);
+		cursor: pointer;
+	}
+
+	.theme-toggle:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	/* Both track icons are always visible and always muted; the knob covers
+	   whichever one is active. */
+	.track {
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		color: var(--text-faint);
+	}
+
+	.track.sun {
+		left: 7px;
+	}
+
+	.track.moon {
+		right: 7px;
+	}
+
+	.knob {
+		position: absolute;
+		top: 2px;
+		left: 2px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 21px;
+		height: 21px;
+		border-radius: 50%;
+		background: var(--ink);
+		color: var(--bg);
+		transform: translateX(var(--knob-x));
+	}
+
+	.knob .sun {
+		display: var(--sun-display);
+	}
+
+	.knob .moon {
+		display: var(--moon-display);
+	}
+
+	/* Site-wide rule: decorative motion only for those who want it. */
+	@media (prefers-reduced-motion: no-preference) {
+		.knob {
+			transition: transform 0.18s ease;
+		}
+	}
+
+	/* A stored choice — CSS positions the knob, so it is right pre-paint and
+	   after a client-router swap, with JS never touching it. */
+	html[data-theme='dark'] .theme-toggle {
+		--knob-x: 28px;
+		--sun-display: none;
+		--moon-display: block;
+	}
+
+	/* No stored choice: follow the OS, exactly as the color tokens do. Repeating
+	   the values is the price of a media query that cannot join the selector. */
+	@media (prefers-color-scheme: dark) {
+		html:not([data-theme='light']) .theme-toggle {
+			--knob-x: 28px;
+			--sun-display: none;
+			--moon-display: block;
+		}
+	}
+</style>
+
+<script>
+	// Declared by the pre-paint init script in Layout.astro (ADR 0012), which is
+	// the single owner of theme DOM state — the <html> attribute, this button's
+	// aria-pressed, and the theme-color metas.
+	declare function applyTheme(): void;
+
+	const STORAGE_KEY = 'lfdev-theme';
+
+	// Delegated: bundled scripts run once ever, so a listener bound to the button
+	// itself would be lost the first time a client-router swap replaced it.
+	document.addEventListener('click', (event) => {
+		const target = event.target;
+		if (!(target instanceof Element) || !target.closest('[data-theme-toggle]')) return;
+
+		// The attribute is stamped only for a stored choice; without one the OS
+		// decides, so that is what there is to flip.
+		const chosen = document.documentElement.dataset.theme;
+		const dark = chosen ? chosen === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+		try {
+			localStorage.setItem(STORAGE_KEY, dark ? 'light' : 'dark');
+		} catch {
+			// Privacy modes throw. Storage is what a choice means here, so with
+			// nowhere to record it there is nothing to apply.
+			return;
+		}
+		applyTheme();
+	});
+
+	// The head script runs before <body> exists and so cannot see this button.
+	// Nothing visual depends on the correction, only the announced state.
+	applyTheme();
+</script>
