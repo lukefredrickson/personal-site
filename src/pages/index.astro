@@ -11,19 +11,19 @@ import FeaturedPostCard from '../components/FeaturedPostCard.astro';
 import PostListItem from '../components/PostListItem.astro';
 import RoleEntry from '../components/RoleEntry.astro';
 import SectionTitle from '../components/SectionTitle.astro';
-import type { Tag, Topic } from '../components/TagPill.astro';
+import type { Tag } from '../components/TagPill.astro';
 import Layout from '../layouts/Layout.astro';
 import { formatPostDate, getPublishedPosts } from '../lib/posts';
+import { topicOf } from '../lib/topics';
 
 // The newest post leads the section; the rest are rows. Four keeps the home
 // list a teaser — /blog/ is where the archive lives.
 const [featured, ...older] = await getPublishedPosts();
 const recent = older.slice(0, 4);
 
-// The tag→topic map is the screen's: the chip takes a tint, not a vocabulary.
-// An unmapped tag is still a working chip, just neutral.
-const TOPICS: Record<string, Topic> = { code: 'code', bikes: 'bikes', video: 'video' };
-const chips = (tags: string[]): Tag[] => tags.map((tag) => ({ tag, topic: TOPICS[tag] }));
+// Tinting is the screen's call, off the one shared map — the chip takes a tint,
+// not a vocabulary.
+const chips = (tags: string[]): Tag[] => tags.map((tag) => ({ tag, topic: topicOf(tag) }));
 
 // The schema pairs a hero with its alt text; testing both is what proves that
 // pairing to TypeScript here, where the card takes them as a unit.

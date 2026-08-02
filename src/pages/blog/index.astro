@@ -1,0 +1,10 @@
+---
+import BlogIndexLayout from '../../layouts/BlogIndexLayout.astro';
+import { getPublishedPosts } from '../../lib/posts';
+
+// No `activeTag`: this is the everything page, the one the "everything" pill
+// links to (ADR 0014).
+const posts = await getPublishedPosts();
+---
+
+<BlogIndexLayout {posts} />

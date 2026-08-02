@@ -6,6 +6,7 @@ import FramedFigure from '../components/FramedFigure.astro';
 import PrevNext from '../components/PrevNext.astro';
 import TagPill from '../components/TagPill.astro';
 import { formatPostDate, type Post } from '../lib/posts';
+import { topicOf } from '../lib/topics';
 import Layout from './Layout.astro';
 
 interface Props {
@@ -43,7 +44,7 @@ const published = formatPostDate(pubDate);
 						tags.map((tag) => (
 							<>
 								<span aria-hidden="true">·</span>
-								<TagPill tag={tag} />
+								<TagPill tag={tag} topic={topicOf(tag)} />
 							</>
 						))
 					}

@@ -1,4 +1,6 @@
 ---
+import type { TagTopic } from '../lib/topics';
+
 interface Props {
 	/** Tag page this pill filters to, or `/blog/` for the "everything" pill. */
 	href: string;
@@ -9,7 +11,7 @@ interface Props {
 	/** Exactly one pill in a row is active — the page you are on. */
 	active?: boolean;
 	/** Topic tint on the idle pill. */
-	topic?: 'code' | 'bikes' | 'neutral';
+	topic?: TagTopic;
 }
 
 const { href, label, count, active = false, topic = 'neutral' } = Astro.props;

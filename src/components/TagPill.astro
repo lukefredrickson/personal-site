@@ -1,12 +1,11 @@
 ---
-/** One name for the tints below, shared with everything that passes one. */
-export type Topic = 'code' | 'bikes' | 'video' | 'neutral';
+import type { Topic } from '../lib/topics';
 
 /** A post's tag as the cards and rows take it, one chip's worth. */
 export interface Tag {
 	/** Tag slug — the chip's label and its tag page (ADR 0014). */
 	tag: string;
-	/** The tag→topic map belongs to the screen, not the card. */
+	/** Tinting is the caller's call: the chip owns no tag→topic map. */
 	topic?: Topic;
 }
 
