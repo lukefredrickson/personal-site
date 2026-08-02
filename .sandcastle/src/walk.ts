@@ -116,8 +116,9 @@ export interface WalkEffects {
 }
 
 // The real wiring: gh on PATH, docker sandboxes, the restack module
-// against the run's shared worktree. Each adapter is one command —
-// thin enough to review by eye, which is the deal ADR 0029 records.
+// against the run's shared worktree. Each adapter is thin enough to
+// review by eye — one command, except buildInSandbox's build-then-review
+// sequence — which is the deal ADR 0029 records.
 export function productionWalkEffects(worktree: string): WalkEffects {
   return {
     // An open PR on a step's branch means the step is done — the PR is

@@ -52,12 +52,14 @@ standard, never on internal call sequencing.
   interaction, prune closure and carrier contamination, chain reshaping
   after prunes, completion by open PR — is pinned by fast specs needing
   no network, Docker, or GitHub.
-- The untested residue is the production adapters: each is one `gh` or
-  library invocation (including the "closed and merged PRs don't count"
-  filter, which lives in `openPrUrl`'s `--state open` argument, and the
-  build-then-review sandbox sequence). They are thin enough to review by
-  eye, and the live run exercises them — the same line ADR 0028 drew
-  around end-to-end coverage.
+- The untested residue is the production adapters — mostly one `gh` or
+  library invocation each (including the "closed and merged PRs don't
+  count" filter, which lives in `openPrUrl`'s `--state open` argument),
+  plus one real decision that crossed the boundary: `buildInSandbox`
+  now owns the "only review if the implementer produced commits"
+  conditional, so no spec can pin it. They stay reviewable by eye, and
+  the live run exercises them — the same line ADR 0028 drew around
+  end-to-end coverage.
 - The walk gained a small indirection layer; anyone adding an effect to
   the walk must add it to `WalkEffects` and both wirings. The interface
   doubles as an inventory of everything the walk can do to the world.
