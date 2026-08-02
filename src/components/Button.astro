@@ -27,8 +27,8 @@ const Element = href ? 'a' : 'button';
 		/* Separates the label from a trailing icon the caller slots in. The icon's
 		   own size stays a call-site prop — CSS here would beat it (ADR 0015). */
 		gap: var(--space-1);
-		/* 18px sits off the spacing scale; it is the kit's button padding. */
-		padding: var(--space-2) 18px;
+		/* The kit shows 18px horizontal; snapped to the spacing scale. */
+		padding: var(--space-2) var(--space-5);
 		border: var(--border-w) solid var(--border-soft);
 		border-radius: var(--radius-btn);
 		background: var(--surface);
@@ -36,7 +36,7 @@ const Element = href ? 'a' : 'button';
 		color: var(--text-body);
 		font-family: var(--font-display);
 		font-size: var(--text-ui);
-		font-weight: 600;
+		font-weight: var(--weight-ui);
 		/* Undo the body's 1.5 so padding alone sets the button height. */
 		line-height: normal;
 		white-space: nowrap;
@@ -48,6 +48,6 @@ const Element = href ? 'a' : 'button';
 		border-color: transparent;
 		background: var(--btn-primary-bg);
 		color: var(--btn-primary-fg);
-		font-weight: 700;
+		font-weight: var(--weight-title);
 	}
 </style>

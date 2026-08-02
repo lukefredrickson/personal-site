@@ -24,8 +24,8 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 <style>
 	.tag-pill {
 		display: inline-block;
-		/* Off the spacing scale; the kit's chip padding. */
-		padding: 2px 7px;
+		/* The kit shows 2px 7px; snapped to the spacing scale. */
+		padding: var(--space-1) var(--space-2);
 		border-radius: var(--radius-chip);
 		font-family: var(--font-mono);
 		font-size: var(--text-chip);
@@ -57,9 +57,9 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 
 	/* Last so it wins over the topic tints at equal specificity. */
 	.outlined {
-		/* The border replaces a pixel of padding, so an outlined chip stands the
-		   same height as a filled one. */
-		padding: 1px 7px;
+		/* The border replaces a pixel of padding on each axis, so an outlined
+		   chip stands the same size as a filled one. */
+		padding: calc(var(--space-1) - 1px) calc(var(--space-2) - 1px);
 		border: 1px solid var(--latest-border);
 		background: var(--latest-bg);
 		color: var(--latest-fg);

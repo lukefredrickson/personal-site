@@ -26,8 +26,8 @@ const text = count === undefined ? label : `${label} · ${count}`;
 <style>
 	.filter-pill {
 		display: inline-block;
-		/* 5px sits off the spacing scale; it is the kit's pill padding. */
-		padding: 5px var(--space-4);
+		/* The kit shows 5px vertical; snapped to the spacing scale. */
+		padding: var(--space-1) var(--space-4);
 		border: var(--border-w) solid var(--border-soft);
 		border-radius: var(--radius-pill);
 		background: transparent;
@@ -51,12 +51,11 @@ const text = count === undefined ? label : `${label} · ${count}`;
 		color: var(--topic-bikes-fg);
 	}
 
-	/* Last so it wins over the topic tints at equal specificity. The 500 weight
-	   is the single Fira Code 500 in the system (type tokens). */
+	/* Last so it wins over the topic tints at equal specificity. */
 	.active {
 		border-color: var(--ink);
 		background: var(--ink);
 		color: var(--bg);
-		font-weight: 500;
+		font-weight: var(--weight-mono-active);
 	}
 </style>
