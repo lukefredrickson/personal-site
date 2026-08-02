@@ -259,7 +259,7 @@ export type RestackOutcome =
 // The resolver agent: one attempt on the in-progress rebase
 // ---------------------------------------------------------------------------
 
-const RESOLVE_PROMPT_FILE = ".sandcastle/resolve-prompt.md";
+const RESOLVE_PROMPT_FILE = ".sandcastle/prompts/resolve-prompt.md";
 
 function rebaseInProgress(worktree: string): boolean {
   return ["rebase-merge", "rebase-apply"].some((dir) => {

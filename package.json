@@ -12,7 +12,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "prepare": "husky",
-    "sandcastle": "npx tsx .sandcastle/main.ts"
+    "sandcastle": "npx tsx .sandcastle/src/main.ts",
+    "test:sandcastle": "vitest run --config .sandcastle/vitest.config.ts"
   },
   "dependencies": {
     "@astro-community/astro-embed-youtube": "^0.5.10",
@@ -26,8 +27,10 @@
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
     "@astrojs/check": "^0.9.9",
+    "@types/node": "^26.1.2",
     "husky": "^9.1.7",
     "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
     "wrangler": "^4.107.0"
   }
 }

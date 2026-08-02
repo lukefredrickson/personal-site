@@ -10,6 +10,12 @@ first backlog run: replay-window restacks, the resume ancestry gate, rerere,
 factory-owned local `sandcastle/*` refs, and the missing-dependency
 tripwire. The amendments are integrated into the sections below.
 
+Amended 2026-08-02 by ADR 0028
+([#103](https://github.com/lukefredrickson/personal-site/issues/103)):
+the no-test-runner stance is re-scoped to the site only — the factory
+has a committed Vitest suite — and the factory directory gained inner
+seams (`src/`, `prompts/`).
+
 Resolves [#57](https://github.com/lukefredrickson/personal-site/issues/57),
 [#59](https://github.com/lukefredrickson/personal-site/issues/59)–
 [#65](https://github.com/lukefredrickson/personal-site/issues/65), and
@@ -240,8 +246,11 @@ command in its reason.
 
 ### Agent environment
 
-The agents' gate is `npm run check`; the repo intentionally has no test
-runner and the prompts forbid adding one. `CODING_STANDARDS.md` is a
+The agents' gate is `npm run check`; the *site* intentionally has no test
+runner and the prompts forbid adding one. (ADR 0028 re-scoped this rule:
+it covers the site only — the factory's host tooling under `.sandcastle/`
+has a committed Vitest suite, which sandboxed agents neither run nor
+extend.) `CODING_STANDARDS.md` is a
 fully self-contained rule sheet loaded by the implementer and reviewer.
 A repo-level `.mcp.json` registers the Astro docs MCP so sandboxed
 agents inherit it.

@@ -291,7 +291,7 @@ export async function runStack(
             name: `implementer #${step.issue.number}`,
             maxIterations: 100,
             agent: sandcastle.claudeCode("claude-opus-5"),
-            promptFile: "./.sandcastle/implement-prompt.md",
+            promptFile: "./.sandcastle/prompts/implement-prompt.md",
             promptArgs: {
               ISSUE_NUMBER: String(step.issue.number),
               ISSUE_TITLE: step.issue.title,
@@ -319,7 +319,7 @@ export async function runStack(
               name: `reviewer #${step.issue.number}`,
               maxIterations: 1,
               agent: sandcastle.claudeCode("claude-opus-5"),
-              promptFile: "./.sandcastle/review-prompt.md",
+              promptFile: "./.sandcastle/prompts/review-prompt.md",
               promptArgs: {
                 BRANCH: step.branch,
                 BASE_BRANCH: waveBase,
