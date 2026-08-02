@@ -183,7 +183,7 @@ const hero =
 		color: var(--ink);
 		font-family: var(--font-display);
 		font-size: var(--text-hero);
-		font-weight: 800;
+		font-weight: var(--weight-voice);
 		letter-spacing: var(--tracking-display);
 		line-height: var(--leading-tight);
 	}
@@ -220,7 +220,7 @@ const hero =
 		justify-content: center;
 		/* Pulls the dotted run tight against both cards, inside the section gap. */
 		height: 22px;
-		margin: -5px 0;
+		margin: calc(-1 * var(--space-1)) 0;
 	}
 
 	.connector::before {
@@ -241,7 +241,7 @@ const hero =
 		color: var(--link);
 		font-family: var(--font-display);
 		font-size: var(--text-small);
-		font-weight: 700;
+		font-weight: var(--weight-title);
 		text-decoration: none;
 	}
 
