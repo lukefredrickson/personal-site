@@ -1,19 +1,13 @@
 # 5. Import design tokens from the claude.ai/design system
 
 Date: 2026-07-22
-Status: Accepted (amended by ADR 0007, retired by ADR 0019)
+Status: Accepted (amended by ADR 0007)
 
 ## Amendment (ADR 0007)
 
 The tokens now live at `docs/design/`, not `src/styles/`. Every `src/styles/…`
 path below reads as `docs/design/…`. The decision this ADR records — import
 tokens-only, verbatim, reference-first — is unchanged.
-
-## Amendment (ADR 0019)
-
-`docs/design/` is deleted; the imported copy is gone and every path below
-resolves in git history only. The live tokens are `src/styles/`, canonical
-since ADR 0011.
 
 ## Context
 
