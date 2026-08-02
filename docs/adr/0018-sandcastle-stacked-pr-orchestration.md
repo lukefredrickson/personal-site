@@ -4,6 +4,12 @@ Date: 2026-07-31
 
 Status: Accepted
 
+Amended 2026-08-02 by
+[#99](https://github.com/lukefredrickson/personal-site/issues/99) after the
+first backlog run: replay-window restacks, the resume ancestry gate, rerere,
+factory-owned local `sandcastle/*` refs, and the missing-dependency
+tripwire. The amendments are integrated into the sections below.
+
 Resolves [#57](https://github.com/lukefredrickson/personal-site/issues/57),
 [#59](https://github.com/lukefredrickson/personal-site/issues/59)–
 [#65](https://github.com/lukefredrickson/personal-site/issues/65), and
@@ -121,7 +127,14 @@ issue-number order, in a throwaway host worktree under a lock (the
 worktree has one HEAD and one index, shared by all stacks): each branch
 rebases onto the growing chain, a rewritten tip is gated and then
 force-pushed with `--force-with-lease`, and its PR base retargeted to
-its actual predecessor, keeping review diffs per-issue. The gate is
+its actual predecessor, keeping review diffs per-issue. The rebase is a
+replay window — `git rebase --onto <tip> <wave-base sha>` — so only
+commits the branch itself added on top of the base it was built from
+ever replay. A plain rebase replays back to the merge-base, and run 1
+showed what that costs: once a resolver rewrote a predecessor's commit,
+patch-identity broke and every downstream branch re-fought the same
+conflict, six restacks in a row. The window also keeps each PR's commit
+list per-issue — no re-replayed predecessor commits. The gate is
 two tests. `npm ci --dry-run` proves the committed lockfile satisfies
 `package.json` on every platform — the same test CI's clean install
 applies per PR, moved before the push, because a lockfile regenerated
@@ -156,8 +169,16 @@ naming what chained, what pruned, and why.
 ### A resolver agent gets one attempt at conflicted rebases
 
 Wave siblings build blind to each other, so shallow textual conflicts
-are common and mostly mechanical. When a rebase stops on a conflict, a
-resolver agent (claude-opus-5) runs on the host, in the restack
+are common and mostly mechanical. rerere gets the first look: it is
+enabled for the restack worktree's git only (per-invocation flags and
+environment, never config files, so the operator's own git behavior is
+untouched), records every conflict resolution, and replays it when the
+same hunk conflicts again — with `rerere.autoupdate` staging what it
+recognizes. When a stop leaves nothing unmerged, the host finishes the
+rebase itself with `rebase --continue`, no agent and no tokens; the
+recorded resolutions land in the repo's shared rr-cache, so re-runs
+benefit too. Only a genuinely new conflict reaches the resolver agent
+(claude-opus-5), which runs on the host, in the restack
 worktree, on the in-progress rebase — the mid-rebase state exists only
 there; a fresh sandbox would have to redo the rebase and self-certify
 the result. Containment is the same harness mechanism as the planning
@@ -201,6 +222,21 @@ push-without-PR flake self-heals. Host-side post-step verification uses
 the same open-PR test, so "complete" has one definition everywhere. A
 re-run of a retained plan therefore resumes each incomplete stack at its
 first PR-less step, paying only one `gh pr list` call per finished step.
+
+Reuse is gated on ancestry. The sandbox library reuses an existing
+branch as-is, and run 1 showed how that turns toxic: branches inherited
+from a dead run carried pre-restack ancestry into every wave. Before a
+step's sandbox is created, the host checks that the branch's existing
+refs (local and origin) descend from the step's assigned base. A ref
+that fails the check is treated as absent and reset to the base — origin
+through the normal lease force-push, the local ref through the same
+compare-and-swap the local-ref sync uses — so the sandbox rebuilds
+fresh from the correct base and the old history is overwritten. A local
+branch that descends from the base is accumulated work and is kept
+(origin resets to it instead); a stale local ref that is checked out
+somewhere, or that matches neither origin nor the base, is operator
+state the gate refuses to touch — the step prunes with the recovery
+command in its reason.
 
 ### Agent environment
 
@@ -303,8 +339,25 @@ required typecheck check guards every layer despite intermediate bases.
   everything above (`gh stack sync` automates the mechanics; the
   mostly-disjoint files across build issues keep conflicts rare).
 - Restacking rewrites published `sandcastle/*` branches. Force-push is
-  scoped by `--force-with-lease` against the sha just fetched, and no
-  local branch refs are created or moved.
+  scoped by `--force-with-lease` against the sha just fetched. Local
+  `sandcastle/*` refs are owned by the factory (this amends the original
+  "no local branch refs are created or moved" invariant, which run 1
+  proved to be a trap: the sandbox library creates local branches as a
+  side effect of its worktrees, `git fetch` never moves them, and the
+  operator's later stack rebase re-derived sixty files of conflicts that
+  origin had already resolved). After each force-push, a matching local
+  ref moves under the same lease semantics as the push itself: only from
+  exactly the pre-rewrite sha, never while checked out, via
+  `update-ref`'s compare-and-swap. Anything else is skipped with a
+  warning and the exact recovery command, and every move is named in the
+  run summary. The post-merge operator gesture is documented in
+  `docs/agents/sandcastle-operator.md`.
+- An implementer whose tree lacks a foundation the issue's spec
+  references stops and reports a suspected missing blocked-by edge
+  (tagged in its output, surfaced as the prune reason in the run
+  summary) instead of re-implementing the foundation blind; the plan
+  prompt correspondingly asks the planning agent to infer
+  producer → consumer edges from each issue's predicted artifacts.
 - The cap trades money-per-hour for hours: raising it multiplies
   concurrent paid agents and containers. 3 is a laptop-friendly default,
   not a tuned number.
