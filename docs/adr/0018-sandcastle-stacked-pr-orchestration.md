@@ -12,9 +12,11 @@ Reshapes the Sandcastle setup landed in
 [#17](https://github.com/lukefredrickson/personal-site/pull/17) before its
 first real run over the build backlog (#42–52). This ADR is the single
 record of the design: the seven ADRs that iterated toward it (one per
-issue above) are consolidated here and deleted. Their numbers are retired
-— the next ADR is 0026 — and the original files remain recoverable via
-git history.
+issue above) are consolidated here and deleted, as are ADRs 0026–0027
+(the hardening that followed the first full run: the lockfile integrity
+gate, host-agent log files, and per-wave stack linking). All those
+numbers are retired — the next ADR is 0028 — and the original files
+remain recoverable via git history.
 
 ## Context
 
@@ -117,12 +119,24 @@ and budget-wide, so the limit is too.
 After the whole wave settles, the level restacks serially in ascending
 issue-number order, in a throwaway host worktree under a lock (the
 worktree has one HEAD and one index, shared by all stacks): each branch
-rebases onto the growing chain, a rewritten tip is gated with
+rebases onto the growing chain, a rewritten tip is gated and then
+force-pushed with `--force-with-lease`, and its PR base retargeted to
+its actual predecessor, keeping review diffs per-issue. The gate is
+two tests. `npm ci --dry-run` proves the committed lockfile satisfies
+`package.json` on every platform — the same test CI's clean install
+applies per PR, moved before the push, because a lockfile regenerated
+against an installed `node_modules` tree silently drops other
+platforms' optional binaries ([npm/cli#4828]) and otherwise fails only
+in CI; the first full run shipped seven PRs that way. Then
 `npm run check` — the semantic-drift tripwire for siblings that built
-blind to each other — force-pushed with `--force-with-lease`, and its PR
-base retargeted to its actual predecessor, keeping review diffs
-per-issue. A branch already descending from the tip is a detected no-op:
-nothing rewritten, no re-check (that exact tree was already gated).
+blind to each other. (The gate's own dependency install can perform
+the same #4828 rewrite in the worktree; HEAD is already committed so
+it can never be pushed, and the worktree lockfile is restored from
+HEAD so it cannot dirty the next branch's switch.) A branch already
+descending from the tip is a detected no-op: nothing rewritten, no
+re-check (that exact tree was already gated).
+
+[npm/cli#4828]: https://github.com/npm/cli/issues/4828
 Three serialization points — the wave barrier, post-barrier prunes in
 level order, and the restack lock — pin the outcome to what a cap-1 run
 produces: the final branches, bases, and PR chains never depend on which
@@ -147,12 +161,23 @@ resolver agent (claude-opus-5) runs on the host, in the restack
 worktree, on the in-progress rebase — the mid-rebase state exists only
 there; a fresh sandbox would have to redo the rebase and self-certify
 the result. Containment is the same harness mechanism as the planning
-agent's: it can read, edit, `git add`, `git rebase --continue`, and
-amend the rebased tip; push, `rebase --abort`, and `rebase --skip` are
-denied. Host code judges the result mechanically — rebase finished, tree
-clean, HEAD descends from the chain tip, and the host's own
-`npm run check` gate passes — and only then force-pushes; agent claims
-are ignored. Any failed attempt aborts the rebase and hard-resets the
+agent's: it can read, edit, `git add`, `git checkout --ours`,
+`git restore`, `git rebase --continue`, amend the rebased tip, and run
+npm installs and checks; push, `rebase --abort`, and `rebase --skip`
+are denied. The prompt carries the lockfile recipe — never resolve
+`package-lock.json` by hand; take the tip's version and finish with
+`npm install --package-lock-only`, which rebuilds from `package.json`
+alone — and states the chain rule: the harness matches each Bash call
+against single-command patterns, so a `&&` chain of individually
+allowed commands is denied as a whole. That denial is exactly how the
+first run's lockfile corrupted: the resolver's safe compound was
+refused and its allowlisted fallback, plain `npm install`, performed
+the #4828 rewrite. The division of labor is prompt-improves-the-odds,
+harness-guarantees-the-outcome — a resolver that ignores the recipe
+still cannot push a lockfile the `npm ci --dry-run` gate rejects.
+Host code judges the result mechanically — rebase finished, tree
+clean, HEAD descends from the chain tip, and the host's own two-part
+gate passes — and only then force-pushes; agent claims are ignored. Any failed attempt aborts the rebase and hard-resets the
 worktree; nothing is pushed on any failure path, so origin still holds
 the pre-restack branch and the step prunes with standard semantics. The
 attempt holds the restack lock (bounded by a 30-minute timeout) and
@@ -185,20 +210,35 @@ fully self-contained rule sheet loaded by the implementer and reviewer.
 A repo-level `.mcp.json` registers the Astro docs MCP so sandboxed
 agents inherit it.
 
-### Run output: linked stacks
+### Run output: linked stacks, a readable console
 
 The run's deliverable is a set of GitHub stacks, not just base-chained
-PRs. At run end the host binds each multi-PR stack with the `gh-stack`
-CLI: `gh stack link <PRs bottom-to-top>`, passing the full chained
+PRs. The host binds each multi-PR stack with the `gh-stack` CLI:
+`gh stack link <PRs bottom-to-top>`, passing the full chained
 membership — `link` refuses partial updates, so the full set both
-creates a new stack and updates an existing one, making re-linking on
-resume idempotent and keeping a prune-reshaped chain's stack current.
-Standalone PRs need no link. A link failure warns and exits non-zero
-with the plan retained, like a missing PR; the next run skips completed
-work and just re-links. The extension is host-side only — sandboxed
-agents never run `gh stack` (it is not in the agent image), and
-`gh stack view` cannot verify the links, since it reads local tracking
-state while `link`-created stacks live on GitHub.
+creates a new stack and updates an existing one, making re-linking
+idempotent and keeping a prune-reshaped chain's stack current.
+Linking happens wave by wave: as soon as a wave has fully restacked,
+the chain-so-far is linked, so the stack exists on GitHub — bottom PRs
+reviewable in stack order — while later waves are still building,
+instead of only at run end. A per-wave link failure is a warning (the
+known case is a resume, where the existing stack already holds PRs
+above the current wave and gh correctly refuses the subset); a final
+run-end pass re-links every stack with its finished membership, and
+only that pass's failure warns and exits non-zero with the plan
+retained, like a missing PR — the next run skips completed work and
+just re-links. Standalone PRs need no link. The extension is host-side
+only — sandboxed agents never run `gh stack` (it is not in the agent
+image), and `gh stack view` cannot verify the links, since it reads
+local tracking state while `link`-created stacks live on GitHub.
+
+Host-run agents (planner, resolver) log like the sandboxed ones: the
+console carries a start line, a `tail -f` pointer, and the ✓/✗ outcome,
+while the per-tool-call play-by-play goes to a tailable `.log` beside
+the raw `.jsonl` event stream. Watching an agent work is opt-in per
+agent, the start line and pointer keep a 30-minute resolver hold
+distinguishable from a hang, and the console stays one line per chain
+event even with stacks interleaving.
 
 Nothing merges branches or closes issues: the owner reviews each stack
 bottom-up, and merging a PR closes its issue via the closing keyword in
@@ -232,6 +272,24 @@ required typecheck check guards every layer despite intermediate bases.
   rebase and push behind its own claims; one attempt keeps latency
   bounded, and a conflict that survives a full attempt plus the check
   gate is exactly the case the owner should see as a prune.
+- **Guarding the lockfile some other way** — denying the resolver plain
+  `npm install` (it legitimately needs the install before its own
+  check), grepping for sentinel platform entries (encodes today's
+  dependency names, misses other drift), having the host regenerate the
+  lockfile after every resolution (a silent rewrite of agent-authored
+  state — the mutation the audit markers exist to avoid), or swapping
+  the gate's incremental install for a full `npm ci` (minutes per
+  branch where the dry run costs seconds) — all rejected.
+  `npm ci --dry-run` is authoritative because it is what CI runs.
+- **Silencing host agents entirely** — rejected: a resolver can hold
+  the restack lock for up to 30 minutes; with no start line and
+  pointer, a quiet console is indistinguishable from a hang.
+- **Linking per restacked branch, or dropping the run-end link** —
+  rejected: inside a wave the chain moves every few seconds and each
+  link is a GitHub round-trip, so the wave barrier is the natural "the
+  chain grew" moment; and per-wave links warn-and-continue by design,
+  so the run-end pass must own the final membership and the failure
+  semantics.
 
 ## Consequences
 
@@ -253,9 +311,19 @@ required typecheck check guards every layer despite intermediate bases.
 - `plan` is neither free nor deterministic — it spends an agent run, and
   proposals may vary between runs. The review step absorbs this: what is
   printed is still exactly what runs.
-- Sandbox and host log lines interleave across stacks; every message
-  names its issue and stack, but reading one stack's story means
-  grepping the transcript.
+- Sandbox build lines still interleave across stacks; every message
+  names its issue and stack. Host-agent play-by-play no longer crowds
+  the console but doubles the gitignored log output (a `.log` beside
+  each `.jsonl`).
+- Each rewritten tip pays one `npm ci --dry-run` (seconds, usually
+  against the npm cache); no-op restacks skip the gate. A lockfile
+  break now prunes the step at the run, with the npm error in the
+  transcript, instead of surfacing as red CI on an open PR later.
+  `npm install --package-lock-only` trusts npm's documented behavior
+  of ignoring `node_modules`; the gate backstops it if that regresses.
+- Each wave spends one `gh stack link` round-trip per multi-PR stack,
+  and a resume prints one expected link warning per stack until the
+  chain catches up to the prior run's membership.
 - The sandbox's GitHub token needs Contents read/write on top of issues
   and pull-request scopes. `plan` and the resolver require the `claude`
   CLI on the host, running with the operator's credentials; for the

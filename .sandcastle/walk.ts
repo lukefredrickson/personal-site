@@ -86,6 +86,44 @@ export function openPrUrl(branch: string): string | undefined {
   return prs[0]?.url;
 }
 
+// Bind a chain's open PRs into a GitHub stack, bottom-to-top. `gh stack
+// link` refuses partial updates, so the full chained membership is passed
+// every time — the same call creates a new stack, grows it wave by wave,
+// and updates one reshaped by prunes. gh's own chatter is suppressed;
+// one line reports the result. Returns false instead of throwing: a
+// failed link never stops a walk, and the run command decides what a
+// failure at run end means.
+export function linkChainedPrs(
+  chained: readonly StackStep[],
+  what: string,
+): boolean {
+  if (chained.length < 2) return true;
+  try {
+    const urls = chained.map((step) => {
+      const url = openPrUrl(step.branch);
+      if (url === undefined) throw new Error(`no open PR on ${step.branch}`);
+      return url;
+    });
+    execFileSync("gh", ["stack", "link", ...urls], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    console.log(`✓ ${what}: ${urls.length} PRs linked on GitHub.`);
+    return true;
+  } catch (error) {
+    const stderr =
+      error instanceof Error && "stderr" in error
+        ? String((error as { stderr: unknown }).stderr ?? "").trim()
+        : "";
+    console.error(
+      `⚠ ${what}: gh stack link failed — ` +
+        `${stderr !== "" ? stderr : error instanceof Error ? error.message : String(error)}. ` +
+        `Re-run \`npm run sandcastle run\` to re-link, or link by hand ` +
+        `with gh stack link <bottom PR> … <top PR>.`,
+    );
+    return false;
+  }
+}
+
 interface PrunedStep {
   readonly step: StackStep;
   readonly reason: string;
@@ -129,6 +167,9 @@ export async function runStack(
   const resolved: StackStep[] = [];
   const missingPrs: string[] = [];
   const pruned = new Map<number, string>();
+  // Steps in the order they joined the chain — the membership each
+  // per-wave link passes to `gh stack link`.
+  const chainedSoFar: StackStep[] = [];
 
   // Pruning removes the step and its dependency-descendants from the
   // remaining walk; descendants record why so the summary reads whole.
@@ -405,10 +446,22 @@ export async function runStack(
           );
         }
 
+        chainedSoFar.push(step);
         tipName = step.branch;
         tipSha = outcome.sha;
       }
     });
+
+    // Progressive deliverable: the chain so far is linked as soon as
+    // this wave has fully restacked, so the stack exists on GitHub
+    // while later waves are still building instead of only at run end.
+    // On a resume an existing stack can already hold PRs above this
+    // wave; gh refuses that partial update, which reads as a warning
+    // here — the run-end link with the full membership settles it.
+    linkChainedPrs(
+      chainedSoFar,
+      `${label} through wave ${depth + 1}/${levels.length}`,
+    );
   }
 
   return {
