@@ -1,0 +1,143 @@
+---
+import type { ImageMetadata } from 'astro';
+import { Image } from 'astro:assets';
+import TagPill, { type Tag } from './TagPill.astro';
+
+/**
+ * Hero and its alt text travel together, mirroring the collection schema's
+ * `heroAlt`-required-with-`hero` refinement. Omit both for the placeholder.
+ */
+type Hero = { hero: ImageMetadata; heroAlt: string } | { hero?: undefined; heroAlt?: undefined };
+
+type Props = Hero & {
+	title: string;
+	/** The post's page — `/blog/<slug>/`. */
+	href: string;
+	/** Pre-formatted: date shape differs per screen, so the screen owns it. */
+	date: string;
+	/** The post's `description`. */
+	excerpt?: string;
+	/** "4 min". */
+	readTime?: string;
+	tags?: Tag[];
+	/** Label drawn in the hatched frame while a post has no hero. */
+	placeholder?: string;
+};
+
+// `hero` and `heroAlt` stay on `props`: narrowing `props.hero` is what proves
+// to TypeScript that `props.heroAlt` came with it.
+const props = Astro.props;
+const { title, href, date, excerpt, readTime, tags = [], placeholder } = props;
+---
+
+{/* Only the newest post gets this treatment; size and position say "latest",
+    so there is no badge. */}
+<article class="featured-post">
+	<div class="media">
+		{props.hero ? <Image src={props.hero} alt={props.heroAlt} /> : placeholder}
+	</div>
+	<div class="body">
+		<div class="meta">
+			<span>{date}</span>
+			{
+				readTime && (
+					<Fragment>
+						<span>·</span>
+						<span>{readTime}</span>
+					</Fragment>
+				)
+			}
+			{tags.map(({ tag, topic }) => <TagPill tag={tag} topic={topic} />)}
+		</div>
+		{/* h3: the card sits under a section heading on every screen that uses it. */}
+		<h3 class="title"><a href={href}>{title}</a></h3>
+		{excerpt && <p class="excerpt">{excerpt}</p>}
+	</div>
+</article>
+
+<style>
+	.featured-post {
+		/* Containing block for the title link's card-wide hit area. */
+		position: relative;
+		/* Clips the media to the rounded corners. */
+		overflow: hidden;
+		border: var(--border-w) solid var(--border-strong);
+		border-radius: var(--radius-card);
+		background: var(--surface);
+		box-shadow: var(--shadow-featured);
+	}
+
+	.media {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		/* Lead image: tall enough to read as a photo, short enough that the
+		   title still lands above the fold on a phone. */
+		height: 150px;
+		border-bottom: var(--border-w) solid var(--border-strong);
+		/* Faded-ink hatch marks the box as a placeholder; a real hero covers it.
+		   The 1.5px stroke on an 8px pitch is drawn geometry, not spacing. */
+		background:
+			repeating-linear-gradient(45deg, var(--placeholder-hatch) 0 1.5px, transparent 1.5px 8px),
+			var(--surface);
+		color: var(--text-faint);
+		font-family: var(--font-mono);
+		font-size: var(--text-caption);
+	}
+
+	/* The card sets the height, so the hero crops rather than dictates it.
+	   Beats the responsive-image defaults, which ship at `:where()` specificity. */
+	.media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--space-5) var(--space-6);
+	}
+
+	.meta {
+		/* Above the title link's overlay, so the tag chips stay clickable. */
+		position: relative;
+		z-index: 1;
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		/* Chips drop to a second line before they squeeze the date. */
+		flex-wrap: wrap;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	.title {
+		font-family: var(--font-display);
+		font-size: var(--text-card-title);
+		font-weight: var(--weight-title);
+		line-height: var(--leading-heading);
+	}
+
+	.title a {
+		color: var(--ink);
+		text-decoration: none;
+	}
+
+	/* The whole card is the target, without nesting the tag chips' links inside
+	   an outer <a> — which is invalid HTML. Cost: text over the card is no
+	   longer selectable. */
+	.title a::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+	}
+
+	.excerpt {
+		color: var(--text-body);
+		font-size: var(--text-small);
+		line-height: var(--leading-body);
+	}
+</style>

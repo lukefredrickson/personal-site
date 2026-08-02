@@ -1,0 +1,147 @@
+---
+import TagPill, { type Tag } from './TagPill.astro';
+
+interface Props {
+	title: string;
+	/** The post's page — `/blog/<slug>/`. */
+	href: string;
+	/** Pre-formatted: "jun 21" on the index, "jun 2026" on home rows. */
+	date: string;
+	/** The post's `description`. Index rows carry it; home rows don't. */
+	excerpt?: string;
+	/** "6 min" — plain mono, no chip. */
+	readTime?: string;
+	tags?: Tag[];
+	/** Home "Writing" rows: chips ride the title line instead of sitting below. */
+	compact?: boolean;
+}
+
+const { title, href, date, excerpt, readTime, tags = [], compact = false } = Astro.props;
+---
+
+{/* Text only — photos are the featured post's alone; list rows never carry
+    thumbs. */}
+<article class:list={['post-row', { compact }]}>
+	{/* h3: rows sit under a section heading on home and a year heading on the
+	    index. */}
+	<h3 class="title"><a href={href}>{title}</a></h3>
+	<span class="date">{date}</span>
+	{excerpt && <p class="excerpt">{excerpt}</p>}
+	{
+		(tags.length > 0 || readTime) && (
+			<div class="tags">
+				{tags.map(({ tag, topic }) => <TagPill tag={tag} topic={topic} />)}
+				{readTime && <span class="read-time">{readTime}</span>}
+			</div>
+		)
+	}
+</article>
+
+<style>
+	.post-row {
+		/* Containing block for the title link's row-wide hit area. */
+		position: relative;
+		display: grid;
+		/* The title takes the slack; the date hugs the right margin. */
+		grid-template-columns: 1fr auto;
+		align-items: baseline;
+		column-gap: var(--space-3);
+		row-gap: var(--space-1);
+		padding: var(--space-4) 0;
+		/* Dividers are hairlines, the one place 1px beats --border-w. */
+		border-bottom: 1px solid var(--hairline);
+	}
+
+	/* The last row closes its group — no rule under it, and no `divider` prop
+	   for a screen to keep in sync with its own list. */
+	.post-row:last-child {
+		border-bottom: none;
+	}
+
+	.title {
+		grid-column: 1;
+		font-family: var(--font-display);
+		font-size: var(--text-item-title);
+		font-weight: var(--weight-title);
+		line-height: var(--leading-heading);
+	}
+
+	.title a {
+		color: var(--ink);
+		text-decoration: none;
+	}
+
+	/* The whole row is the target, without nesting the tag chips' links inside
+	   an outer <a> — which is invalid HTML. Cost: text in the row is no longer
+	   selectable. */
+	.title a::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+	}
+
+	.date {
+		grid-column: 2;
+		grid-row: 1;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	.excerpt {
+		grid-column: 1 / -1;
+		color: var(--text-body);
+		font-size: var(--text-small);
+		line-height: var(--leading-body);
+	}
+
+	.tags {
+		grid-column: 1 / -1;
+		/* Above the title link's overlay, so the chips stay clickable. */
+		position: relative;
+		z-index: 1;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+
+	/* One DOM shape, two arrangements: a home row lifts its chips onto the title
+	   line by taking a third column, ahead of the date. */
+	.compact {
+		grid-template-columns: 1fr auto auto;
+	}
+
+	.compact .tags {
+		grid-column: 2;
+		grid-row: 1;
+	}
+
+	.compact .date {
+		grid-column: 3;
+	}
+
+	.read-time {
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-chip);
+	}
+
+	/* Title, chips and date stop sharing a line long before the column does, and
+	   the chips can't wrap inside an auto column — so a narrow compact row falls
+	   back to the default arrangement. */
+	@media (max-width: 40rem) {
+		.compact {
+			grid-template-columns: 1fr auto;
+		}
+
+		.compact .tags {
+			grid-column: 1 / -1;
+			grid-row: auto;
+		}
+
+		.compact .date {
+			grid-column: 2;
+		}
+	}
+</style>
