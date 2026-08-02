@@ -1,16 +1,77 @@
 ---
+import type { ComponentProps } from 'astro/types';
+import BaseHead from '../components/BaseHead.astro';
 import '../styles/global.css';
+
+// The layout adds nothing to the head API, so it forwards BaseHead's props
+// wholesale rather than restating them.
+type Props = ComponentProps<typeof BaseHead>;
 ---
 
 <!doctype html>
 <html lang="en">
 	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
+		<BaseHead {...Astro.props} />
+
+		{/*
+			Pre-paint theme init — full rationale in ADR 0012. `is:inline` opts out of
+			Astro's deferred module handling, and that deferral is the flash of wrong
+			theme. Inline scripts are not deduplicated, so this belongs in the single
+			base layout, never in a component.
+
+			No stored value means no attribute, and CSS light-dark() tracks the OS
+			natively — so only visitors who have used the toggle depend on this script.
+
+			applyTheme is the single owner of theme DOM state (<html> attribute,
+			aria-pressed, which theme-color meta applies). Global on purpose:
+			ThemeToggle re-runs it after a click, and astro:after-swap re-runs it so
+			adopting <ClientRouter /> later is a pure addition — a swap replaces <html>
+			attributes wholesale and never re-executes kept scripts.
+
+			It sits after BaseHead because it rewrites the theme-color metas, which
+			have to be in the DOM first. Pre-paint either way — nothing renders until
+			</head> is passed.
+		*/}
+		<script is:inline>
+			function applyTheme() {
+				var stored = null;
+				try {
+					stored = localStorage.getItem('lfdev-theme');
+				} catch {
+					// Privacy modes throw on storage access; fall through to the OS.
+				}
+				var theme = stored === 'light' || stored === 'dark' ? stored : null;
+
+				var root = document.documentElement;
+				if (theme) root.setAttribute('data-theme', theme);
+				else root.removeAttribute('data-theme');
+
+				// Absent until <body> parses, and again on every swap — hence the guard.
+				var toggle = document.querySelector('[data-theme-toggle]');
+				if (toggle) {
+					var dark = theme === null ? matchMedia('(prefers-color-scheme: dark)').matches : theme === 'dark';
+					toggle.setAttribute('aria-pressed', dark ? 'true' : 'false');
+				}
+
+				// An override pins one meta and disables the other; without one, both
+				// go back to tracking the OS.
+				document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+					var scheme = meta.getAttribute('data-scheme');
+					var media;
+					if (theme === null) media = '(prefers-color-scheme: ' + scheme + ')';
+					else if (theme === scheme) media = 'all';
+					else media = 'not all';
+					meta.setAttribute('media', media);
+				});
+			}
+
+			applyTheme();
+			document.addEventListener('astro:after-swap', applyTheme);
+		</script>
+
+		{/* Escape hatch for one-off page tags (an RSS link, a preload) — cheaper
+		    than widening the BaseHead props API for a single caller. */}
+		<slot name="head" />
 	</head>
 	<body>
 		<slot />

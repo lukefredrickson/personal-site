@@ -15,6 +15,7 @@
     "sandcastle": "npx tsx .sandcastle/main.ts"
   },
   "dependencies": {
+    "@astrojs/sitemap": "^3.7.3",
     "astro": "^7.0.6",
     "zod": "^4.4.3"
   },

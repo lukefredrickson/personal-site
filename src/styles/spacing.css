@@ -1,0 +1,33 @@
+/* Spacing, radii, and layout tokens.
+
+   Units follow one test: should this scale with the reader's default
+   font-size? Line length does, so --page-max is rem (as future breakpoints
+   will be). Decoration and horizontal padding don't, so spacing, radii,
+   borders, and page padding stay px. */
+
+:root {
+  /* spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 10px;
+  --space-4: 14px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 28px;
+  --space-8: 34px;   /* gap between page sections */
+
+  /* page */
+  --page-max: 42.5rem;    /* content column */
+  --page-pad-x: 52px;     /* desktop; collapses to 20-24px under 40rem */
+  --page-pad-top: 40px;
+
+  /* radii — four tiers: capsules / cards / small elements / tag chips */
+  --radius-pill: 99px;    /* filter pills, theme toggle */
+  --radius-card: 16px;    /* all cards & figures (major cards, inner cards, code blocks, prev/next) */
+  --radius-sm: 10px;      /* stat chips, photo thumbs, logo tiles */
+  --radius-btn: 10px;     /* buttons — same tier as --radius-sm, named apart */
+  --radius-chip: 5px;     /* tag pills */
+
+  /* borders */
+  --border-w: 1.5px;      /* the only border width; hairlines are 1px */
+}

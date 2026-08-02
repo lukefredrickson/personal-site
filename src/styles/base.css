@@ -1,0 +1,21 @@
+/* Page defaults — the application layer, the only place tokens become paint.
+   Kept separate from the token files (definitions) and from global.css (a pure
+   import manifest); this is where future page-level defaults land. */
+
+:root {
+  /* Never fake a weight or an italic. Public Sans 500 is off-spec and Fira Code
+     has no italic; without these the browser would synthesize both. */
+  font-synthesis-weight: none;
+  font-synthesis-style: none;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+}

@@ -1,0 +1,236 @@
+/* Color tokens — an OKLCH hue spine, derived from the dawnfox / duskfox
+   terminal palettes.
+
+   RULES OF THE SYSTEM
+   · Every color is a grid formula: oklch(L% C h), with C and h taken from the
+     §0 constants and L on a global ΔL 5 grid. The token name IS the lightness:
+     rose-65 = oklch(65% .12 5). No calc() on L/C/H, no relative color syntax.
+     Alpha is the only permitted post-hoc adjustment (shadows, highlight).
+   · Washes are one shared chroma across every root: w36 oklch(36% .03 h),
+     w88 oklch(88% .03 h), w94 oklch(94% .03 h).
+   · Theming is a color-scheme flip, not an override block: every token resolves
+     per-theme through light-dark(), which resolves at the element where the
+     var() is consumed — so data-theme works on <html>, <body>, or any div.
+   · Components read §2 semantic tokens only, never §0/§1 directly.
+
+   Browser floor set by oklch() + light-dark(): Chrome 123+ / Safari 17.5+ /
+   FF 120+. */
+
+/* ---- theme switch — no attribute means the OS decides, with zero JS ---- */
+:root { color-scheme: light dark; }
+[data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
+
+:root {
+  /* ============== §0 — the spine: constants + minted steps ============== */
+  --h-rose: 5;
+  --h-gold: 75;
+  --h-foam: 160;
+  --h-blue: 225;
+  --h-ink: 290;
+  --h-iris: 305;
+  --h-paper: 75;
+  --c-rose: 0.12;
+  --c-gold: 0.14; /* 60/65/85 clip slightly outside sRGB — accepted for the richer gold */
+  --c-foam: 0.08;
+  --c-blue: 0.09;
+  --c-iris: 0.09;
+  --c-ink: 0.05;
+
+  /* rose — oklch(L .12 5); ceiling at 80 (rose-85 leaves sRGB) */
+  --rose-50: oklch(50% var(--c-rose) var(--h-rose));
+  --rose-55: oklch(55% var(--c-rose) var(--h-rose));
+  --rose-60: oklch(60% var(--c-rose) var(--h-rose));
+  --rose-65: oklch(65% var(--c-rose) var(--h-rose));
+  --rose-70: oklch(70% var(--c-rose) var(--h-rose));
+  --rose-75: oklch(75% var(--c-rose) var(--h-rose));
+  --rose-80: oklch(80% var(--c-rose) var(--h-rose));
+  --rose-w36: oklch(36% 0.03 var(--h-rose));
+  --rose-w88: oklch(88% 0.03 var(--h-rose));
+  --rose-w94: oklch(94% 0.03 var(--h-rose));
+
+  /* gold — oklch(L .14 75); minted 60–85, 50/55/90 stay unminted */
+  --gold-60: oklch(60% var(--c-gold) var(--h-gold));
+  --gold-65: oklch(65% var(--c-gold) var(--h-gold));
+  --gold-70: oklch(70% var(--c-gold) var(--h-gold));
+  --gold-75: oklch(75% var(--c-gold) var(--h-gold));
+  --gold-80: oklch(80% var(--c-gold) var(--h-gold));
+  --gold-85: oklch(85% var(--c-gold) var(--h-gold));
+  --gold-w36: oklch(36% 0.03 var(--h-gold));
+  --gold-w88: oklch(88% 0.03 var(--h-gold));
+  --gold-w94: oklch(94% 0.03 var(--h-gold));
+
+  /* foam — oklch(L .08 160) — the system's green */
+  --foam-50: oklch(50% var(--c-foam) var(--h-foam));
+  --foam-55: oklch(55% var(--c-foam) var(--h-foam));
+  --foam-60: oklch(60% var(--c-foam) var(--h-foam));
+  --foam-65: oklch(65% var(--c-foam) var(--h-foam));
+  --foam-70: oklch(70% var(--c-foam) var(--h-foam));
+  --foam-75: oklch(75% var(--c-foam) var(--h-foam));
+  --foam-80: oklch(80% var(--c-foam) var(--h-foam));
+  --foam-85: oklch(85% var(--c-foam) var(--h-foam));
+  --foam-w36: oklch(36% 0.03 var(--h-foam));
+  --foam-w88: oklch(88% 0.03 var(--h-foam));
+  --foam-w94: oklch(94% 0.03 var(--h-foam));
+
+  /* blue — oklch(L .09 225) — pine */
+  --blue-50: oklch(50% var(--c-blue) var(--h-blue));
+  --blue-55: oklch(55% var(--c-blue) var(--h-blue));
+  --blue-60: oklch(60% var(--c-blue) var(--h-blue));
+  --blue-65: oklch(65% var(--c-blue) var(--h-blue));
+  --blue-70: oklch(70% var(--c-blue) var(--h-blue));
+  --blue-75: oklch(75% var(--c-blue) var(--h-blue));
+  --blue-80: oklch(80% var(--c-blue) var(--h-blue));
+  --blue-85: oklch(85% var(--c-blue) var(--h-blue));
+  --blue-w36: oklch(36% 0.03 var(--h-blue));
+  --blue-w88: oklch(88% 0.03 var(--h-blue));
+  --blue-w94: oklch(94% 0.03 var(--h-blue));
+
+  /* iris — oklch(L .09 305) */
+  --iris-50: oklch(50% var(--c-iris) var(--h-iris));
+  --iris-55: oklch(55% var(--c-iris) var(--h-iris));
+  --iris-60: oklch(60% var(--c-iris) var(--h-iris));
+  --iris-65: oklch(65% var(--c-iris) var(--h-iris));
+  --iris-70: oklch(70% var(--c-iris) var(--h-iris));
+  --iris-75: oklch(75% var(--c-iris) var(--h-iris));
+  --iris-80: oklch(80% var(--c-iris) var(--h-iris));
+  --iris-85: oklch(85% var(--c-iris) var(--h-iris));
+  --iris-w36: oklch(36% 0.03 var(--h-iris));
+  --iris-w88: oklch(88% 0.03 var(--h-iris));
+  --iris-w94: oklch(94% 0.03 var(--h-iris));
+
+  /* ink — oklch(L .05 290); whites detach to milk */
+  --ink-25: oklch(25% var(--c-ink) var(--h-ink));
+  --ink-30: oklch(30% var(--c-ink) var(--h-ink));
+  --ink-35: oklch(35% var(--c-ink) var(--h-ink));
+  --ink-40: oklch(40% var(--c-ink) var(--h-ink));
+  --ink-45: oklch(45% var(--c-ink) var(--h-ink));
+  --ink-50: oklch(50% var(--c-ink) var(--h-ink));
+  --ink-55: oklch(55% var(--c-ink) var(--h-ink));
+  --ink-60: oklch(60% var(--c-ink) var(--h-ink));
+  --ink-65: oklch(65% var(--c-ink) var(--h-ink));
+  --ink-70: oklch(70% var(--c-ink) var(--h-ink));
+  --ink-75: oklch(75% var(--c-ink) var(--h-ink));
+  --milk: oklch(90% 0.02 var(--h-ink));
+
+  /* paper — fine lattice on gold's hue: L 89+2n, C .020−.003n */
+  --paper-89: oklch(89% 0.020 var(--h-paper));
+  --paper-91: oklch(91% 0.017 var(--h-paper));
+  --paper-93: oklch(93% 0.014 var(--h-paper));
+  --paper-95: oklch(95% 0.011 var(--h-paper));
+  --paper-97: oklch(97% 0.008 var(--h-paper));
+  --paper-99: oklch(99% 0.005 var(--h-paper));
+
+  /* ============= §1 — theme-resolved palette (dawn ⇄ dusk) ============= */
+  --p-bg: light-dark(var(--paper-97), var(--ink-25));       /* the TRUE terminal bgs */
+  --p-fg: light-dark(var(--ink-45), var(--milk));
+  --p-selection: light-dark(var(--blue-w88), var(--ink-35));
+  --p-muted: var(--ink-50);
+  --p-rose: light-dark(var(--rose-65), var(--rose-75));
+  --p-rose-deep: light-dark(var(--rose-60), var(--rose-70));
+  --p-green: light-dark(var(--foam-65), var(--foam-80));
+  --p-green-deep: light-dark(var(--foam-60), var(--foam-75));
+  --p-gold: light-dark(var(--gold-80), var(--gold-85));
+  --p-gold-deep: light-dark(var(--gold-75), var(--gold-85)); /* dusk deep collapses into gold-85 */
+  --p-blue: light-dark(var(--blue-55), var(--blue-70));
+  --p-blue-deep: light-dark(var(--blue-50), var(--blue-65));
+  --p-iris: light-dark(var(--iris-65), var(--iris-80));
+  --p-iris-deep: light-dark(var(--iris-60), var(--iris-75));
+  --p-white: var(--milk);
+
+  /* ======================= §2 — semantic tokens ======================= */
+
+  /* ---- surfaces — dawn page sits one grid step above the true bg; dusk page
+     holds near-true ink-25 and code lifts one step up ---- */
+  --bg: light-dark(var(--paper-99), var(--ink-25));
+  --surface: light-dark(var(--paper-97), var(--ink-30));    /* cards: = code level, both themes */
+  --surface-raised: light-dark(var(--paper-95), var(--ink-35)); /* card headers */
+  --code-bg: light-dark(var(--paper-97), var(--ink-30));    /* dawn keeps the true anchor */
+
+  /* ---- ink ---- */
+  --ink: var(--p-fg);                                       /* headings, strong text, card borders */
+  --text-body: light-dark(var(--ink-55), var(--ink-75));
+  --text-muted: var(--ink-65);                              /* mono meta, dates — one value, both themes */
+  --text-faint: light-dark(var(--ink-65), var(--ink-55));   /* placeholder labels (= muted in light) */
+
+  /* ---- selection ---- */
+  --selection-bg: var(--p-selection);
+  --selection-fg: var(--ink);
+
+  /* ---- lines ---- */
+  --border-strong: var(--ink-45);                           /* chunky card outline — dawn fg = dusk border */
+  --border-soft: light-dark(var(--paper-89), var(--ink-35)); /* secondary buttons, quiet cards, idle pills */
+  --rail: var(--border-soft);                               /* timeline rail */
+  --hairline: light-dark(var(--ink-65), var(--ink-35));     /* row dividers */
+
+  /* ---- accents — gold marker/logo, rose links/nav, blue button ---- */
+  --accent: var(--p-gold-deep);                             /* highlighter base, current-role dot, blockquote rule */
+  --logo: var(--p-gold-deep);                               /* the ".dev" in the logo */
+  --link: var(--p-rose-deep);                               /* links, "all posts →", active-nav underline */
+  --bullet: var(--p-gold-deep);                             /* résumé/list ▸ markers */
+  --video: var(--link);                                     /* play badge */
+  --highlight: light-dark(                                  /* marker stroke behind key words — gold-deep pair, α .6 */
+    oklch(75% var(--c-gold) var(--h-gold) / 0.6),
+    oklch(85% var(--c-gold) var(--h-gold) / 0.6));
+  --marker-muted: light-dark(var(--rail), var(--border-strong)); /* past-role dot ring / bullet */
+  --dot-current-ring: light-dark(var(--border-strong), var(--accent)); /* ink outline in light; merges with gold fill in dark */
+
+  /* ---- topic colors ---- */
+  --topic-code-bg: light-dark(var(--blue-w94), var(--blue-w36));
+  --topic-code-fg: light-dark(var(--blue-50), var(--blue-70));
+  --topic-code-line: var(--topic-code-fg);
+  --topic-bikes-bg: light-dark(var(--foam-w94), var(--foam-w36));
+  --topic-bikes-fg: light-dark(var(--foam-50), var(--foam-75));
+  --topic-bikes-line: light-dark(var(--foam-60), var(--foam-75));
+
+  /* ---- badges ---- */
+  --latest-bg: var(--topic-code-bg);
+  --latest-border: light-dark(var(--blue-w88), var(--blue-50));
+  --latest-fg: var(--topic-code-fg);
+  --video-pill-bg: light-dark(var(--rose-w94), var(--rose-w36));
+  --video-pill-fg: light-dark(var(--rose-50), var(--rose-75));
+
+  /* ---- tints (logo tiles, chips) ---- */
+  --tint-pine: var(--topic-code-bg);
+  --tint-gold: light-dark(var(--gold-w94), var(--gold-w36));
+  --tint-sand: light-dark(var(--paper-95), var(--ink-35));
+  --tint-green: var(--topic-bikes-bg);
+
+  /* ---- image placeholders (faded ink — never accent-tinted) ---- */
+  --placeholder-hatch: light-dark(
+    oklch(45% var(--c-ink) var(--h-ink) / 0.12),
+    oklch(90% 0.03 var(--h-ink) / 0.09));
+  --placeholder-dot: light-dark(
+    oklch(45% var(--c-ink) var(--h-ink) / 0.22),
+    oklch(90% 0.03 var(--h-ink) / 0.18));
+
+  /* ---- shadows (hard offset, never blurred — ink-tinted in light, pure black in dark) ---- */
+  --shadow-color: light-dark(
+    oklch(45% var(--c-ink) var(--h-ink) / 0.14),
+    oklch(0% 0 0 / 0.5));
+  --shadow-color-sm: light-dark(
+    oklch(45% var(--c-ink) var(--h-ink) / 0.14),
+    oklch(0% 0 0 / 0.45));
+  --shadow-color-soft: light-dark(
+    oklch(45% var(--c-ink) var(--h-ink) / 0.12),
+    oklch(0% 0 0 / 0.5));
+  --shadow-card: 3px 3px 0 var(--shadow-color);
+  --shadow-sm: 2px 2px 0 var(--shadow-color-sm);
+  --shadow-photo: 2px 2px 0 var(--shadow-color);
+  --shadow-featured: 3px 3px 0 var(--shadow-color-soft);
+  --shadow-video: 3px 3px 0 var(--shadow-color-soft);
+
+  /* ---- buttons ---- */
+  --btn-primary-bg: var(--p-blue-deep);                     /* pine — primary (résumé) button */
+  --btn-primary-fg: light-dark(var(--paper-97), var(--blue-w94));
+
+  /* ---- code block syntax — five distinct colors, both themes ---- */
+  --code-border: light-dark(var(--paper-89), var(--ink-35)); /* inner dividers + inline-code hairline */
+  --code-text: var(--ink);
+  --code-muted: light-dark(var(--ink-65), var(--ink-55));   /* comments — the only mono italic */
+  --code-selector: var(--p-iris-deep);
+  --code-property: var(--p-blue-deep);
+  --code-value: var(--p-green-deep);                        /* numbers, strings — foam */
+  --code-function: light-dark(var(--blue-65), var(--blue-80)); /* one step lighter than property */
+  --code-custom: var(--p-gold-deep);                        /* custom props */
+}
