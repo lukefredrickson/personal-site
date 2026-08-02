@@ -24,6 +24,22 @@ to a task, the issue provides it.
   `src/styles`. No hardcoded colors, sizes, or fonts that a token covers.
 - Global CSS stays limited to the tokens, the reset, and the prose partial
   for rendered markdown.
+- The token scales are the design authority; the design kit is reference
+  only. When a kit measurement sits off a scale (18px, 5px, 2px…), snap to
+  the nearest token — never copy the literal, and never add a comment
+  excusing it. If no token is close enough to work, that is a design
+  question for the issue, not a license to hardcode. Expanding tokens is
+  authorized only when STRICTLY necessary to fill a gap where hardcoded
+  values would stand in, and there are no existing similar-enough tokens
+  to snap to (adding a token is an absolute last resort and should be
+  treated with caution -- bloating the tokens is heavily discouraged).
+- Specifically: font weights come from `--weight-*` (never a bare
+  500–800), spacing (padding/margin/gap) from `--space-*`, font sizes from
+  the `--text-*` job tokens, line-heights from `--leading-*`, radii from
+  `--radius-*`. The only sanctioned literals: 1px hairlines, `0`,
+  `border-radius: 50%`, `line-height: normal` (to undo the body's 1.5),
+  and fixed element dimensions (icons, avatars, tiles) — dimensions are
+  not spacing.
 
 ## Structure and naming
 
