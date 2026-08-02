@@ -42,7 +42,8 @@ const ogImageUrl = new URL(ogImage?.src ?? DEFAULT_OG_IMAGE, Astro.site);
 <link rel="canonical" href={canonical} />
 
 {/* Media variants track the OS with no JS; the theme script rewrites `media`
-    when a stored override wins, so mobile browser chrome follows the toggle. */}
+    when a stored override wins, so the mobile browser's own UI (address bar
+    tint) follows the toggle. */}
 <meta name="theme-color" data-scheme="light" media="(prefers-color-scheme: light)" content={THEME_COLOR.light} />
 <meta name="theme-color" data-scheme="dark" media="(prefers-color-scheme: dark)" content={THEME_COLOR.dark} />
 
