@@ -1,0 +1,26 @@
+<h2 class="section-title"><slot /></h2>
+
+<style>
+	.section-title {
+		display: flex;
+		align-items: center;
+		gap: var(--space-4);
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-section);
+		font-weight: var(--weight-voice);
+		line-height: var(--leading-heading);
+	}
+
+	/* The rule running to the right margin. Decorative, so a pseudo-element
+	   rather than markup in the accessibility tree. The slotted label is an
+	   anonymous flex item and keeps the default shrink, so it wraps rather than
+	   overflowing when the viewport is narrow. */
+	.section-title::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		margin-right: var(--space-2);
+		background: var(--hairline);
+	}
+</style>

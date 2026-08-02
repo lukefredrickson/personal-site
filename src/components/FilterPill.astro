@@ -1,0 +1,61 @@
+---
+interface Props {
+	/** Tag page this pill filters to, or `/blog/` for the "everything" pill. */
+	href: string;
+	/** Tag slug doubles as the label (ADR 0014); "everything" for the index. */
+	label: string;
+	/** Published posts carrying the tag. */
+	count?: number;
+	/** Exactly one pill in a row is active — the page you are on. */
+	active?: boolean;
+	/** Topic tint on the idle pill. */
+	topic?: 'code' | 'bikes' | 'neutral';
+}
+
+const { href, label, count, active = false, topic = 'neutral' } = Astro.props;
+
+const text = count === undefined ? label : `${label} · ${count}`;
+---
+
+<a
+	class:list={['filter-pill', topic, { active }]}
+	href={href}
+	aria-current={active ? 'page' : undefined}>{text}</a
+>
+
+<style>
+	.filter-pill {
+		display: inline-block;
+		/* The kit shows 5px vertical; snapped to the spacing scale. */
+		padding: var(--space-1) var(--space-4);
+		border: var(--border-w) solid var(--border-soft);
+		border-radius: var(--radius-pill);
+		background: transparent;
+		box-shadow: var(--shadow-sm);
+		color: var(--text-body);
+		font-family: var(--font-mono);
+		font-size: var(--text-chip);
+		/* Undo the body's 1.5 so padding alone sets the pill height. */
+		line-height: normal;
+		white-space: nowrap;
+		text-decoration: none;
+	}
+
+	.code {
+		border-color: var(--topic-code-line);
+		color: var(--topic-code-fg);
+	}
+
+	.bikes {
+		border-color: var(--topic-bikes-line);
+		color: var(--topic-bikes-fg);
+	}
+
+	/* Last so it wins over the topic tints at equal specificity. */
+	.active {
+		border-color: var(--ink);
+		background: var(--ink);
+		color: var(--bg);
+		font-weight: var(--weight-mono-active);
+	}
+</style>

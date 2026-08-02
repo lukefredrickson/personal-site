@@ -49,6 +49,13 @@
   --text-caption: var(--font-size-xs);      /* figure captions · mono 400 */
   --text-chip: var(--font-size-xs);         /* tag pills · mono (active pill = 500) */
 
+  /* ---- weights — the map above, as tokens ---- */
+  --weight-voice: 800;       /* hero, page titles, sections, logo, stat values */
+  --weight-title: 700;       /* names & titles of things; primary buttons */
+  --weight-ui: 600;          /* quiet UI — nav, secondary buttons, past roles */
+  --weight-body: 400;        /* everything you read; mono baseline */
+  --weight-mono-active: 500; /* Fira Code only — active states */
+
   /* ---- rhythm ---- */
   --leading-tight: 1.05;    /* hero */
   --leading-heading: 1.12;  /* multi-line titles */
