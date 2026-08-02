@@ -87,10 +87,9 @@
 
 .prose blockquote {
   border-left: 3px solid var(--accent);
-  /* The design shows 18px off the rule; snapped to the spacing scale. The 2px
-     vertical is an optical nudge with no near token. */
+  /* The 2px vertical is an optical nudge with no near token. */
   padding: 2px 0 2px var(--space-5);
-  /* No job token covers a pull quote; the design's 17px snaps to the `lg` step. */
+  /* No job token covers a pull quote. */
   font-size: var(--font-size-lg);
   font-style: italic;
   line-height: var(--leading-body);
