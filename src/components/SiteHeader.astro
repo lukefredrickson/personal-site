@@ -34,7 +34,7 @@ const onBlog = Astro.url.pathname.startsWith('/blog');
 		font-family: var(--font-display);
 		/* No job token covers a wordmark; the design's 17px snaps to `lg`. */
 		font-size: var(--font-size-lg);
-		font-weight: 800;
+		font-weight: var(--weight-voice);
 		text-decoration: none;
 	}
 
@@ -52,7 +52,7 @@ const onBlog = Astro.url.pathname.startsWith('/blog');
 		color: var(--text-muted);
 		font-family: var(--font-display);
 		font-size: var(--text-ui);
-		font-weight: 600;
+		font-weight: var(--weight-ui);
 		text-decoration: none;
 		/* Reserved on every item so the current one does not shift the row. The
 		   kit's underline is heavier than a border (--border-w is 1.5px). */
