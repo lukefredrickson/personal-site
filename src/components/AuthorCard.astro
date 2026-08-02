@@ -38,8 +38,8 @@ const {
 		display: flex;
 		align-items: center;
 		gap: var(--space-4);
-		/* 18px sits off the spacing scale; it is the kit's card padding. */
-		padding: var(--space-4) 18px;
+		/* The kit shows 18px horizontal; snapped to the spacing scale. */
+		padding: var(--space-4) var(--space-5);
 		border: var(--border-w) solid var(--border-strong);
 		border-radius: var(--radius-card);
 		background: var(--surface);
@@ -74,13 +74,13 @@ const {
 	.bio b {
 		color: var(--ink);
 		font-family: var(--font-display);
-		font-weight: 700;
+		font-weight: var(--weight-title);
 	}
 
 	.bio a {
 		border-bottom: var(--border-w) solid var(--link);
 		color: var(--link);
-		font-weight: 600;
+		font-weight: var(--weight-ui);
 		text-decoration: none;
 	}
 </style>

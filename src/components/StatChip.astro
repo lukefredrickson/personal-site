@@ -39,15 +39,15 @@ const { value, unit, label } = Astro.props;
 		/* No job token covers a stat value; the design's 20px snaps to the `xl`
 		   step ADR 0011 minted as headroom. */
 		font-size: var(--font-size-xl);
-		font-weight: 800;
+		font-weight: var(--weight-voice);
 		/* Undo the body's 1.5 so the two lines sit tight. */
-		line-height: 1.2;
+		line-height: var(--leading-heading);
 	}
 
 	.unit {
 		color: var(--text-muted);
 		font-size: var(--text-ui);
-		font-weight: 600;
+		font-weight: var(--weight-ui);
 	}
 
 	.label {
