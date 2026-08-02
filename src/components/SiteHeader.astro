@@ -1,9 +1,9 @@
 ---
 import ThemeToggle from './ThemeToggle.astro';
 
-// The spec passes `active` in per screen; the URL already knows. Deriving it
-// here means the layout renders one header for every page and no page can get
-// its own nav wrong. Everything outside the blog is work.
+// Active nav state derives from the URL, not a prop: the layout renders one
+// header for every page and no page can get its own nav wrong. Everything
+// outside the blog is work.
 const onBlog = Astro.url.pathname.startsWith('/blog');
 ---
 
@@ -54,8 +54,8 @@ const onBlog = Astro.url.pathname.startsWith('/blog');
 		font-size: var(--text-ui);
 		font-weight: var(--weight-ui);
 		text-decoration: none;
-		/* Reserved on every item so the current one does not shift the row. The
-		   kit's underline is heavier than a border (--border-w is 1.5px). */
+		/* Reserved on every item so the current one does not shift the row.
+		   Deliberately heavier than --border-w: an underline, not a border. */
 		padding-bottom: 1px;
 		border-bottom: 2.5px solid transparent;
 	}
