@@ -8,8 +8,14 @@
 // talks to origin only through the restack module's named operations,
 // and everything it learns comes back in its StackOutcome — no hidden
 // outputs. The run's shared context (sandbox pool, restack lock,
-// restack worktree) arrives as parameters, constructed once by the run
+// effects boundary) arrives as parameters, constructed once by the run
 // command and shared by every concurrent stack.
+//
+// Every effect the walk performs — gh queries, sandbox builds, the
+// restack module's git surgery — goes through the WalkEffects boundary,
+// so the walk itself is a state machine over data: specs drive it with
+// fakes and assert on its decisions (ADR 0029). `productionWalkEffects`
+// is the real wiring.
 
 import { execFileSync } from "node:child_process";
 import * as sandcastle from "@ai-hero/sandcastle";
@@ -20,6 +26,7 @@ import {
   gateBranchAncestry,
   resolveOriginTip,
   restackBranch,
+  type BranchGate,
   type ConflictResolution,
   type RestackOutcome,
 } from "./restack.ts";
@@ -72,43 +79,148 @@ export class Semaphore {
   }
 }
 
-// The completion marker. An open PR on a step's branch means the step is
-// done — the PR is what the whole walk exists to produce, and it lives on
-// GitHub where every run can see it. Closed and merged PRs don't count:
-// a merged layer's successor should rebase via the normal review flow,
-// and a closed-unmerged PR means the work was rejected, not done.
-export function openPrUrl(branch: string): string | undefined {
-  const prs = JSON.parse(
-    execFileSync(
-      "gh",
-      ["pr", "list", "--head", branch, "--state", "open", "--json", "url"],
-      { encoding: "utf8" },
-    ),
-  ) as { url: string }[];
-  return prs[0]?.url;
+/** What a sandbox build left behind, as the walk judges completeness. */
+export interface SandboxBuild {
+  /** Commits the implementer produced on the step's branch. */
+  readonly commitCount: number;
+  /** Implementer stdout — searched for the missing-dependency report. */
+  readonly stdout: string;
+}
+
+// The walk's entire outward surface. Everything runStack does to the
+// world — ask GitHub about PRs, build a branch in a sandbox, drive the
+// restack worktree — is a method here, so specs can run the walk against
+// fakes and assert on its decisions. The restack methods close over the
+// worktree: the walk never sees a path, and "restacking owns git" stays
+// structural. Methods throw on failure exactly where the production
+// commands would; the walk's catch blocks are the behavior under test.
+export interface WalkEffects {
+  /** URL of the branch's open PR, if any — the completion marker. */
+  openPrUrl(branch: string): string | undefined;
+  /** Bind the PR urls into a GitHub stack, bottom-to-top. */
+  linkPrStack(urls: readonly string[]): void;
+  /** Retarget the branch's PR onto a new base branch. */
+  retargetPrBase(branch: string, base: string): void;
+  /** Build the step's branch in its own sandbox, cut from `waveBase`. */
+  buildInSandbox(step: StackStep, waveBase: string): Promise<SandboxBuild>;
+  fetchOrigin(): void;
+  resolveOriginTip(branch: string): string;
+  gateBranchAncestry(branch: string, baseSha: string): BranchGate;
+  restackBranch(
+    branch: string,
+    tipName: string,
+    tipSha: string,
+    windowSha: string,
+  ): Promise<RestackOutcome>;
+  branchCarries(outer: string, inner: string): boolean;
+}
+
+// The real wiring: gh on PATH, docker sandboxes, the restack module
+// against the run's shared worktree. Each adapter is one command —
+// thin enough to review by eye, which is the deal ADR 0029 records.
+export function productionWalkEffects(worktree: string): WalkEffects {
+  return {
+    // An open PR on a step's branch means the step is done — the PR is
+    // what the whole walk exists to produce, and it lives on GitHub where
+    // every run can see it. Closed and merged PRs don't count: a merged
+    // layer's successor should rebase via the normal review flow, and a
+    // closed-unmerged PR means the work was rejected, not done.
+    openPrUrl(branch) {
+      const prs = JSON.parse(
+        execFileSync(
+          "gh",
+          ["pr", "list", "--head", branch, "--state", "open", "--json", "url"],
+          { encoding: "utf8" },
+        ),
+      ) as { url: string }[];
+      return prs[0]?.url;
+    },
+    linkPrStack(urls) {
+      // gh's own chatter is suppressed; the walk reports the result.
+      execFileSync("gh", ["stack", "link", ...urls], {
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+    },
+    retargetPrBase(branch, base) {
+      execFileSync("gh", ["pr", "edit", branch, "--base", base], {
+        encoding: "utf8",
+      });
+    },
+    async buildInSandbox(step, waveBase) {
+      // baseBranch cuts the new branch from the wave's base, so each
+      // wave builds on every earlier level even though nothing has
+      // merged. It's ignored when the branch already exists, which
+      // makes a re-run resume accumulated work.
+      const sandbox = await sandcastle.createSandbox({
+        branch: step.branch,
+        baseBranch: waveBase,
+        sandbox: docker(),
+        hooks,
+        copyToWorktree,
+      });
+      try {
+        const implement = await sandbox.run({
+          name: `implementer #${step.issue.number}`,
+          maxIterations: 100,
+          agent: sandcastle.claudeCode("claude-opus-5"),
+          promptFile: "./.sandcastle/prompts/implement-prompt.md",
+          promptArgs: {
+            ISSUE_NUMBER: String(step.issue.number),
+            ISSUE_TITLE: step.issue.title,
+            BRANCH: step.branch,
+            BASE_BRANCH: waveBase,
+          },
+        });
+        // Only review if the implementer produced commits.
+        if (implement.commits.length > 0) {
+          await sandbox.run({
+            name: `reviewer #${step.issue.number}`,
+            maxIterations: 1,
+            agent: sandcastle.claudeCode("claude-opus-5"),
+            promptFile: "./.sandcastle/prompts/review-prompt.md",
+            promptArgs: {
+              BRANCH: step.branch,
+              BASE_BRANCH: waveBase,
+            },
+          });
+        }
+        return {
+          commitCount: implement.commits.length,
+          stdout: implement.stdout,
+        };
+      } finally {
+        await sandbox.close();
+      }
+    },
+    fetchOrigin: () => fetchOrigin(worktree),
+    resolveOriginTip: (branch) => resolveOriginTip(worktree, branch),
+    gateBranchAncestry: (branch, baseSha) =>
+      gateBranchAncestry(worktree, branch, baseSha),
+    restackBranch: (branch, tipName, tipSha, windowSha) =>
+      restackBranch(worktree, branch, tipName, tipSha, windowSha),
+    branchCarries: (outer, inner) => branchCarries(worktree, outer, inner),
+  };
 }
 
 // Bind a chain's open PRs into a GitHub stack, bottom-to-top. `gh stack
 // link` refuses partial updates, so the full chained membership is passed
 // every time — the same call creates a new stack, grows it wave by wave,
-// and updates one reshaped by prunes. gh's own chatter is suppressed;
-// one line reports the result. Returns false instead of throwing: a
-// failed link never stops a walk, and the run command decides what a
+// and updates one reshaped by prunes. Returns false instead of throwing:
+// a failed link never stops a walk, and the run command decides what a
 // failure at run end means.
 export function linkChainedPrs(
+  effects: WalkEffects,
   chained: readonly StackStep[],
   what: string,
 ): boolean {
   if (chained.length < 2) return true;
   try {
     const urls = chained.map((step) => {
-      const url = openPrUrl(step.branch);
+      const url = effects.openPrUrl(step.branch);
       if (url === undefined) throw new Error(`no open PR on ${step.branch}`);
       return url;
     });
-    execFileSync("gh", ["stack", "link", ...urls], {
-      stdio: ["ignore", "ignore", "pipe"],
-    });
+    effects.linkPrStack(urls);
     console.log(`✓ ${what}: ${urls.length} PRs linked on GitHub.`);
     return true;
   } catch (error) {
@@ -161,14 +273,14 @@ export interface StackOutcome {
 
 // The run-wide state every concurrent stack shares: one sandbox pool,
 // one lock serializing use of the shared restack worktree (it has a
-// single HEAD and index), and the worktree itself. The run command
-// constructs this once and passes it to every walk.
+// single HEAD and index), and the effects boundary wrapping it. The run
+// command constructs this once and passes it to every walk.
 export interface WalkContext {
   /** How many stacks this run launched — labels progress lines only. */
   readonly stackCount: number;
   readonly sandboxPool: Semaphore;
   readonly restackLock: Semaphore;
-  readonly restackWorktree: string;
+  readonly effects: WalkEffects;
 }
 
 export async function runStack(
@@ -238,7 +350,7 @@ export async function runStack(
       // its restack turn, which detects the no-op. Checked before taking
       // a pool slot, so a finished step never queues for one. Inside the
       // try so a flaked `gh` call prunes this step, not the run.
-      const existingPr = openPrUrl(step.branch);
+      const existingPr = ctx.effects.openPrUrl(step.branch);
       if (existingPr !== undefined) {
         console.log(
           `✓ #${step.issue.number} already complete (open PR ` +
@@ -255,7 +367,7 @@ export async function runStack(
       // with the recovery command in the reason. Under the restack lock:
       // the gate reads origin refs and pushes through the shared worktree.
       const gate = await ctx.restackLock.use(() =>
-        gateBranchAncestry(ctx.restackWorktree, step.branch, waveBaseSha),
+        ctx.effects.gateBranchAncestry(step.branch, waveBaseSha),
       );
       if (gate.kind === "blocked") {
         return { failure: gate.reason, skippedSandbox: false };
@@ -273,63 +385,24 @@ export async function runStack(
         );
       }
 
-      await ctx.sandboxPool.use(async () => {
-        // baseBranch cuts the new branch from the wave's base, so each
-        // wave builds on every earlier level even though nothing has
-        // merged. It's ignored when the branch already exists, which
-        // makes a re-run resume accumulated work.
-        const sandbox = await sandcastle.createSandbox({
-          branch: step.branch,
-          baseBranch: waveBase,
-          sandbox: docker(),
-          hooks,
-          copyToWorktree,
-        });
+      const build = await ctx.sandboxPool.use(() =>
+        ctx.effects.buildInSandbox(step, waveBase),
+      );
 
-        try {
-          const implement = await sandbox.run({
-            name: `implementer #${step.issue.number}`,
-            maxIterations: 100,
-            agent: sandcastle.claudeCode("claude-opus-5"),
-            promptFile: "./.sandcastle/prompts/implement-prompt.md",
-            promptArgs: {
-              ISSUE_NUMBER: String(step.issue.number),
-              ISSUE_TITLE: step.issue.title,
-              BRANCH: step.branch,
-              BASE_BRANCH: waveBase,
-            },
-          });
-
-          if (implement.commits.length === 0) {
-            // The implement prompt's missing-dependency tripwire: an
-            // implementer whose tree lacks a foundation the issue's spec
-            // references stops with a tagged report instead of blindly
-            // re-implementing it. Surfacing the report as the prune
-            // reason puts the suspected missing blocked-by edge in the
-            // run summary, where the operator can act on it.
-            const report = /<missing-dependency>([\s\S]*?)<\/missing-dependency>/.exec(
-              implement.stdout,
-            );
-            failure = report
-              ? `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`
-              : "produced no commits";
-          } else {
-            // Only review if the implementer produced commits.
-            await sandbox.run({
-              name: `reviewer #${step.issue.number}`,
-              maxIterations: 1,
-              agent: sandcastle.claudeCode("claude-opus-5"),
-              promptFile: "./.sandcastle/prompts/review-prompt.md",
-              promptArgs: {
-                BRANCH: step.branch,
-                BASE_BRANCH: waveBase,
-              },
-            });
-          }
-        } finally {
-          await sandbox.close();
-        }
-      });
+      if (build.commitCount === 0) {
+        // The implement prompt's missing-dependency tripwire: an
+        // implementer whose tree lacks a foundation the issue's spec
+        // references stops with a tagged report instead of blindly
+        // re-implementing it. Surfacing the report as the prune
+        // reason puts the suspected missing blocked-by edge in the
+        // run summary, where the operator can act on it.
+        const report = /<missing-dependency>([\s\S]*?)<\/missing-dependency>/.exec(
+          build.stdout,
+        );
+        failure = report
+          ? `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`
+          : "produced no commits";
+      }
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
     }
@@ -350,7 +423,7 @@ export async function runStack(
     // retains the plan, so the next run re-checks.
     let pr: string | undefined;
     try {
-      pr = openPrUrl(step.branch);
+      pr = ctx.effects.openPrUrl(step.branch);
     } catch {
       pr = undefined;
     }
@@ -373,7 +446,7 @@ export async function runStack(
   // once before the stacks launched.
   let tipName = stack[0]!.base;
   let tipSha = await ctx.restackLock.use(() =>
-    resolveOriginTip(ctx.restackWorktree, tipName),
+    ctx.effects.resolveOriginTip(tipName),
   );
 
   for (const [depth, level] of levels.entries()) {
@@ -425,7 +498,7 @@ export async function runStack(
       // The tip itself never moves during a build phase — trunk was
       // resolved once up front and every later tip sha is one this
       // stack's own force-pushes produced.
-      fetchOrigin(ctx.restackWorktree);
+      ctx.effects.fetchOrigin();
 
       for (const step of toRestack) {
         // A branch's history carries its whole chain as of when it was
@@ -437,7 +510,7 @@ export async function runStack(
         const carrier = stack.find(
           (s) =>
             pruned.has(s.issue.number) &&
-            branchCarries(ctx.restackWorktree, step.branch, s.branch),
+            ctx.effects.branchCarries(step.branch, s.branch),
         );
         if (carrier !== undefined) {
           prune(
@@ -449,8 +522,7 @@ export async function runStack(
 
         let outcome: RestackOutcome;
         try {
-          outcome = await restackBranch(
-            ctx.restackWorktree,
+          outcome = await ctx.effects.restackBranch(
             step.branch,
             tipName,
             tipSha,
@@ -507,7 +579,11 @@ export async function runStack(
         if (outcome.kind === "restacked" || outcome.kind === "resolved") {
           const { localRef } = outcome;
           if (localRef.kind === "moved") {
-            localRefMoves.push({ branch: step.branch, ...localRef });
+            localRefMoves.push({
+              branch: step.branch,
+              from: localRef.from,
+              to: localRef.to,
+            });
             console.log(
               `  ↪ local ${step.branch} followed the force-push ` +
                 `(${localRef.from.slice(0, 12)} → ${localRef.to.slice(0, 12)}).`,
@@ -524,9 +600,7 @@ export async function runStack(
         // review diffs stay per-issue even after prunes reshaped the walk.
         // Idempotent, so the no-op path retargets too.
         try {
-          execFileSync("gh", ["pr", "edit", step.branch, "--base", tipName], {
-            encoding: "utf8",
-          });
+          ctx.effects.retargetPrBase(step.branch, tipName);
         } catch {
           console.error(
             `⚠ could not retarget the PR base of ${step.branch} — fix with ` +
@@ -547,6 +621,7 @@ export async function runStack(
     // wave; gh refuses that partial update, which reads as a warning
     // here — the run-end link with the full membership settles it.
     linkChainedPrs(
+      ctx.effects,
       chainedSoFar,
       `${label} through wave ${depth + 1}/${levels.length}`,
     );

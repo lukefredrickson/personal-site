@@ -87,13 +87,13 @@ import {
 } from "./plan.ts";
 import {
   createRestackWorktree,
-  fetchOrigin,
   preflightGhToken,
   removeRestackWorktree,
 } from "./restack.ts";
 import {
   linkChainedPrs,
   MAX_SANDBOXES,
+  productionWalkEffects,
   runStack,
   Semaphore,
   type StackOutcome,
@@ -168,16 +168,17 @@ async function runCommand(): Promise<never> {
       `${MAX_SANDBOXES} concurrent sandbox(es).`,
   );
   let outcomes: StackOutcome[];
+  const effects = productionWalkEffects(createRestackWorktree());
   const walkContext = {
     stackCount: plan.stacks.length,
     sandboxPool: new Semaphore(MAX_SANDBOXES),
     restackLock: new Semaphore(1),
-    restackWorktree: createRestackWorktree(),
+    effects,
   };
   try {
     // One up-front fetch resolves every stack's trunk; the per-wave
     // fetches pick up the branches each build phase pushes.
-    fetchOrigin(walkContext.restackWorktree);
+    effects.fetchOrigin();
     outcomes = await Promise.all(
       plan.stacks.map((stack, i) => runStack(stack, i, walkContext)),
     );
@@ -246,7 +247,7 @@ async function runCommand(): Promise<never> {
   const linkFailures: string[] = [];
   for (const [i, outcome] of outcomes.entries()) {
     const label = `stack ${i + 1}/${outcomes.length}`;
-    if (!linkChainedPrs(outcome.chained, label)) linkFailures.push(label);
+    if (!linkChainedPrs(effects, outcome.chained, label)) linkFailures.push(label);
   }
 
   const prunedCount = outcomes.filter((o) => o.pruned.length > 0).length;
