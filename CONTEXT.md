@@ -7,6 +7,11 @@ term gets fuzzy or overloaded, sharpen it here (see `/domain-modeling`).
 
 **Personal site** — the Astro static site served at `lukefredrickson.dev`.
 
+**Base layout** — the shared page structure every screen renders inside: site
+header, site footer, and the shared head/theme plumbing around a content slot.
+Realized by `BaseLayout.astro`.
+_Avoid_: "chrome" for this (or anything else that isn't the browser itself).
+
 ## Astro
 
 **Static output** — Astro's default build mode: every page is pre-rendered to

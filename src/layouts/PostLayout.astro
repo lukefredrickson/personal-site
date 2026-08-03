@@ -7,7 +7,7 @@ import PrevNext from '../components/PrevNext.astro';
 import TagPill from '../components/TagPill.astro';
 import { formatPostDate, type Post } from '../lib/posts';
 import { topicOf } from '../lib/topics';
-import Layout from './Layout.astro';
+import BaseLayout from './BaseLayout.astro';
 
 interface Props {
 	post: Post;
@@ -26,7 +26,7 @@ const neighbor = (entry?: Post) => entry && { title: entry.data.title, href: `/b
 const published = formatPostDate(pubDate);
 ---
 
-<Layout
+<BaseLayout
 	title={title}
 	description={description}
 	ogImage={hero}
@@ -62,7 +62,7 @@ const published = formatPostDate(pubDate);
 		<AuthorCard photo={headshot} />
 		<PrevNext prev={neighbor(prev)} next={neighbor(next)} />
 	</div>
-</Layout>
+</BaseLayout>
 
 <style>
 	.page,

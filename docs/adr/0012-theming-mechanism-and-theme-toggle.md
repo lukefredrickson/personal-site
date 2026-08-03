@@ -42,7 +42,7 @@ theming built naively would silently revert on every client-side navigation.
 
 ### No-FOUC script: `is:inline`, top of the layout `<head>`
 
-A render-blocking inline script in `Layout.astro` (the single base layout —
+A render-blocking inline script in `BaseLayout.astro` (the single base layout —
 `is:inline` scripts are not deduplicated, so they must not live in a
 repeatable component). It runs pre-paint: read `lfdev-theme` in a `try/catch`
 (privacy modes throw), and stamp `data-theme` only for a valid stored value.

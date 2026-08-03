@@ -15,7 +15,7 @@ reconciled when the tokens are made live.
 
 The site is still the Astro starter. The only styling that existed was a set of
 reference-only design tokens (imported for provenance, wired into nothing — see
-ADR 0005) and a few lines of scaffold CSS in `Layout.astro`
+ADR 0005) and a few lines of scaffold CSS in `BaseLayout.astro`
 (`html, body { margin; width; height }`). Browser default styles were otherwise
 in effect: inconsistent spacing, media with inline-layout quirks, long words
 able to overflow, form controls not inheriting fonts. Every future component
@@ -34,10 +34,10 @@ and establish an entry-point pattern for live styles.
   source article. Delivered as a frontmatter import, so Astro bundles, hashes,
   and optimizes it (not a `public/` link).
 - **`src/styles/global.css`** — a thin entry file that today only
-  `@import`s the reset. This is the single stylesheet `Layout.astro` imports,
+  `@import`s the reset. This is the single stylesheet `BaseLayout.astro` imports,
   and the stable seam: future live partials are added behind it, not in the
   layout.
-- **`Layout.astro`** imports `global.css` once from its frontmatter. The inline
+- **`BaseLayout.astro`** imports `global.css` once from its frontmatter. The inline
   `<style>` scaffold was deleted wholesale: `margin` is now the reset's job,
   `width: 100%` was inert, and `height: 100%` had no consumer.
 
@@ -83,7 +83,7 @@ rather than choosing from memory now.
 - **Put the reset in `public/` and `<link>` it** — rejected. A frontmatter
   import lets Astro bundle and hash it; a `public/` link ships unoptimized and
   unversioned.
-- **Import the reset directly in `Layout.astro`** — rejected. The `global.css`
+- **Import the reset directly in `BaseLayout.astro`** — rejected. The `global.css`
   entry file is the indirection that lets live styles grow without ever editing
   the layout again.
 - **Introduce `@layer` now** — rejected as speculative structure. There is
@@ -91,7 +91,7 @@ rather than choosing from memory now.
 
 ## Consequences
 
-- Every page rendered through `Layout.astro` starts from a consistent baseline:
+- Every page rendered through `BaseLayout.astro` starts from a consistent baseline:
   `border-box` sizing, no default margins, comfortable line-height, block media
   capped at `max-width: 100%`, form controls inheriting fonts, and long words
   wrapping instead of overflowing.

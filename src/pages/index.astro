@@ -12,7 +12,7 @@ import PostListItem from '../components/PostListItem.astro';
 import RoleEntry from '../components/RoleEntry.astro';
 import SectionTitle from '../components/SectionTitle.astro';
 import type { Tag } from '../components/TagPill.astro';
-import Layout from '../layouts/Layout.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
 import { formatPostDate, getPublishedPosts } from '../lib/posts';
 import { topicOf } from '../lib/topics';
 
@@ -34,7 +34,7 @@ const hero =
 ---
 
 {/* Home is the one page with no `title`, so it renders the bare site name. */}
-<Layout
+<BaseLayout
 	description="Luke Fredrickson — full-stack engineer with a front-end focus. I build products end to end and write about what I learn along the way."
 >
 	<div class="page">
@@ -148,7 +148,7 @@ const hero =
 			<a class="more" href="/blog/">all posts <MoveRight size={14} /></a>
 		</section>
 	</div>
-</Layout>
+</BaseLayout>
 
 <style>
 	.page {

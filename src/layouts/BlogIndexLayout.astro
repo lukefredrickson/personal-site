@@ -4,7 +4,7 @@ import PostListItem from '../components/PostListItem.astro';
 import type { Post } from '../lib/posts';
 import { getTagCounts } from '../lib/tags';
 import { topicOf } from '../lib/topics';
-import Layout from './Layout.astro';
+import BaseLayout from './BaseLayout.astro';
 
 interface Props {
 	/** Every published post: the pill counts are of the blog, not of the view. */
@@ -39,7 +39,7 @@ const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes a
 {/* Tag pages are the same screen filtered, down to the heading and lede, so
     only the head meta says which page you are on (ADR 0014). Generated pages
     are the one place a description is templated rather than written. */}
-<Layout
+<BaseLayout
 	title={activeTag ? `Posts tagged ${activeTag}` : 'The blog'}
 	description={activeTag ? `Every post tagged ${activeTag}. ${LEDE}` : LEDE}
 >
@@ -92,7 +92,7 @@ const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes a
 			})
 		}
 	</div>
-</Layout>
+</BaseLayout>
 
 <style>
 	.page {
