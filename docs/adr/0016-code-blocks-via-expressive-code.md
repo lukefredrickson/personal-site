@@ -47,8 +47,9 @@ graduation to MDX — a plain fence stays a plain fence.
 
 **No hand-built `CodeBlock.astro`.** EC's frame plays the role the design
 kit's CodeBlock spec describes. This is a recorded exception to ADR 0010's
-"prose chrome is a scoped component" rule: the chrome is EC's DOM, styled
-through EC's config rather than a scoped `<style>` block.
+rule that prose elements with their own surrounding UI are scoped
+components: that UI here is EC's DOM, styled through EC's config rather
+than a scoped `<style>` block.
 
 **Themes: vendored dawnfox + duskfox.** The `dawnfox.json` (light) and
 `duskfox.json` (dark) VS Code ports from
@@ -97,6 +98,7 @@ Per the spec's intent: fox *syntax* on the site's *own* card surface.
   escape hatch.
 - EC injects its own CSS and a small copy-button script — a dependency with
   its own DOM on a hand-rolled site. Accepted as the price of not
-  maintaining frame chrome, copy UX, and marker features by hand.
+  maintaining the editor-frame UI (title bar, borders), copy UX, and marker
+  features by hand.
 - Inline code (single backticks) is untouched by EC and remains the prose
   partial's job, styled with `--code-bg`/`--code-border` per the design.

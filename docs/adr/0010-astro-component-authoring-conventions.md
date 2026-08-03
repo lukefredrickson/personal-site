@@ -36,9 +36,10 @@ reasoning and alternatives live in that ticket's thread.
    block, consuming global design tokens. Global CSS is limited to three
    things: tokens, the reset, and a typography-only prose partial for
    rendered markdown (bare `<p>`/`<h2>`/`<a>` from MDX can't carry scoped
-   classes). Anything in prose with chrome — code blocks, figures, video
-   embeds — is a component, reached via MDX embedding or the `components`
-   mapping, and styled scoped.
+   classes). Anything in prose with its own surrounding UI (title bars,
+   captions, buttons, borders) — code blocks, figures, video embeds — is a
+   component, reached via MDX embedding or the `components` mapping, and
+   styled scoped.
 
 3. **Props translate; React-isms are deleted, not ported.** Data props
    (`variant`, `label`, `count`, `href`…) carry over 1:1 into `interface
@@ -97,7 +98,7 @@ Resolves wayfinder ticket
 the [realize-the-design-system map, #18](https://github.com/lukefredrickson/personal-site/issues/18)).
 
 The `VideoCard` spec (`docs/design/components/cards/VideoCard.*`) is
-**dropped, not translated** — the design's card chrome (title, duration
+**dropped, not translated** — the design's card framing (title, duration
 badge, rose play treatment) is placeholder. Ride posts embed vlogs with the
 [`astro-embed`](https://astro-embed.netlify.app/components/youtube/)
 `<YouTube>` component (`@astro-community/astro-embed-youtube`), imported

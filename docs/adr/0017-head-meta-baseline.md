@@ -70,7 +70,8 @@ in prod (no user-facing 404s), while the dev server 404s them so a sloppy
 internal link breaks loudly before merge instead of shipping a redirect hop.
 
 **Favicons: the full modern set.** Adaptive `favicon.svg` (embedded
-`prefers-color-scheme` query so the icon suits dark browser chrome),
+`prefers-color-scheme` query so the icon reads against a dark browser
+toolbar),
 `favicon.ico` (32px legacy), 180×180 `apple-touch-icon.png`, and a web
 manifest with 192/512px PNGs. All placeholder artwork; the decision is the
 asset set the head links, so real icon design later swaps files, not code.
@@ -80,11 +81,11 @@ line, reuses `site`), linked from `BaseHead` via
 `<link rel="sitemap" href="/sitemap-index.xml">`; a static
 `public/robots.txt` allows everything and points at the sitemap.
 
-**Theme chrome: `theme-color` follows the toggle.** Paired
+**Browser UI tint: `theme-color` follows the toggle.** Paired
 `<meta name="theme-color">` tags with `prefers-color-scheme` media variants
 cover the OS-tracking case, and ADR 0012's theme script also updates the meta
-when the toggle fires — so mobile browser chrome follows the site's actual
-theme, not just the OS setting.
+when the toggle fires — so the mobile browser's toolbar and status-bar tint
+follows the site's actual theme, not just the OS setting.
 
 ## Alternatives considered
 
@@ -98,8 +99,9 @@ theme, not just the OS setting.
   the dedicated component keeps it reviewable and is the documented idiom.
 - **No web manifest**: was the lean default for a non-installable site;
   including it costs two PNGs and one JSON file and completes the set.
-- **Skipping `theme-color`**: perfectly common; rejected because mismatched
-  chrome is exactly the sloppiness the dual-theme work exists to avoid.
+- **Skipping `theme-color`**: perfectly common; rejected because a browser
+  toolbar tinted to the wrong theme is exactly the sloppiness the dual-theme
+  work exists to avoid.
 
 ## Consequences
 
