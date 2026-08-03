@@ -49,6 +49,77 @@ Worker runs. Used to send `www.dev`, `.com`, `www.com` → `lukefredrickson.dev`
 **`_atproto` TXT** — DNS record on `.dev` that verifies the Bluesky handle.
 Preserved through all DNS changes.
 
+## Blog
+
+**Post** — one entry in the single `blog` collection: a folder
+`src/content/blog/<year>/<slug>/` holding `post.md` (or `.mdx`) plus
+everything the post owns (photos, one-off components). There are no post
+types — any post may use any block (ADR 0013).
+_Avoid_: "tech post" / "ride post" as kinds — they are one layout whose
+optional sections render when their data exists.
+
+**Slug** — the post's directory name, verbatim: it is the entry id and the
+whole URL (`/blog/<slug>/`), unique across all year folders (build-guarded).
+_Avoid_: frontmatter slug overrides; dated URLs.
+
+**Year folder** — the `<year>/` level above a post, for browsability only.
+Not part of the URL; moving a post between years changes nothing rendered.
+
+**Draft** — a post with `draft: true`: visible in dev, hidden in every
+production build — including preview deploys, which are PROD builds.
+
+**Published post** — a non-draft post as production sees it, newest first.
+Every listing, feed, and neighbor derives from the one helper
+(`getPublishedPosts()`) that applies the filter and the sort.
+
+**Featured post** — the newest published post, shown as the home page's big
+card. Purely positional — there is no featured flag and no curation.
+
+**Graduation** — renaming a post from `.md` to `.mdx` at the moment it needs
+components in its body. The only difference between plain and rich posts.
+
+**Hero** — a post's optional lead image; alt text is required with it.
+
+**Prev / Next** — a post's chronological neighbors: **prev = older,
+next = newer**.
+
+### Tags
+
+**Tag** — the open taxonomy: a lowercase-kebab string in a post's `tags`
+list. The tag string is simultaneously the route segment and the pill label —
+no mapping layer, so `Bikes` vs `bikes` fails the build.
+_Avoid_: "category"; "topic" as a taxonomy word — a topic is a tint (below).
+
+**Tag page** — `/blog/tags/<tag>/`: the blog index screen filtered to one
+tag. Every tag in use gets one; there is no bare `/blog/tags/` index — the
+pill row on the blog index is the tag directory.
+
+**Everything** — the unfiltered blog index at `/blog/`. Not a tag: its pill
+links to the index, and its count is the number of published posts. Tag
+counts legitimately sum past it, since posts carry several tags.
+
+**Filter pill** — one entry in the pill row on the index and tag pages:
+"everything" first, then every tag in use, most-used first. Always a link,
+even when active.
+
+**Tag pill** — the small tag chip on list items, cards, and posts, linking to
+its tag page (the "more like this" affordance).
+_Avoid_: conflating with filter pill — that one filters a list; this one
+labels a post.
+
+**Topic** — a presentation **tint**, not a classification: the color a chip
+or pill wears (`code`, `bikes`, `video`, `neutral`). One map assigns tints to
+tags; an unmapped tag is fully functional, just neutral. `video` tints
+in-prose video cards only, never a tag.
+_Avoid_: "topic" for what a post is about — that's its tags.
+
+## Theming
+
+**Theme override** — the `data-theme` attribute on `<html>`, stamped and
+persisted only when the visitor clicks the toggle. No override means the OS
+preference rules via pure CSS, zero JS involved; there is no third
+"follow system" UI state (ADR 0012).
+
 ## Sandcastle
 
 The name is overloaded three ways; each gets its own term. Full design:
