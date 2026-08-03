@@ -1,0 +1,338 @@
+---
+// PROTOTYPE — throwaway (branch prototype/404-page, issue #54).
+// Three variants of the 404 page on the real /404 route, switchable via
+// ?variant= (a|b|c) and a floating bottom bar. The winner gets rewritten
+// properly; the rest stay on this branch.
+import { Compass, House, MoveRight } from '@lucide/astro';
+import Button from '../components/Button.astro';
+import SectionTitle from '../components/SectionTitle.astro';
+import StatChip from '../components/StatChip.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPublishedPosts } from '../lib/posts';
+
+const [latest] = await getPublishedPosts();
+
+const variants = [
+	{ key: 'a', name: 'Minimal editorial' },
+	{ key: 'b', name: 'Wayfinding hub' },
+	{ key: 'c', name: 'Wrong turn' },
+];
+---
+
+<BaseLayout title="Page not found" description="This page doesn't exist — or never did.">
+	{/* ——— Variant A — Minimal editorial: centered, type does all the work. */}
+	<section class="variant" data-variant="a" hidden>
+		<div class="a-wrap">
+			<p class="a-code"><span class="a-mark">404</span></p>
+			<h1 class="a-title">Page not found</h1>
+			<p class="a-copy">This page doesn't exist — or never did.</p>
+			<div class="a-actions">
+				<Button variant="primary" href="/">home <House size={13} /></Button>
+				<Button href="/blog/">blog <MoveRight size={13} /></Button>
+			</div>
+		</div>
+	</section>
+
+	{/* ——— Variant B — Wayfinding hub: the directory is the content. */}
+	<section class="variant" data-variant="b" hidden>
+		<div class="b-wrap">
+			<header class="b-header">
+				<h1 class="b-title">There's no page here.</h1>
+				<p class="b-copy">
+					The address might be mistyped, or the page may have moved. Everything that does exist is
+					reachable from these:
+				</p>
+			</header>
+			<div class="b-section">
+				<SectionTitle>Places that do exist</SectionTitle>
+				<nav class="b-list" aria-label="Site pages">
+					<a class="b-row" href="/">
+						<span class="b-row-title">Home</span>
+						<span class="b-row-desc">who I am, where I've worked</span>
+						<MoveRight class="b-row-icon" size={14} />
+					</a>
+					<a class="b-row" href="/blog/">
+						<span class="b-row-title">Blog</span>
+						<span class="b-row-desc">everything I've written</span>
+						<MoveRight class="b-row-icon" size={14} />
+					</a>
+					{
+						latest && (
+							<a class="b-row" href={`/blog/${latest.id}/`}>
+								<span class="b-row-title">Latest post</span>
+								<span class="b-row-desc">{latest.data.title}</span>
+								<MoveRight class="b-row-icon" size={14} />
+							</a>
+						)
+					}
+				</nav>
+			</div>
+		</div>
+	</section>
+
+	{/* ——— Variant C — Wrong turn: ride-post idiom pointed at an error. */}
+	<section class="variant" data-variant="c" hidden>
+		<div class="c-wrap">
+			<p class="c-meta">GET {'/this/page/'} → 404 not found</p>
+			<h1 class="c-title">Looks like a wrong turn</h1>
+			<p class="c-copy">
+				This route isn't on the map. Backtrack to the last junction, or ride straight home.
+			</p>
+			<div class="c-stats">
+				<StatChip value="404" label="error" />
+				<StatChip value="0" unit="pages" label="found here" />
+				<StatChip value="1" unit="click" label="way home" />
+			</div>
+			<div class="c-actions">
+				<Button variant="primary" href="/">back to the trailhead <Compass size={13} /></Button>
+				<Button href="/blog/">browse the blog <MoveRight size={13} /></Button>
+			</div>
+		</div>
+	</section>
+</BaseLayout>
+
+{/* Floating variant switcher — prototype tooling, dev only, not the design. */}
+{
+	import.meta.env.DEV && (
+		<div class="switcher" data-switcher data-variants={JSON.stringify(variants)}>
+			<button type="button" data-prev aria-label="Previous variant">
+				←
+			</button>
+			<span data-label>…</span>
+			<button type="button" data-next aria-label="Next variant">
+				→
+			</button>
+		</div>
+	)
+}
+
+<script>
+	// Prototype switcher: show the ?variant= section, arrows/keys cycle.
+	const bar = document.querySelector<HTMLElement>('[data-switcher]');
+	const sections = [...document.querySelectorAll<HTMLElement>('[data-variant]')];
+	const variants: { key: string; name: string }[] = bar ? JSON.parse(bar.dataset.variants!) : [];
+
+	function current(): number {
+		const key = new URLSearchParams(location.search).get('variant');
+		const i = variants.findIndex((v) => v.key === key);
+		return i === -1 ? 0 : i;
+	}
+
+	function apply() {
+		const v = variants[current()]!;
+		for (const s of sections) s.hidden = s.dataset.variant !== v.key;
+		const label = bar?.querySelector('[data-label]');
+		if (label) label.textContent = `${v.key.toUpperCase()} — ${v.name}`;
+	}
+
+	function cycle(delta: number) {
+		const next = variants[(current() + delta + variants.length) % variants.length]!;
+		const url = new URL(location.href);
+		url.searchParams.set('variant', next.key);
+		history.replaceState(null, '', url);
+		apply();
+	}
+
+	if (bar && variants.length) {
+		bar.querySelector('[data-prev]')?.addEventListener('click', () => cycle(-1));
+		bar.querySelector('[data-next]')?.addEventListener('click', () => cycle(1));
+		document.addEventListener('keydown', (e) => {
+			const t = e.target as HTMLElement;
+			if (t.closest('input, textarea, [contenteditable]')) return;
+			if (e.key === 'ArrowLeft') cycle(-1);
+			if (e.key === 'ArrowRight') cycle(1);
+		});
+	}
+	// No bar in a prod build: show the first variant and stop.
+	apply();
+</script>
+
+<style>
+	/* ——— A */
+	.a-wrap {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-4);
+		padding-block: clamp(3rem, 14vh, 7rem) var(--space-8);
+		text-align: center;
+	}
+
+	.a-code {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--font-size-4xl);
+		font-weight: var(--weight-voice);
+		letter-spacing: var(--tracking-display);
+		line-height: var(--leading-tight);
+	}
+
+	.a-mark {
+		background: linear-gradient(transparent 64%, var(--highlight) 64%);
+	}
+
+	.a-title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-section);
+		font-weight: var(--weight-voice);
+		letter-spacing: var(--tracking-display);
+	}
+
+	.a-copy {
+		color: var(--text-body);
+		font-family: var(--font-body);
+		font-size: var(--text-article);
+		line-height: var(--leading-body);
+	}
+
+	.a-actions {
+		display: flex;
+		gap: var(--space-3);
+		margin-top: var(--space-3);
+	}
+
+	/* ——— B */
+	.b-wrap {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-7);
+	}
+
+	.b-header {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.b-title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-page-title);
+		font-weight: var(--weight-voice);
+		letter-spacing: var(--tracking-display);
+		line-height: var(--leading-tight);
+	}
+
+	.b-copy {
+		max-width: 520px;
+		color: var(--text-body);
+		font-family: var(--font-body);
+		font-size: var(--text-article);
+		line-height: var(--leading-body);
+	}
+
+	.b-section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-5);
+	}
+
+	.b-list {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.b-row {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-3);
+		padding-block: var(--space-4);
+		border-bottom: 1px solid var(--hairline);
+		text-decoration: none;
+	}
+
+	.b-row:first-child {
+		border-top: 1px solid var(--hairline);
+	}
+
+	.b-row-title {
+		color: var(--link);
+		font-family: var(--font-display);
+		font-size: var(--text-item-title);
+		font-weight: var(--weight-title);
+	}
+
+	.b-row-desc {
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	.b-row-icon {
+		flex: none;
+		align-self: center;
+		margin-left: auto;
+		color: var(--text-muted);
+	}
+
+	/* ——— C */
+	.c-wrap {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-5);
+	}
+
+	.c-meta {
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	.c-title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-page-title);
+		font-weight: var(--weight-voice);
+		letter-spacing: var(--tracking-display);
+		line-height: var(--leading-tight);
+	}
+
+	.c-copy {
+		max-width: 520px;
+		color: var(--text-body);
+		font-family: var(--font-body);
+		font-size: var(--text-article);
+		line-height: var(--leading-body);
+	}
+
+	.c-stats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
+		max-width: 520px;
+	}
+
+	.c-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
+	}
+
+	/* ——— Switcher (not part of the design) */
+	.switcher {
+		position: fixed;
+		bottom: var(--space-5);
+		left: 50%;
+		translate: -50% 0;
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-4);
+		border: 1px solid var(--border-strong);
+		border-radius: 999px;
+		background: var(--ink);
+		box-shadow: var(--shadow-photo, 0 4px 12px rgb(0 0 0 / 0.25));
+		color: var(--bg);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	.switcher button {
+		border: none;
+		background: none;
+		color: inherit;
+		font: inherit;
+		cursor: pointer;
+	}
+</style>
