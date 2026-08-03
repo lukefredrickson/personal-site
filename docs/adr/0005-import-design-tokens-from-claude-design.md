@@ -47,7 +47,7 @@ in the design system for now.
   (Button, Card, SiteHeader, …). Rejected for now: Astro renders `.astro`
   components server-side, so the React sources would need porting, not
   copying. Tokens first; components when we build the pages that need them.
-- **Wire tokens into `Layout.astro` now** — makes the tokens live globally.
+- **Wire tokens into `BaseLayout.astro` now** — makes the tokens live globally.
   Custom properties are inert until consumed, but `base.css` restyles the
   body (background, text color, default font), which would change the
   throwaway starter page. Rejected: keep this change pure-reference; wire the

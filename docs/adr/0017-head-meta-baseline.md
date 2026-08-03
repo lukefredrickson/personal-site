@@ -23,7 +23,7 @@ strategy, favicons, canonical URLs, and where all this logic lives.
 
 **Architecture: a `BaseHead` component.** `src/components/BaseHead.astro`
 with typed props — `title?`, `description` (required), `ogImage?`, `article?`
-— rendered inside `Layout.astro`'s `<head>`. This is the documented Astro
+— rendered inside `BaseLayout.astro`'s `<head>`. This is the documented Astro
 idiom (the Layouts guide's sample layout and the Configuration overview both
 model exactly this). The layout also declares a `<slot name="head" />` escape
 hatch so a page can inject one-off head tags (an RSS `<link>`, a `preload`)
@@ -71,8 +71,7 @@ internal link breaks loudly before merge instead of shipping a redirect hop.
 
 **Favicons: the full modern set.** Adaptive `favicon.svg` (embedded
 `prefers-color-scheme` query so the icon reads against a dark browser
-toolbar),
-`favicon.ico` (32px legacy), 180×180 `apple-touch-icon.png`, and a web
+toolbar), `favicon.ico` (32px legacy), 180×180 `apple-touch-icon.png`, and a web
 manifest with 192/512px PNGs. All placeholder artwork; the decision is the
 asset set the head links, so real icon design later swaps files, not code.
 
@@ -94,7 +93,7 @@ follows the site's actual theme, not just the OS setting.
   but loses attribution in search snippets and bookmarks.
 - **Optional description with omission**: silently ships pages without meta
   descriptions; requiredness turns the mistake into a build error.
-- **Head logic inline in `Layout.astro`**: works, but the head is the
+- **Head logic inline in `BaseLayout.astro`**: works, but the head is the
   fastest-growing part of the layout (theme script, fonts, this baseline);
   the dedicated component keeps it reviewable and is the documented idiom.
 - **No web manifest**: was the lean default for a non-installable site;
