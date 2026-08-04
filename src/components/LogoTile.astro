@@ -1,15 +1,16 @@
 ---
 import type { ImageMetadata } from 'astro';
 import { Image } from 'astro:assets';
+import type { Tint } from '../lib/tints';
 
 interface Props {
 	/** Real logo. Replaces the slotted monogram and drops the tint behind it. */
 	logo?: ImageMetadata;
 	/** Tint behind a monogram; logos sit on the card instead. */
-	tint?: 'sand' | 'pine' | 'gold' | 'green';
+	tint?: Tint;
 }
 
-const { logo, tint = 'sand' } = Astro.props;
+const { logo, tint = 'neutral' } = Astro.props;
 ---
 
 <div class:list={['logo-tile', !logo && tint]}>
@@ -43,19 +44,23 @@ const { logo, tint = 'sand' } = Astro.props;
 		object-fit: contain;
 	}
 
-	.sand {
-		background: var(--tint-sand);
+	.neutral {
+		background: var(--tint-neutral-bg);
 	}
 
-	.pine {
-		background: var(--tint-pine);
+	.blue {
+		background: var(--tint-blue-bg);
+	}
+
+	.foam {
+		background: var(--tint-foam-bg);
 	}
 
 	.gold {
-		background: var(--tint-gold);
+		background: var(--tint-gold-bg);
 	}
 
-	.green {
-		background: var(--tint-green);
+	.rose {
+		background: var(--tint-rose-bg);
 	}
 </style>

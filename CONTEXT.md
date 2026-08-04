@@ -12,6 +12,14 @@ header, site footer, and the shared head/theme plumbing around a content slot.
 Realized by `BaseLayout.astro`.
 _Avoid_: "chrome" for this (or anything else that isn't the browser itself).
 
+**Tag** — an open lowercase-kebab string on a post, the one name for the
+concept: schema field, route segment, chip label, map key (ADR 0014).
+_Avoid_: "topic".
+
+**Tint** — the color a chip, filter pill, logo tile, or framed figure wears.
+One vocabulary, named by the palette hue it is (`blue`, `foam`, `gold`,
+`rose`), plus `neutral` for the untinted role.
+
 **Promotion ladder** — the vertical timeline running down the left of a company
 card's roles: one dot per role, joined by rails. Home page only, realized by
 `RoleEntry.astro`.

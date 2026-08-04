@@ -14,7 +14,7 @@ import SectionTitle from '../components/SectionTitle.astro';
 import type { Tag } from '../components/TagPill.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { formatPostDate, getPublishedPosts } from '../lib/posts';
-import { topicOf } from '../lib/topics';
+import { tintOf } from '../lib/tints';
 
 // The newest post leads the section; the rest are rows. Four keeps the home
 // list a teaser — /blog/ is where the archive lives.
@@ -23,7 +23,7 @@ const recent = older.slice(0, 4);
 
 // Tinting is the screen's call, off the one shared map — the chip takes a tint,
 // not a vocabulary.
-const chips = (tags: string[]): Tag[] => tags.map((tag) => ({ tag, topic: topicOf(tag) }));
+const chips = (tags: string[]): Tag[] => tags.map((tag) => ({ tag, tint: tintOf(tag) }));
 
 // The schema pairs a hero with its alt text; testing both is what proves that
 // pairing to TypeScript here, where the card takes them as a unit.

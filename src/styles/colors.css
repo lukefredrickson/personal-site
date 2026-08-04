@@ -60,7 +60,7 @@
   --gold-w88: oklch(88% 0.03 var(--h-gold));
   --gold-w94: oklch(94% 0.03 var(--h-gold));
 
-  /* foam — oklch(L .08 160) — the system's green */
+  /* foam — oklch(L .08 160) */
   --foam-50: oklch(50% var(--c-foam) var(--h-foam));
   --foam-55: oklch(55% var(--c-foam) var(--h-foam));
   --foam-60: oklch(60% var(--c-foam) var(--h-foam));
@@ -73,7 +73,7 @@
   --foam-w88: oklch(88% 0.03 var(--h-foam));
   --foam-w94: oklch(94% 0.03 var(--h-foam));
 
-  /* blue — oklch(L .09 225) — pine */
+  /* blue — oklch(L .09 225) */
   --blue-50: oklch(50% var(--c-blue) var(--h-blue));
   --blue-55: oklch(55% var(--c-blue) var(--h-blue));
   --blue-60: oklch(60% var(--c-blue) var(--h-blue));
@@ -128,8 +128,8 @@
   --p-muted: var(--ink-50);
   --p-rose: light-dark(var(--rose-65), var(--rose-75));
   --p-rose-deep: light-dark(var(--rose-60), var(--rose-70));
-  --p-green: light-dark(var(--foam-65), var(--foam-80));
-  --p-green-deep: light-dark(var(--foam-60), var(--foam-75));
+  --p-foam: light-dark(var(--foam-65), var(--foam-80));
+  --p-foam-deep: light-dark(var(--foam-60), var(--foam-75));
   --p-gold: light-dark(var(--gold-80), var(--gold-85));
   --p-gold-deep: light-dark(var(--gold-75), var(--gold-85)); /* dusk deep collapses into gold-85 */
   --p-blue: light-dark(var(--blue-55), var(--blue-70));
@@ -175,26 +175,24 @@
   --marker-muted: light-dark(var(--rail), var(--border-strong)); /* past-role dot ring / bullet */
   --dot-current-ring: light-dark(var(--border-strong), var(--accent)); /* ink outline in light; merges with gold fill in dark */
 
-  /* ---- topic colors ---- */
-  --topic-code-bg: light-dark(var(--blue-w94), var(--blue-w36));
-  --topic-code-fg: light-dark(var(--blue-50), var(--blue-70));
-  --topic-code-line: var(--topic-code-fg);
-  --topic-bikes-bg: light-dark(var(--foam-w94), var(--foam-w36));
-  --topic-bikes-fg: light-dark(var(--foam-50), var(--foam-75));
-  --topic-bikes-line: light-dark(var(--foam-60), var(--foam-75));
+  /* ---- tints — one vocabulary for everything that wears a color: tag chips,
+     filter pills, logo tiles, framed figures. Named by palette hue, never by
+     what wears it; `neutral` is the untinted role. A hue carries the slots
+     something reads — a wash-only hue has no fg or line. ---- */
+  --tint-blue-bg: light-dark(var(--blue-w94), var(--blue-w36));
+  --tint-blue-fg: light-dark(var(--blue-50), var(--blue-70));
+  --tint-blue-line: var(--tint-blue-fg);
+  --tint-foam-bg: light-dark(var(--foam-w94), var(--foam-w36));
+  --tint-foam-fg: light-dark(var(--foam-50), var(--foam-75));
+  --tint-foam-line: light-dark(var(--foam-60), var(--foam-75));
+  --tint-gold-bg: light-dark(var(--gold-w94), var(--gold-w36));
+  --tint-rose-bg: light-dark(var(--rose-w94), var(--rose-w36));
+  --tint-neutral-bg: light-dark(var(--paper-95), var(--ink-35));
 
-  /* ---- badges ---- */
-  --latest-bg: var(--topic-code-bg);
+  /* ---- badges — a role over the palette, not a second name for it ---- */
+  --latest-bg: var(--tint-blue-bg);
   --latest-border: light-dark(var(--blue-w88), var(--blue-50));
-  --latest-fg: var(--topic-code-fg);
-  --video-pill-bg: light-dark(var(--rose-w94), var(--rose-w36));
-  --video-pill-fg: light-dark(var(--rose-50), var(--rose-75));
-
-  /* ---- tints (logo tiles, chips) ---- */
-  --tint-pine: var(--topic-code-bg);
-  --tint-gold: light-dark(var(--gold-w94), var(--gold-w36));
-  --tint-sand: light-dark(var(--paper-95), var(--ink-35));
-  --tint-green: var(--topic-bikes-bg);
+  --latest-fg: var(--tint-blue-fg);
 
   /* ---- image placeholders (faded ink — never accent-tinted) ---- */
   --placeholder-hatch: light-dark(
@@ -221,7 +219,7 @@
   --shadow-video: 3px 3px 0 var(--shadow-color-soft);
 
   /* ---- buttons ---- */
-  --btn-primary-bg: var(--p-blue-deep);                     /* pine — primary (résumé) button */
+  --btn-primary-bg: var(--p-blue-deep);                     /* primary (résumé) button */
   --btn-primary-fg: light-dark(var(--paper-97), var(--blue-w94));
 
   /* ---- code block syntax — five distinct colors, both themes ---- */
@@ -230,7 +228,7 @@
   --code-muted: light-dark(var(--ink-65), var(--ink-55));   /* comments — the only mono italic */
   --code-selector: var(--p-iris-deep);
   --code-property: var(--p-blue-deep);
-  --code-value: var(--p-green-deep);                        /* numbers, strings — foam */
+  --code-value: var(--p-foam-deep);                         /* numbers, strings */
   --code-function: light-dark(var(--blue-65), var(--blue-80)); /* one step lighter than property */
   --code-custom: var(--p-gold-deep);                        /* custom props */
 }

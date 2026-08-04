@@ -3,7 +3,7 @@ import FilterPill from '../components/FilterPill.astro';
 import PostListItem from '../components/PostListItem.astro';
 import type { Post } from '../lib/posts';
 import { getTagCounts } from '../lib/tags';
-import { topicOf } from '../lib/topics';
+import { tintOf } from '../lib/tints';
 import BaseLayout from './BaseLayout.astro';
 
 interface Props {
@@ -59,7 +59,7 @@ const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes a
 						href={`/blog/tags/${tag}/`}
 						label={tag}
 						count={count}
-						topic={topicOf(tag)}
+						tint={tintOf(tag)}
 						active={tag === activeTag}
 					/>
 				))
@@ -83,7 +83,7 @@ const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes a
 									href={`/blog/${post.id}/`}
 									date={dayOf(post)}
 									excerpt={showExcerpts ? post.data.description : undefined}
-									tags={post.data.tags.map((tag) => ({ tag, topic: topicOf(tag) }))}
+									tags={post.data.tags.map((tag) => ({ tag, tint: tintOf(tag) }))}
 								/>
 							))}
 						</div>
