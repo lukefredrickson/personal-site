@@ -12,6 +12,21 @@ header, site footer, and the shared head/theme plumbing around a content slot.
 Realized by `BaseLayout.astro`.
 _Avoid_: "chrome" for this (or anything else that isn't the browser itself).
 
+**Promotion ladder** — the vertical timeline running down the left of a company
+card's roles: one dot per role, joined by rails. Home page only, realized by
+`RoleEntry.astro`.
+_Avoid_: "the timeline" or "the role dots" for the whole motif.
+
+**Dot** — the ladder's circular marker for one role; filled with the accent on
+the current role, a ring otherwise. Text-anchored decoration: it sizes in rem so
+it stays centered on its role title at any reader font size (ADR 0030).
+
+**Rail** — the hairline segment from one dot down to the next, inside a company
+card. The card's last role has none.
+
+**Connector** — the dotted vertical run between two company cards, carrying the
+ladder across the gap. Page-centered decoration, not aligned to the dot column.
+
 ## Astro
 
 **Static output** — Astro's default build mode: every page is pre-rendered to
