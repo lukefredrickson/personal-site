@@ -35,6 +35,11 @@ card. The card's last role has none.
 **Connector** — the dotted vertical run between two company cards, carrying the
 ladder across the gap. Page-centered decoration, not aligned to the dot column.
 
+**Draft** — a post carrying `draft: true`: hidden from production, visible in
+`astro dev` and on every preview deploy, and publicly reachable there. Not a
+secret — a sensitive post simply isn't pushed. Marked wherever it surfaces by
+the rose `draft` badge (ADR 0021).
+
 **Read time** — a post's estimated minutes, counted from its prose only (never
 code) at build time and shown in the post header. Never in frontmatter, never
 on list surfaces. See ADR 0020.

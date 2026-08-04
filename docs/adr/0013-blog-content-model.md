@@ -10,6 +10,10 @@ Amended by: [20. Read time via a Sätteri mdast
 plugin](0020-read-time-via-a-satteri-mdast-plugin.md) — the pipeline's "no
 plugins" stance and the deferral of read time (with its `entry.body`
 suggestion) are superseded. The processor choice itself stands.
+Amended by: [21. Draft visibility on preview
+deploys](0021-draft-visibility-on-preview-deploys.md) — the
+`import.meta.env.PROD ? !draft : true` filter, and the deferred consequence
+that preview deploys hide drafts. The one-helper rule stands.
 
 Resolves wayfinder ticket [#24](https://github.com/lukefredrickson/personal-site/issues/24)
 (part of the [realize-the-design-system map, #18](https://github.com/lukefredrickson/personal-site/issues/18)).
@@ -131,7 +135,7 @@ additive work.
   code or schema change; only pill *colors* take a one-line map entry.
 - Draft posts can merge to `main` and preview locally without publishing.
   Deferred: making drafts visible on preview deploys (preview builds are
-  `PROD`, so drafts are hidden there too).
+  `PROD`, so drafts are hidden there too) — taken up in ADR 0021.
 - Still open, cut as a follow-on decision ticket: code-block filename headers,
   Shiki theming approach, and topic-filter interactivity (static tag pages vs
   client-side filtering).

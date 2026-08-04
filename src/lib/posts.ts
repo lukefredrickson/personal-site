@@ -1,20 +1,24 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { SHOW_DRAFTS } from 'astro:env/server';
 
 export type Post = CollectionEntry<'blog'>;
 
 /*
+  Drafts always render in `astro dev`; a build shows them only where it proved
+  itself a preview (ADR 0021). Production and every ambiguous case hide them —
+  that asymmetry is the whole point, so the flag is read once, here.
+*/
+const includeDrafts = import.meta.env.DEV || SHOW_DRAFTS;
+
+/*
   The one way to read the blog collection. It bundles the draft filter and the
   sort so no call site can forget either (ADR 0013): pages, tag routes, feeds
-  and prev/next all start here and narrow from the result.
-
-  Drafts are hidden in production only, so an unfinished post can merge to
-  `main` and still be visible in `astro dev`. Preview deploys are PROD builds,
-  so drafts are hidden there too (issue #56).
+  and prev/next all start here and narrow from the result. Drafts therefore
+  reach every derived surface — prev/next chains, tag pills, counts, sitemap —
+  or none of them.
 */
 export async function getPublishedPosts(): Promise<Post[]> {
-  const posts = await getCollection('blog', ({ data }) =>
-    import.meta.env.PROD ? !data.draft : true,
-  );
+  const posts = await getCollection('blog', ({ data }) => includeDrafts || !data.draft);
 
   // Newest first; id tie-break keeps same-day posts in a stable build order.
   return posts.sort(
