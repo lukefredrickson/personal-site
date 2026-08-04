@@ -17,8 +17,6 @@ type Props = Hero & {
 	date: string;
 	/** The post's `description`. */
 	excerpt?: string;
-	/** "4 min". */
-	readTime?: string;
 	tags?: Tag[];
 	/** Label drawn in the hatched frame while a post has no hero. */
 	placeholder?: string;
@@ -27,7 +25,7 @@ type Props = Hero & {
 // `hero` and `heroAlt` stay on `props`: narrowing `props.hero` is what proves
 // to TypeScript that `props.heroAlt` came with it.
 const props = Astro.props;
-const { title, href, date, excerpt, readTime, tags = [], placeholder } = props;
+const { title, href, date, excerpt, tags = [], placeholder } = props;
 ---
 
 {/* Only the newest post gets this treatment; size and position say "latest",
@@ -39,14 +37,6 @@ const { title, href, date, excerpt, readTime, tags = [], placeholder } = props;
 	<div class="body">
 		<div class="meta">
 			<span>{date}</span>
-			{
-				readTime && (
-					<Fragment>
-						<span>·</span>
-						<span>{readTime}</span>
-					</Fragment>
-				)
-			}
 			{tags.map(({ tag, tint }) => <TagPill tag={tag} tint={tint} />)}
 		</div>
 		{/* h3: the card sits under a section heading on every screen that uses it. */}

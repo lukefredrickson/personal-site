@@ -35,6 +35,10 @@ card. The card's last role has none.
 **Connector** — the dotted vertical run between two company cards, carrying the
 ladder across the gap. Page-centered decoration, not aligned to the dot column.
 
+**Read time** — a post's estimated minutes, counted from its prose only (never
+code) at build time and shown in the post header. Never in frontmatter, never
+on list surfaces. See ADR 0020.
+
 ## Astro
 
 **Static output** — Astro's default build mode: every page is pre-rendered to
