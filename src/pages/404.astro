@@ -14,7 +14,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 >
 	<section class="not-found">
 		{/* The heading is "Page not found"; the numeral is the graphic. */}
-		<p class="code"><span class="mark">404</span></p>
+		<p class="numeral"><span class="mark">404</span></p>
 		<h1 class="title">Page not found</h1>
 		<p class="copy">This page doesn't exist — or never did.</p>
 		<div class="actions">
@@ -36,7 +36,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 		text-align: center;
 	}
 
-	.code {
+	.numeral {
 		color: var(--ink);
 		font-family: var(--font-display);
 		/* No job token covers a numeral used as artwork. */

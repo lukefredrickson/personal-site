@@ -3,10 +3,15 @@ import ThemeToggle from './ThemeToggle.astro';
 
 // Active nav state derives from the URL, not a prop: the layout renders one
 // header for every page and no page can get its own nav wrong. Everything
-// outside the blog is work — except the 404, which is nowhere, so it lights
-// neither item.
-const { pathname } = Astro.url;
-const section = pathname.startsWith('/blog') ? 'blog' : pathname.startsWith('/404') ? null : 'work';
+// outside the blog is work.
+function currentSection(pathname: string): 'work' | 'blog' | undefined {
+	if (pathname.startsWith('/blog')) return 'blog';
+	// The 404 is nowhere, so it lights neither item.
+	if (pathname.startsWith('/404')) return undefined;
+	return 'work';
+}
+
+const section = currentSection(Astro.url.pathname);
 ---
 
 <header class="site-header">
