@@ -4,11 +4,11 @@ import { SHOW_DRAFTS } from 'astro:env/server';
 export type Post = CollectionEntry<'blog'>;
 
 /*
-  Drafts render in `astro dev` always, and in a build only where it proved
+  Drafts always render in `astro dev`; a build shows them only where it proved
   itself a preview (ADR 0021). Production and every ambiguous case hide them —
-  the asymmetry is the whole point, so the flag is read once, here.
+  that asymmetry is the whole point, so the flag is read once, here.
 */
-const showDrafts = import.meta.env.DEV || SHOW_DRAFTS;
+const includeDrafts = import.meta.env.DEV || SHOW_DRAFTS;
 
 /*
   The one way to read the blog collection. It bundles the draft filter and the
@@ -18,7 +18,7 @@ const showDrafts = import.meta.env.DEV || SHOW_DRAFTS;
   or none of them.
 */
 export async function getPublishedPosts(): Promise<Post[]> {
-  const posts = await getCollection('blog', ({ data }) => showDrafts || !data.draft);
+  const posts = await getCollection('blog', ({ data }) => includeDrafts || !data.draft);
 
   // Newest first; id tie-break keeps same-day posts in a stable build order.
   return posts.sort(

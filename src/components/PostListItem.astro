@@ -11,7 +11,7 @@ interface Props {
 	/** The post's `description`. Index rows carry it; home rows don't. */
 	excerpt?: string;
 	tags?: Tag[];
-	/** Marks the row as unpublished — only ever true off a preview (ADR 0021). */
+	/** Badges the row unpublished — only true in dev and on previews (ADR 0021). */
 	draft?: boolean;
 	/** Home "Writing" rows: chips ride the title line instead of sitting below. */
 	compact?: boolean;

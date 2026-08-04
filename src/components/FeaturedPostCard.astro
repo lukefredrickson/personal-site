@@ -19,7 +19,7 @@ type Props = Hero & {
 	/** The post's `description`. */
 	excerpt?: string;
 	tags?: Tag[];
-	/** Marks the card as unpublished — only ever true off a preview (ADR 0021). */
+	/** Badges the card unpublished — only true in dev and on previews (ADR 0021). */
 	draft?: boolean;
 	/** Label drawn in the hatched frame while a post has no hero. */
 	placeholder?: string;
