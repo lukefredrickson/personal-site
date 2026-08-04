@@ -2,8 +2,7 @@
 
 Date: 2026-08-04
 Status: Accepted
-Amends: [11. Token activation](0011-token-activation-reference-tokens-to-live-styles.md)
-§3 (Units) — the px/rem test gains one carve-out.
+Amends: ADR 0011 §3, Units (the px/rem test gains one carve-out)
 
 Resolves [#107](https://github.com/lukefredrickson/personal-site/issues/107),
 grilled 2026-08-03.
