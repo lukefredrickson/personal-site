@@ -12,6 +12,17 @@ header, site footer, and the shared head/theme plumbing around a content slot.
 Realized by `BaseLayout.astro`.
 _Avoid_: "chrome" for this (or anything else that isn't the browser itself).
 
+**Tag** — an open lowercase-kebab string on a post, the one name for the
+concept: schema field, route segment, chip label, map key (ADR 0014).
+_Avoid_: "topic".
+
+**Tint** — the color a chip, filter pill, logo tile, or framed figure wears.
+One vocabulary, named by the palette hue it is (`blue`, `foam`, `gold`,
+`rose`), plus `neutral` for the untinted role. Realized by `Tint` and
+`tintOf(tag)` in `src/lib/tints.ts` and the `--tint-*` tokens (ADR 0030).
+_Avoid_: any second name for a color — a tag name (`code`), an alias
+(`pine`, `green`, `sand`), or a hue named after what wears it.
+
 ## Astro
 
 **Static output** — Astro's default build mode: every page is pre-rendered to

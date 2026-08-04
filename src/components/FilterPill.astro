@@ -1,5 +1,5 @@
 ---
-import type { TagTopic } from '../lib/topics';
+import type { Tint } from '../lib/tints';
 
 interface Props {
 	/** Tag page this pill filters to, or `/blog/` for the "everything" pill. */
@@ -10,17 +10,17 @@ interface Props {
 	count?: number;
 	/** Exactly one pill in a row is active — the page you are on. */
 	active?: boolean;
-	/** Topic tint on the idle pill. */
-	topic?: TagTopic;
+	/** Tint on the idle pill. */
+	tint?: Tint;
 }
 
-const { href, label, count, active = false, topic = 'neutral' } = Astro.props;
+const { href, label, count, active = false, tint = 'neutral' } = Astro.props;
 
 const text = count === undefined ? label : `${label} · ${count}`;
 ---
 
 <a
-	class:list={['filter-pill', topic, { active }]}
+	class:list={['filter-pill', tint, { active }]}
 	href={href}
 	aria-current={active ? 'page' : undefined}>{text}</a
 >
@@ -42,17 +42,17 @@ const text = count === undefined ? label : `${label} · ${count}`;
 		text-decoration: none;
 	}
 
-	.code {
-		border-color: var(--topic-code-line);
-		color: var(--topic-code-fg);
+	.blue {
+		border-color: var(--tint-blue-line);
+		color: var(--tint-blue-fg);
 	}
 
-	.bikes {
-		border-color: var(--topic-bikes-line);
-		color: var(--topic-bikes-fg);
+	.foam {
+		border-color: var(--tint-foam-line);
+		color: var(--tint-foam-fg);
 	}
 
-	/* Last so it wins over the topic tints at equal specificity. */
+	/* Last so it wins over the tints at equal specificity. */
 	.active {
 		border-color: var(--ink);
 		background: var(--ink);

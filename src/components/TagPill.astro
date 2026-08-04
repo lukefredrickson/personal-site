@@ -1,12 +1,12 @@
 ---
-import type { Topic } from '../lib/topics';
+import type { Tint } from '../lib/tints';
 
 /** A post's tag as the cards and rows take it, one chip's worth. */
 export interface Tag {
 	/** Tag slug — the chip's label and its tag page (ADR 0014). */
 	tag: string;
-	/** Tinting is the caller's call: the chip owns no tag→topic map. */
-	topic?: Topic;
+	/** Tinting is the caller's call: the chip owns no tag→tint map. */
+	tint?: Tint;
 }
 
 interface Props {
@@ -16,19 +16,19 @@ interface Props {
 	 * "latest" does.
 	 */
 	tag?: string;
-	/** Topic tint. Color in a post row only ever appears on these chips. */
-	topic?: Topic;
+	/** Color in a post row only ever appears on these chips. */
+	tint?: Tint;
 	/** Outlined badge treatment, used for "latest". */
 	outlined?: boolean;
 }
 
-const { tag, topic = 'neutral', outlined = false } = Astro.props;
+const { tag, tint = 'neutral', outlined = false } = Astro.props;
 
 const Element = tag ? 'a' : 'span';
 const href = tag ? `/blog/tags/${tag}/` : undefined;
 ---
 
-<Element class:list={['tag-pill', topic, { outlined }]} href={href}>
+<Element class:list={['tag-pill', tint, { outlined }]} href={href}>
 	<slot>{tag}</slot>
 </Element>
 
@@ -46,26 +46,21 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 	}
 
 	.neutral {
-		background: var(--tint-sand);
+		background: var(--tint-neutral-bg);
 		color: var(--text-body);
 	}
 
-	.code {
-		background: var(--topic-code-bg);
-		color: var(--topic-code-fg);
+	.blue {
+		background: var(--tint-blue-bg);
+		color: var(--tint-blue-fg);
 	}
 
-	.bikes {
-		background: var(--topic-bikes-bg);
-		color: var(--topic-bikes-fg);
+	.foam {
+		background: var(--tint-foam-bg);
+		color: var(--tint-foam-fg);
 	}
 
-	.video {
-		background: var(--video-pill-bg);
-		color: var(--video-pill-fg);
-	}
-
-	/* Last so it wins over the topic tints at equal specificity. */
+	/* Last so it wins over the tints at equal specificity. */
 	.outlined {
 		/* The border replaces a pixel of padding on each axis, so an outlined
 		   chip stands the same size as a filled one. */

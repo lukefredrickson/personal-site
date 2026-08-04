@@ -47,7 +47,7 @@ const { title, href, date, excerpt, readTime, tags = [], placeholder } = props;
 					</Fragment>
 				)
 			}
-			{tags.map(({ tag, topic }) => <TagPill tag={tag} topic={topic} />)}
+			{tags.map(({ tag, tint }) => <TagPill tag={tag} tint={tint} />)}
 		</div>
 		{/* h3: the card sits under a section heading on every screen that uses it. */}
 		<h3 class="title"><a href={href}>{title}</a></h3>

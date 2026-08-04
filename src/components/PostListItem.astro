@@ -30,7 +30,7 @@ const { title, href, date, excerpt, readTime, tags = [], compact = false } = Ast
 	{
 		(tags.length > 0 || readTime) && (
 			<div class="tags">
-				{tags.map(({ tag, topic }) => <TagPill tag={tag} topic={topic} />)}
+				{tags.map(({ tag, tint }) => <TagPill tag={tag} tint={tint} />)}
 				{readTime && <span class="read-time">{readTime}</span>}
 			</div>
 		)

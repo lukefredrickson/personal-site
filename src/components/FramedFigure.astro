@@ -1,6 +1,7 @@
 ---
 import type { ImageMetadata } from 'astro';
 import { Image } from 'astro:assets';
+import type { Tint } from '../lib/tints';
 
 /**
  * Media and its alt text travel together — an image with no description is
@@ -14,7 +15,7 @@ type Props = Media & {
 	/** Mono caption strip under the media; omit to drop the strip. */
 	caption?: string;
 	/** Flat tint behind the placeholder, in place of the default hatch. */
-	tint?: 'pine' | 'gold' | 'sand' | 'green';
+	tint?: Tint;
 	/** Label drawn in the placeholder. */
 	placeholder?: string;
 	/** `photo` is the tighter-cornered treatment for in-body photo pairs. */
@@ -30,7 +31,7 @@ const { height = 240, caption, tint, placeholder, variant = 'figure' } = props;
 <figure class:list={['frame', variant]}>
 	{/* An inline custom property rather than `define:vars`, which would inline a
 	    copy of this whole style block per figure on a photo-heavy post. */}
-	<div class:list={['media', tint && `tint-${tint}`]} style={`--media-height: ${height}px`}>
+	<div class:list={['media', tint]} style={`--media-height: ${height}px`}>
 		{props.src ? <Image src={props.src} alt={props.alt} /> : placeholder}
 	</div>
 	{caption && <figcaption class="caption">{caption}</figcaption>}
@@ -64,20 +65,24 @@ const { height = 240, caption, tint, placeholder, variant = 'figure' } = props;
 	}
 
 	/* After `.media` so the flat tint replaces the hatch. */
-	.tint-pine {
-		background: var(--tint-pine);
+	.neutral {
+		background: var(--tint-neutral-bg);
 	}
 
-	.tint-gold {
-		background: var(--tint-gold);
+	.blue {
+		background: var(--tint-blue-bg);
 	}
 
-	.tint-sand {
-		background: var(--tint-sand);
+	.foam {
+		background: var(--tint-foam-bg);
 	}
 
-	.tint-green {
-		background: var(--tint-green);
+	.gold {
+		background: var(--tint-gold-bg);
+	}
+
+	.rose {
+		background: var(--tint-rose-bg);
 	}
 
 	/* The frame sets the height, so the image crops rather than dictates it.
