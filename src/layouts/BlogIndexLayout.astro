@@ -84,6 +84,7 @@ const LEDE = "Software, bikes, and whatever else I'm thinking about. Sometimes a
 									date={dayOf(post)}
 									excerpt={showExcerpts ? post.data.description : undefined}
 									tags={post.data.tags.map((tag) => ({ tag, tint: tintOf(tag) }))}
+									draft={post.data.draft}
 								/>
 							))}
 						</div>

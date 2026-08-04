@@ -60,6 +60,12 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 		color: var(--tint-foam-fg);
 	}
 
+	/* No tag maps to rose; it is the draft marker's hue (ADR 0021). */
+	.rose {
+		background: var(--tint-rose-bg);
+		color: var(--tint-rose-fg);
+	}
+
 	/* Last so it wins over the tints at equal specificity. */
 	.outlined {
 		/* The border replaces a pixel of padding on each axis, so an outlined

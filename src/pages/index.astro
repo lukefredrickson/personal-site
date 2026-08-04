@@ -123,6 +123,7 @@ const hero =
 						excerpt={featured.data.description}
 						date={formatPostDate(featured.data.pubDate)}
 						tags={chips(featured.data.tags)}
+						draft={featured.data.draft}
 						placeholder="post hero image"
 						{...hero}
 					/>
@@ -140,6 +141,7 @@ const hero =
 							href={`/blog/${post.id}/`}
 							date={formatPostDate(post.data.pubDate, 'month')}
 							tags={chips(post.data.tags)}
+							draft={post.data.draft}
 						/>
 					))
 				}

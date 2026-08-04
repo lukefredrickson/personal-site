@@ -187,6 +187,7 @@
   --tint-foam-line: light-dark(var(--foam-60), var(--foam-75));
   --tint-gold-bg: light-dark(var(--gold-w94), var(--gold-w36));
   --tint-rose-bg: light-dark(var(--rose-w94), var(--rose-w36));
+  --tint-rose-fg: light-dark(var(--rose-50), var(--rose-75));
   --tint-neutral-bg: light-dark(var(--paper-95), var(--ink-35));
 
   /* ---- badges — a role over the palette, not a second name for it ---- */

@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig, fontProviders } from 'astro/config';
+import { defineConfig, envField, fontProviders } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
@@ -27,6 +27,15 @@ const foxTheme = ({ colors, ...theme }, name) =>
     ),
   });
 
+/*
+  The one host-specific touchpoint of draft visibility (ADR 0021). Workers
+  Builds stamps `WORKERS_CI_BRANCH` on every build it runs; the `main` build is
+  production. Fail closed: drafts show only when the signal is present AND says
+  preview, so a local build, or Cloudflare renaming the variable, hides them.
+*/
+const branch = process.env.WORKERS_CI_BRANCH;
+const isPreviewBuild = Boolean(branch) && branch !== 'main';
+
 // https://astro.build/config
 export default defineConfig({
   // Canonical site URL. Enables correct absolute URLs, sitemaps, canonical tags.
@@ -37,6 +46,20 @@ export default defineConfig({
   // this makes dev 404 it instead, so a sloppy internal link breaks loudly
   // before merge rather than shipping a permanent redirect hop.
   trailingSlash: 'always',
+
+  env: {
+    schema: {
+      // Typed so the post query imports a boolean and knows nothing about
+      // Cloudflare. An explicitly set `SHOW_DRAFTS` beats this default — that
+      // is the local override (`SHOW_DRAFTS=true npm run build`), and nothing
+      // in the Cloudflare dashboard sets it.
+      SHOW_DRAFTS: envField.boolean({
+        context: 'server',
+        access: 'public',
+        default: isPreviewBuild,
+      }),
+    },
+  },
 
   // Fonts are fetched from Fontsource at build time and emitted to
   // `_astro/fonts`, so visitors get first-party, year-cached files and Google

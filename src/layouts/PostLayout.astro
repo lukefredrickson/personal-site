@@ -2,6 +2,7 @@
 import { MoveLeft } from '@lucide/astro';
 import headshot from '../assets/luke-headshot.jpg';
 import AuthorCard from '../components/AuthorCard.astro';
+import DraftBadge from '../components/DraftBadge.astro';
 import FramedFigure from '../components/FramedFigure.astro';
 import PrevNext from '../components/PrevNext.astro';
 import TagPill from '../components/TagPill.astro';
@@ -20,7 +21,8 @@ interface Props {
 }
 
 const { post, prev, next, readingMinutes } = Astro.props;
-const { title, description, pubDate, updatedDate, tags, hero, heroAlt, heroCaption } = post.data;
+const { title, description, pubDate, updatedDate, tags, hero, heroAlt, heroCaption, draft } =
+	post.data;
 
 // Every post URL is built here, so the trailing-slash form is decided once.
 const neighbor = (entry?: Post) => entry && { title: entry.data.title, href: `/blog/${entry.id}/` };
@@ -42,6 +44,14 @@ const readTime = formatReadTime(readingMinutes);
 			<header class="head">
 				<h1 class="title">{title}</h1>
 				<div class="meta">
+					{
+						draft && (
+							<>
+								<DraftBadge />
+								<span aria-hidden="true">·</span>
+							</>
+						)
+					}
 					<time datetime={pubDate.toISOString()}>{published}</time>
 					<span aria-hidden="true">·</span>
 					<span>{readTime}</span>

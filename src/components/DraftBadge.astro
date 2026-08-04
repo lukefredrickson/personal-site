@@ -1,0 +1,15 @@
+---
+import TagPill from './TagPill.astro';
+
+/*
+  The draft marker, wherever a draft post surfaces. It reads the entry's flag
+  and nothing about the environment: a draft only exists as a page where the
+  marker belongs — `astro dev` and preview deploys — because production filters
+  it out before anything renders (ADR 0021).
+
+  A badge, not a tag: no link, and rose is a hue no tag maps to, so it never
+  reads as one more chip in the row.
+*/
+---
+
+<TagPill tint="rose">draft</TagPill>

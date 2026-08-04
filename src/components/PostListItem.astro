@@ -1,4 +1,5 @@
 ---
+import DraftBadge from './DraftBadge.astro';
 import TagPill, { type Tag } from './TagPill.astro';
 
 interface Props {
@@ -10,11 +11,13 @@ interface Props {
 	/** The post's `description`. Index rows carry it; home rows don't. */
 	excerpt?: string;
 	tags?: Tag[];
+	/** Marks the row as unpublished — only ever true off a preview (ADR 0021). */
+	draft?: boolean;
 	/** Home "Writing" rows: chips ride the title line instead of sitting below. */
 	compact?: boolean;
 }
 
-const { title, href, date, excerpt, tags = [], compact = false } = Astro.props;
+const { title, href, date, excerpt, tags = [], draft = false, compact = false } = Astro.props;
 ---
 
 {/* Text only — photos are the featured post's alone; list rows never carry
@@ -25,9 +28,11 @@ const { title, href, date, excerpt, tags = [], compact = false } = Astro.props;
 	<h3 class="title"><a href={href}>{title}</a></h3>
 	<span class="date">{date}</span>
 	{excerpt && <p class="excerpt">{excerpt}</p>}
+	{/* The marker leads the chip row: first thing scanned, ahead of the tags. */}
 	{
-		tags.length > 0 && (
+		(draft || tags.length > 0) && (
 			<div class="tags">
+				{draft && <DraftBadge />}
 				{tags.map(({ tag, tint }) => <TagPill tag={tag} tint={tint} />)}
 			</div>
 		)
