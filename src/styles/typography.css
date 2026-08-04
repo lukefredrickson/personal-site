@@ -33,7 +33,7 @@
   --font-size-xl: 1.3125rem;    /* 21px — headroom, unused */
   --font-size-2xl: 1.5rem;      /* 24px */
   --font-size-3xl: 2.625rem;    /* 42px */
-  --font-size-4xl: 4rem;        /* 64px — headroom, unused */
+  --font-size-4xl: 4rem;        /* 64px — the 404 numeral */
 
   /* ---- jobs ---- */
   --text-hero: var(--font-size-3xl);        /* home hero "Hey — I'm Luke" · 800 · lh 1.05 · -0.02em */
