@@ -40,30 +40,34 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 
 <style>
 	.role {
+		/* The dot marks the title, so it scales with the reader's font size
+		   rather than staying px (ADR 0030). Its row is the title's first line
+		   box, which centers it on the title at any root size. */
+		--dot-size: 0.75rem;
+		--title-line: calc(var(--text-item-title) * var(--leading-body));
+
 		display: flex;
 		gap: var(--space-5);
 	}
 
 	.timeline {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
+		display: grid;
+		grid-template-rows: var(--title-line) 1fr;
+		justify-items: center;
 		flex: none;
-		width: 12px;
-		/* Drops the dot onto the title's cap height. */
-		padding-top: 2px;
+		width: var(--dot-size);
 	}
 
 	.dot {
-		width: 12px;
-		height: 12px;
+		align-self: center;
+		width: var(--dot-size);
+		height: var(--dot-size);
 		border: var(--border-w) solid var(--marker-muted);
 		border-radius: 50%;
 		background: var(--surface);
 	}
 
 	.rail {
-		flex: 1;
 		width: var(--border-w);
 		margin: var(--space-1) 0;
 		background: var(--rail);
@@ -90,11 +94,14 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 		gap: var(--space-4);
 	}
 
+	/* Leading is explicit because --title-line reads it: the dot's alignment
+	   follows whatever type the title carries. */
 	.title {
 		color: var(--ink);
 		font-family: var(--font-display);
 		font-size: var(--text-item-title);
 		font-weight: var(--weight-title);
+		line-height: var(--leading-body);
 	}
 
 	.dates {

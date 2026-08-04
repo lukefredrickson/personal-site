@@ -1,8 +1,14 @@
 # 11. Token activation: how reference tokens graduate to live styles
 
 Date: 2026-07-30
-Status: Accepted
+Status: Accepted (amended by ADR 0030)
 Amends: ADR 0007 (activation route now decided; the quarantine boundary stands)
+
+## Amendment (ADR 0030)
+
+§3's px rule has one carve-out: decoration that must visually register against
+a specific piece of text — the home page's role dot against its title — sizes
+in rem, at the component level. Everything else in §3 stands.
 
 ## Context
 
