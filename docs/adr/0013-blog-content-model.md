@@ -6,6 +6,10 @@ Amended by: [15. Asset and icon pipeline](0015-asset-and-icon-pipeline.md) —
 posts become folder-per-post (`<year>/<slug>/post.{md,mdx}`) with the slug
 taken from the directory name instead of the filename; colocated assets live
 in the post directory. Everything else here stands.
+Amended by: [20. Read time via a Sätteri mdast
+plugin](0020-read-time-via-a-satteri-mdast-plugin.md) — the pipeline's "no
+plugins" stance and the deferral of read time (with its `entry.body`
+suggestion) are superseded. The processor choice itself stands.
 
 Resolves wayfinder ticket [#24](https://github.com/lukefredrickson/personal-site/issues/24)
 (part of the [realize-the-design-system map, #18](https://github.com/lukefredrickson/personal-site/issues/18)).

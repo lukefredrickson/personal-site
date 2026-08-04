@@ -9,14 +9,12 @@ interface Props {
 	date: string;
 	/** The post's `description`. Index rows carry it; home rows don't. */
 	excerpt?: string;
-	/** "6 min" — plain mono, no chip. */
-	readTime?: string;
 	tags?: Tag[];
 	/** Home "Writing" rows: chips ride the title line instead of sitting below. */
 	compact?: boolean;
 }
 
-const { title, href, date, excerpt, readTime, tags = [], compact = false } = Astro.props;
+const { title, href, date, excerpt, tags = [], compact = false } = Astro.props;
 ---
 
 {/* Text only — photos are the featured post's alone; list rows never carry
@@ -28,10 +26,9 @@ const { title, href, date, excerpt, readTime, tags = [], compact = false } = Ast
 	<span class="date">{date}</span>
 	{excerpt && <p class="excerpt">{excerpt}</p>}
 	{
-		(tags.length > 0 || readTime) && (
+		tags.length > 0 && (
 			<div class="tags">
 				{tags.map(({ tag, tint }) => <TagPill tag={tag} tint={tint} />)}
-				{readTime && <span class="read-time">{readTime}</span>}
 			</div>
 		)
 	}
@@ -119,12 +116,6 @@ const { title, href, date, excerpt, readTime, tags = [], compact = false } = Ast
 
 	.compact .date {
 		grid-column: 3;
-	}
-
-	.read-time {
-		color: var(--text-muted);
-		font-family: var(--font-mono);
-		font-size: var(--text-chip);
 	}
 
 	/* Title, chips and date stop sharing a line long before the column does, and

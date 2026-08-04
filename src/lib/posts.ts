@@ -37,3 +37,12 @@ export function formatPostDate(date: Date, precision: 'day' | 'month' = 'day'): 
 		})
 		.toLowerCase();
 }
+
+/**
+ * The read-time plugin's minute count as the meta line writes it. The count is
+ * absent only when a post holds no prose at all (an all-code page), and the
+ * shortest read is still one minute.
+ */
+export function formatReadTime(minutes = 1): string {
+	return `${minutes} min read`;
+}

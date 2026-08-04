@@ -5,7 +5,7 @@ import AuthorCard from '../components/AuthorCard.astro';
 import FramedFigure from '../components/FramedFigure.astro';
 import PrevNext from '../components/PrevNext.astro';
 import TagPill from '../components/TagPill.astro';
-import { formatPostDate, type Post } from '../lib/posts';
+import { formatPostDate, formatReadTime, type Post } from '../lib/posts';
 import { tintOf } from '../lib/tints';
 import BaseLayout from './BaseLayout.astro';
 
@@ -15,15 +15,18 @@ interface Props {
 	prev?: Post;
 	/** The newer post; absent on the latest. */
 	next?: Post;
+	/** Minutes the read-time plugin counted; only a prose-free post lacks one. */
+	readingMinutes?: number;
 }
 
-const { post, prev, next } = Astro.props;
+const { post, prev, next, readingMinutes } = Astro.props;
 const { title, description, pubDate, updatedDate, tags, hero, heroAlt, heroCaption } = post.data;
 
 // Every post URL is built here, so the trailing-slash form is decided once.
 const neighbor = (entry?: Post) => entry && { title: entry.data.title, href: `/blog/${entry.id}/` };
 
 const published = formatPostDate(pubDate);
+const readTime = formatReadTime(readingMinutes);
 ---
 
 <BaseLayout
@@ -40,6 +43,8 @@ const published = formatPostDate(pubDate);
 				<h1 class="title">{title}</h1>
 				<div class="meta">
 					<time datetime={pubDate.toISOString()}>{published}</time>
+					<span aria-hidden="true">·</span>
+					<span>{readTime}</span>
 					{
 						tags.map((tag) => (
 							<>

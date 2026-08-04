@@ -20,9 +20,17 @@ export async function getStaticPaths() {
 type Props = InferGetStaticPropsType<typeof getStaticPaths>;
 
 const { post, prev, next } = Astro.props;
-const { Content } = await render(post);
+// The read-time plugin injects its minute count into the markdown pipeline's
+// frontmatter bag (ADR 0020), which `render()` hands back separately from the
+// schema-validated `post.data`.
+const { Content, remarkPluginFrontmatter } = await render(post);
 ---
 
-<PostLayout post={post} prev={prev} next={next}>
+<PostLayout
+	post={post}
+	prev={prev}
+	next={next}
+	readingMinutes={remarkPluginFrontmatter.readingMinutes}
+>
 	<Content />
 </PostLayout>

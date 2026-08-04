@@ -1,8 +1,10 @@
 // @ts-check
 import { defineConfig, fontProviders } from 'astro/config';
+import { satteri } from '@astrojs/markdown-satteri';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import expressiveCode, { ExpressiveCodeTheme } from 'astro-expressive-code';
+import { readingTimePlugin } from './src/lib/reading-time.ts';
 import dawnfox from './src/styles/code-themes/dawnfox.json';
 import duskfox from './src/styles/code-themes/duskfox.json';
 
@@ -75,10 +77,17 @@ export default defineConfig({
     responsiveStyles: true,
   },
 
+  markdown: {
+    // Still Astro 7's default processor (ADR 0013) — `satteri()` spelled out is
+    // what lets a plugin ride along. Read time is computed here rather than
+    // from raw source so the estimate sees the parsed document (ADR 0020).
+    processor: satteri({ mdastPlugins: [readingTimePlugin] }),
+  },
+
   // Expressive Code goes first: it rewrites code blocks in the Markdown
   // pipeline, and MDX inherits that config only if it is already registered.
-  // MDX itself takes no options — `.mdx` inherits the Markdown config, which is
-  // the default Sätteri processor with no plugins (ADR 0013).
+  // MDX itself takes no options — `.mdx` inherits the Markdown config, so the
+  // read-time plugin covers both formats.
   integrations: [
     // Every fenced code block in every post, `.md` and `.mdx` alike (ADR 0016).
     // Fox palettes supply the syntax colors; everything around the code — frame,
