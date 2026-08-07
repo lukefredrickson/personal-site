@@ -232,7 +232,7 @@ export function linkChainedPrs(
     console.error(
       `⚠ ${what}: gh stack link failed — ` +
         `${stderr !== "" ? stderr : error instanceof Error ? error.message : String(error)}. ` +
-        `Re-run \`npm run sandcastle run\` to re-link, or link by hand ` +
+        `Re-run \`npm run sandcastle\` to re-link, or link by hand ` +
         `with gh stack link <bottom PR> … <top PR>.`,
     );
     return false;
@@ -436,7 +436,7 @@ export async function runStack(
         `\n⚠ #${step.issue.number}: commits exist on ${step.branch} ` +
           `but no PR was found. Continuing — open it manually with ` +
           `gh pr create --draft --head ${step.branch} --base ${waveBase}, ` +
-          `or re-run \`npm run sandcastle run\` to have the step retried.`,
+          `or re-run \`npm run sandcastle\` to have the step retried.`,
       );
     }
     return { skippedSandbox: false };

@@ -52,16 +52,20 @@ and surviving partial failure.
 
 ## Decision
 
-### Two commands, one persisted plan
+### One command, one persisted plan
 
-`npm run sandcastle plan` computes the stacks, prints the human-readable
-review, and writes `.sandcastle/plan.json` — reads only, no GitHub
-writes. `npm run sandcastle run` executes an existing plan file as-is,
-with no staleness check: the file is the operator's approved proposal,
-and what `plan` printed is byte-for-byte what `run` executes. With no
-plan file, `run` plans first, so a single command still covers the
-plan-blind AFK case. Re-running `plan` overwrites the file — that is the
-replan gesture; there is no separate refresh command.
+Bare `npm run sandcastle` is the whole loop. With no plan file it
+computes the stacks, prints the human-readable review, writes
+`.sandcastle/plan.json`, and pauses for interactive approval (Enter
+executes; Ctrl-C stops with the plan file intact; a non-TTY stdin skips
+the pause) before executing. With a plan file it executes it as-is, no
+pause and no staleness check: a surviving plan means a failed run's
+resume state or an approved-then-aborted proposal, and both want
+resumption, not re-judgment — what planning printed is byte-for-byte
+what execution walks. `npm run sandcastle plan` discards any existing
+plan and replans without executing — the force-replan gesture for a
+backlog that changed under a retained plan. (`run` as an explicit
+subcommand is retired; the bare command replaced it.)
 
 A fully successful run deletes the plan (the proposal is spent; the next
 run must re-plan against the backlog the run itself changed). A failed
