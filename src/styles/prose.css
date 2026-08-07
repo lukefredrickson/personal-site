@@ -7,6 +7,10 @@
   anything in prose with its own framing (figures, code frames, video embeds) is a
   component or an integration and styles itself.
 
+  One selector escapes the wrapper: `.inline-link`, the same link treatment made
+  opt-in for running text outside a post body. It lives beside the prose anchor
+  rule so the two can never drift apart.
+
   Vertical rhythm is authored in rem/em rather than the px spacing scale
   (ADR 0011): article measure should scale with the reader's font size.
 */
@@ -41,8 +45,25 @@
   font-weight: var(--weight-title);
 }
 
-.prose a {
-  border-bottom: var(--border-w) solid var(--link);
+/* Inline link — a link set as part of running text. One definition serves both
+   the anchors a post body compiles to and the opt-in `.inline-link` class;
+   there is deliberately no bare-anchor rule, so nothing inherits this by
+   accident.
+
+   The underline is a background gradient, not a border-bottom: a border paints
+   outside the background area, where nothing can be layered onto it or slid
+   across it. A `padding-bottom` of one band thickness drops the gradient to
+   exactly where the border sat — vertical padding on an inline box doesn't grow
+   its line, so nothing moves — and `clone` repaints the band on every fragment
+   of a link that wraps. */
+.prose a,
+.inline-link {
+  padding-bottom: var(--border-w);
+  background-image: linear-gradient(var(--link), var(--link));
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 100% var(--border-w);
+  box-decoration-break: clone;
   color: var(--link);
   font-weight: var(--weight-ui);
   text-decoration: none;
