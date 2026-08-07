@@ -45,17 +45,16 @@
   font-weight: var(--weight-title);
 }
 
-/* Inline link — a link set as part of running text. One definition serves both
-   the anchors a post body compiles to and the opt-in `.inline-link` class;
-   there is deliberately no bare-anchor rule, so nothing inherits this by
-   accident.
+/* Inline link — a link set as part of running text. `.inline-link` opts text
+   outside a post body in; there is deliberately no bare-anchor rule, so nothing
+   picks this up by accident.
 
    The underline is a background gradient, not a border-bottom: a border paints
    outside the background area, where nothing can be layered onto it or slid
    across it. A `padding-bottom` of one band thickness drops the gradient to
    exactly where the border sat — vertical padding on an inline box doesn't grow
    its line, so nothing moves — and `clone` repaints the band on every fragment
-   of a link that wraps. */
+   of a link that wraps (still prefixed for WebKit before 18.2). */
 .prose a,
 .inline-link {
   padding-bottom: var(--border-w);
@@ -63,6 +62,7 @@
   background-position: 0 100%;
   background-repeat: no-repeat;
   background-size: 100% var(--border-w);
+  -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   color: var(--link);
   font-weight: var(--weight-ui);
