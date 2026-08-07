@@ -11,8 +11,8 @@ real-content PRD
 ## Context
 
 The home page's links row publishes `mailto:hello@lukefredrickson.dev`. Nothing
-receives it. The `.dev` zone carries no MX and no SPF record, so a sending
-server falls back to the implicit-MX rule and tries the apex address — which is
+receives it. The `.dev` zone carries no MX record, so a sending server falls
+back to the implicit-MX rule and tries the apex address — which is
 Cloudflare's proxied HTTP edge, and does not answer on port 25. Mail to the
 address the site invites people to use fails at connect.
 
@@ -38,14 +38,14 @@ matches it exactly.
 
 **No mail changes in the repo.** The `mailto:` href in `index.astro` is already
 correct and stays untouched. This is account configuration end to end — the only
-thing this PR can hold is the record of it.
+thing the repo can hold is the record of it.
 
 ## Alternatives considered
 
 - **Hosted mailbox (Google Workspace, Fastmail)** — a real inbox at the domain,
-  with send-as for free. Rejected: a monthly bill and a second mail identity to
+  send-as included. Rejected: a monthly bill and a second mail identity to
   check, for a link that gets mail rarely. Email Routing is the subset of that
-  product actually needed, at zero.
+  product actually needed, at no cost.
 - **Publish the Gmail address directly** — free and works today. Rejected: the
   domain address is the point. It keeps the personal address off a page that is
   scraped continuously, and it is a layer of indirection — where `hello@` lands
