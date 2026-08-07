@@ -24,6 +24,7 @@
   --font-display: var(--font-public-sans); /* headings, names, UI labels (600-800) */
   --font-body: var(--font-public-sans);    /* paragraphs, bullets, excerpts (400) */
   --font-mono: var(--font-fira-code);      /* code, dates, tags, meta, captions */
+  --font-logo: var(--font-fira-code);      /* the wordmark, and only the wordmark */
 
   /* ---- size scale ---- */
   --font-size-xs: 0.75rem;      /* 12px */
