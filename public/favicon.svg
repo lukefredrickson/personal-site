@@ -1,14 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-    <!-- Placeholder mark: the logo's "L" plus the gold ".dev" dot. Adapts to
-         dark browser chrome via the query below. -->
-    <path class="mark" d="M40 28h18v56h34v16H40z" />
-    <circle class="dot" cx="86" cy="42" r="11" />
-    <style>
-        .mark { fill: #55516f; }
-        .dot { fill: #e1a035; }
-        @media (prefers-color-scheme: dark) {
-            .mark { fill: #dddceb; }
-            .dot { fill: #ffc05a; }
-        }
-    </style>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="lf. — lukefredrickson.dev">
+<title>lf. — lukefredrickson.dev</title>
+<style>.ltr{fill:#55516f}.dot{fill:#e1a035}@media(prefers-color-scheme:dark){.ltr{fill:#dddceb}.dot{fill:#ffc05a}}</style>
+<g transform="matrix(0.024597,0,0,-0.024597,1.401,50.239)"><path class="ltr" fill="" d="M694.0 1484.0V334.0Q694.0 270.0 730.5 242.5Q767.0 215.0 831.0 215.0Q872.0 215.0 910.0 224.5Q948.0 234.0 981.0 247.0L1057.0 36.0Q1003.0 8.0 927.0 -13.0Q851.0 -34.0 750.0 -34.0Q558.0 -34.0 468.0 76.5Q378.0 187.0 378.0 373.0V1268.0H65.0V1484.0ZM1836.0 1517.0Q1952.0 1517.0 2041.0 1498.5Q2130.0 1480.0 2200.0 1450.0L2113.0 1244.0Q2058.0 1265.0 2000.0 1274.5Q1942.0 1284.0 1885.0 1284.0Q1791.0 1284.0 1750.5 1250.0Q1710.0 1216.0 1710.0 1137.0V995.0H2056.0L2021.0 776.0H1710.0V0.0H1396.0V776.0H1173.0V995.0H1396.0V1149.0Q1396.0 1254.0 1446.0 1337.0Q1496.0 1420.0 1594.0 1468.5Q1692.0 1517.0 1836.0 1517.0Z"/><path class="dot" fill="" d="M1977.0 189.0Q1977.0 250.0 2007.0 300.5Q2037.0 351.0 2088.0 381.5Q2139.0 412.0 2200.0 412.0Q2262.0 412.0 2312.5 381.5Q2363.0 351.0 2393.0 300.5Q2423.0 250.0 2423.0 189.0Q2423.0 129.0 2393.0 78.0Q2363.0 27.0 2312.5 -3.5Q2262.0 -34.0 2200.0 -34.0Q2139.0 -34.0 2088.0 -3.5Q2037.0 27.0 2007.0 78.0Q1977.0 129.0 1977.0 189.0Z"/></g>
 </svg>
