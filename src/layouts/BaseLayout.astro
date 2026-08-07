@@ -69,6 +69,13 @@ type Props = ComponentProps<typeof BaseHead>;
 
 			applyTheme();
 			document.addEventListener('astro:after-swap', applyTheme);
+
+			// Cross-tab sync. `storage` fires only in the *other* same-origin tabs —
+			// the one that was clicked already re-applied itself. A null key means
+			// localStorage.clear(); applyTheme re-reads storage either way.
+			window.addEventListener('storage', function (event) {
+				if (event.key === 'lfdev-theme' || event.key === null) applyTheme();
+			});
 		</script>
 
 		{/* Escape hatch for one-off page tags (an RSS link, a preload) — cheaper
