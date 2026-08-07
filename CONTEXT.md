@@ -20,6 +20,14 @@ _Avoid_: "topic".
 One vocabulary, named by the palette hue it is (`blue`, `foam`, `gold`,
 `rose`), plus `neutral` for the untinted role.
 
+**Inline link** — a link set as part of running text: post prose, the author
+card's bio. Rose link color over a full-width underline at rest; hovering or
+focusing one brightens the color and sweeps a brighter underline in from the
+left. Defined once in `prose.css`, opt-in outside a post body via the
+`.inline-link` class (ADR 0031).
+_Avoid_: using it for nav links, buttons, pills, or card links — those are
+their own kinds and never inherit this treatment.
+
 **Promotion ladder** — the vertical timeline running down the left of a company
 card's roles: one dot per role, joined by rails. Home page only, realized by
 `RoleEntry.astro`.

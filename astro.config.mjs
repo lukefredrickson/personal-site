@@ -100,6 +100,19 @@ export default defineConfig({
     responsiveStyles: true,
   },
 
+  vite: {
+    build: {
+      // Vite's default CSS target is a generation behind this site's real floor
+      // — oklch() + light-dark() already require Chrome 123 / Safari 17.5 / FF
+      // 120 (colors.css) — and the gap is not free: esbuild reads the target as
+      // license to drop vendor prefixes, and dropped
+      // `-webkit-box-decoration-break` for one it thought was fine. Stating the
+      // floor keeps the hand-written prefixes this repo relies on (no
+      // autoprefixer) all the way to `dist`.
+      cssTarget: ['chrome123', 'safari17.5', 'firefox120'],
+    },
+  },
+
   markdown: {
     // Still Astro 7's default processor (ADR 0013) — `satteri()` spelled out is
     // what lets a plugin ride along. Read time is computed here rather than

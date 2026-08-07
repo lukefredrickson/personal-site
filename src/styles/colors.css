@@ -167,6 +167,7 @@
   --accent: var(--p-gold-deep);                             /* highlighter base, current-role dot, blockquote rule */
   --logo: var(--p-gold-deep);                               /* the ".dev" in the logo */
   --link: var(--p-rose-deep);                               /* links, "all posts →", active-nav underline */
+  --link-hover: var(--p-rose);                              /* hovered/focused link — one ΔL step brighter */
   --bullet: var(--p-gold-deep);                             /* résumé/list ▸ markers */
   --video: var(--link);                                     /* play badge */
   --highlight: light-dark(                                  /* marker stroke behind key words — gold-deep pair, α .6 */

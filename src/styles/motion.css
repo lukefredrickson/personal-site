@@ -1,0 +1,20 @@
+/* Motion tokens — one house feel for every transition.
+
+   Two durations and one curve. Quick-and-crisp on purpose: they sit beside the
+   theme toggle's 180ms knob rather than reading as a second, slower personality.
+   --dur-fast fades a color or a background; --dur-slide is for anything that
+   travels a distance, starting with the inline link's underline sweep.
+
+   The curve is the CSS `ease-out` keyword rather than a hand-tuned bezier —
+   decelerating into rest is the whole requirement, and one named token is what
+   lets that be reconsidered in a single place.
+
+   Definitions only. Every `transition` consuming these belongs behind
+   `@media (prefers-reduced-motion: no-preference)` (ADR 0012), so the state it
+   animates still applies — instantly — for readers who ask for less motion. */
+
+:root {
+  --ease-out: ease-out;
+  --dur-fast: 150ms;
+  --dur-slide: 200ms;
+}
