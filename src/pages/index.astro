@@ -49,9 +49,10 @@ const hero =
 			</div>
 		</header>
 
-		{/* `public/resume.pdf` is the compiled senior-fullstack variant, copied by
-		    hand from the resume-builder repo — rebuilds overwrite it in place. */}
 		<div class="links">
+			{/* Hand-copied from the resume-builder repo (senior-fullstack variant),
+			    into `public/` for the stable URL (ADR 0015). No cross-repo build —
+			    a rebuild there means recopying here. */}
 			<Button variant="primary" href="/resume.pdf">resume <FileText size={13} /></Button>
 			<Button href="https://github.com/lukefredrickson">github <ExternalLink size={13} /></Button>
 			<Button href="https://www.linkedin.com/in/luke-fredrickson/">
