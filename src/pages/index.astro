@@ -35,7 +35,7 @@ const hero =
 
 {/* Home is the one page with no `title`, so it renders the bare site name. */}
 <BaseLayout
-	description="Luke Fredrickson — full-stack engineer with a front-end focus. I build products end to end and write about what I learn along the way."
+	description="Luke Fredrickson — frontend-primary full-stack engineer. I build products end to end and write about what I learn along the way."
 >
 	<div class="page">
 		<header class="hero">
@@ -43,8 +43,8 @@ const hero =
 			<div class="greeting">
 				<h1>Hey, I'm <span class="mark">Luke</span></h1>
 				<p class="intro">
-					Full-stack engineer with a front-end focus. I build products end to end and write about
-					what I learn along the way.
+					Frontend-primary full-stack engineer. I build products end to end and write about what I
+					learn along the way.
 				</p>
 			</div>
 		</header>
@@ -61,37 +61,27 @@ const hero =
 		<section class="section">
 			<SectionTitle>Where I've worked</SectionTitle>
 
-			{/* Placeholder career copy — real history is a content pass of its
-			    own. */}
-			<CompanyCard name="EnergyHub" dates="2022–now · 4 yrs" logo={energyhubLogo}>
+			{/* Every claim here traces to the approved bullet library in
+			    resume-builder — same facts as the resume, friendlier sentences. */}
+			<CompanyCard name="EnergyHub" dates="Feb 2023 – now" logo={energyhubLogo}>
 				<RoleEntry
 					current
-					title="Senior Software Engineer"
-					dates="2025–now"
-					bullets={[
-						'Own front-end architecture across three product teams (~25 engineers)',
-						'Led the design-system rebuild: 90+ components, adopted by every team in two quarters',
-						'Drove the Webpack→Vite migration, cutting CI build times 70%',
-						'Mentor two junior engineers; run the front-end guild',
-					]}
-				/>
-				<RoleEntry
 					title="Software Engineer II"
-					dates="2023–25"
+					dates="Apr 2024 – now"
 					bullets={[
-						'Shipped the customer dashboard end to end — React front end, Node/Postgres services',
-						"Cut p95 page-load from 4.2s to 1.1s; wrote the team's UI performance playbook",
-						'Interviewed 30+ candidates; built the front-end take-home exercise still in use',
+						'Took an embedded analytics platform from spec to production as its sole technical owner — JWT auth on a Java/Spring endpoint, React embed components, docs the next engineers ran with',
+						'Helped haul a customer-facing portal out of a Java monolith: Backbone.js and jQuery views rewritten in React, at parity, behind feature flags',
+						'Built the customer-facing side of a new grid load-shaping product across React and Java; it launched on deadline with five utilities on it',
 					]}
 				/>
 				<RoleEntry
 					last
 					title="Software Engineer I"
-					dates="2022–23"
+					dates="Feb 2023 – Apr 2024"
 					bullets={[
-						'Full-stack feature work across the React/Node codebase',
-						'Rebuilt onboarding flow, cutting signup drop-off 18%',
-						'Wrote the internal CLI for local env setup, now used company-wide',
+						'Built the React/TypeScript front end of an internal config tool with three other engineers — manual program setup became something non-technical folks could do themselves',
+						"Moved that tool onto schema-based form validation (React Hook Form and Yup) and wrote the shared docs that became the team's reference",
+						"Shipped front-end work for the EV managed-charging launch: utilities on one side, people's actual cars on the other",
 					]}
 				/>
 			</CompanyCard>
@@ -99,15 +89,18 @@ const hero =
 			{/* Carries the timeline across the gap between employers. */}
 			<div class="connector" aria-hidden="true"></div>
 
-			<CompanyCard name="Packetized Energy" dates="summer 2021" logo={packetizedLogo}>
+			<CompanyCard name="Packetized Energy" dates="Sept – Dec 2020" logo={packetizedLogo}>
 				<RoleEntry
 					last
-					title="Software Engineering Intern"
-					bullets={['Built internal tooling for the data team; returned an offer, chose EnergyHub']}
+					title="Software Developer Intern"
+					bullets={[
+						'Shipped features across the React/Redux front end and AWS Lambda back end of a SPA for managing distributed energy resources',
+						'Later acquired by EnergyHub — which is how these two cards ended up telling one story',
+					]}
 				/>
 			</CompanyCard>
 
-			<EducationLine degree="B.S. Computer Science" school="State University" year="2021" />
+			<EducationLine degree="B.S. Computer Science" school="University of Vermont" year="2022" />
 		</section>
 
 		<section class="section">
