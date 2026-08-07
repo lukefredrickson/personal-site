@@ -1,7 +1,8 @@
 // Brand-asset generator: committed vector source (scripts/brand/) -> public/.
-// Every brand asset the site ships is written from here; nothing in public/ is
-// hand-maintained. Output is deterministic, so a run on unchanged source leaves
-// a clean `git diff` (ADR 0032).
+// Emitters return file contents; this is the only place that writes them, and
+// the asset map below is the whole set it claims — the rest of public/ stays
+// hand-made until its emitter lands. Output is deterministic, so a run on
+// unchanged source leaves a clean `git diff` (ADR 0032).
 //
 //   npm run generate:icons
 

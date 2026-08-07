@@ -3,7 +3,8 @@
 // here, so generation never shapes text and needs no font on disk (ADR 0032).
 //
 // Outline coordinates are font units, y-up; `transform` flips the y-axis and
-// scales them into the mark's 64-unit square.
+// scales them into the mark's 64-unit square. Each outline's `name` is both its
+// CSS class in emitted markup and its `palette` key.
 
 export const mark = {
 	size: 64,
@@ -21,7 +22,7 @@ export const mark = {
 	],
 }
 
-// Ink per outline, keyed by the outline names above.
+// Ink per outline, per color scheme.
 export const palette = {
 	light: { ltr: '#55516f', dot: '#e1a035' },
 	dark: { ltr: '#dddceb', dot: '#ffc05a' },
