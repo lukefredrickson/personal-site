@@ -86,6 +86,10 @@ Worker runs. Used to send `www.dev`, `.com`, `www.com` → `lukefredrickson.dev`
 **`_atproto` TXT** — DNS record on `.dev` that verifies the Bluesky handle.
 Preserved through all DNS changes.
 
+**Email Routing** — Cloudflare's receive-only mail forwarding on the `.dev`
+zone: `hello@lukefredrickson.dev` forwards to Luke's Gmail. No mailbox, no
+sending, no catch-all. Account state, documented in ADR 0031.
+
 ## Sandcastle
 
 The name is overloaded three ways; each gets its own term. Full design:
