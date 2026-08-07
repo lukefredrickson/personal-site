@@ -59,10 +59,9 @@ avoids a third copy of the `'lfdev-theme'` literal.
 - All open tabs converge on `<html data-theme>`, the `theme-color` metas, and
   the toggle's `aria-pressed` the moment any one of them toggles — and revert
   together when site data is cleared.
-- The inline `<script>` grows by four lines, which is head-blocking weight on
-  every page; the listener registration itself is negligible next to the
-  storage read already there.
+- The inline `<script>` grows by a three-line listener and its comment, which is
+  head-blocking weight on every page; the listener registration itself is
+  negligible next to the storage read already there.
 - Per ADR 0028 there is no browser test runner, so this is verified by hand:
   two tabs, toggle in one, watch the other. Regressions would be caught the
   same way.
-
