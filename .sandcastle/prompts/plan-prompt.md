@@ -65,7 +65,9 @@ linked.
 
 # OUTPUT
 
-Reply with **only** a JSON object, no prose and no code fences:
+Deliver your proposal by calling the **StructuredOutput** tool — that
+call is your answer; text in your final message is ignored. The payload
+is a JSON object of this shape:
 
 ```json
 {

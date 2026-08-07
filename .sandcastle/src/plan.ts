@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import {
   existsSync,
   readFileSync,
-  unlinkSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { z } from "zod";
@@ -68,7 +68,9 @@ export function writePlan(plan: Plan): void {
 }
 
 export function deletePlan(): void {
-  unlinkSync(PLAN_FILE);
+  // force: deleting an absent plan is a no-op, so the force-replan path
+  // needs no existence check of its own.
+  rmSync(PLAN_FILE, { force: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -133,15 +135,15 @@ async function runPlanningAgent(
       "Bash(gh issue list:*)",
     ],
     disallowedTools: ["Write", "Edit", "NotebookEdit"],
+    // Schema-enforced by the CLI: the agent delivers the proposal through
+    // a StructuredOutput tool call, so a prose preamble in its final
+    // message can't corrupt the result. The zod parse re-validates on
+    // this side of the process boundary. draft-7, not zod's default
+    // 2020-12 dialect — the CLI's validator rejects the latter.
+    jsonSchema: z.toJSONSchema(proposalSchema, { target: "draft-7" }),
   });
 
-  // The prompt forbids code fences, but strip them anyway — a fenced
-  // proposal is still a proposal.
-  const text = result
-    .trim()
-    .replace(/^```(?:json)?\s*/, "")
-    .replace(/\s*```$/, "");
-  return proposalSchema.parse(JSON.parse(text)).mutations;
+  return proposalSchema.parse(JSON.parse(result)).mutations;
 }
 
 // ---------------------------------------------------------------------------
