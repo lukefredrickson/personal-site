@@ -1,0 +1,88 @@
+---
+import type { ImageMetadata } from 'astro';
+import Card from './Card.astro';
+import LogoTile from './LogoTile.astro';
+
+interface Props {
+	school: string;
+	/** Pass it cased ("B.S. Computer Science"). */
+	degree: string;
+	/** Subject only — the card supplies the "Minor in" label. */
+	minor?: string;
+	/** e.g. "Sept 2018 – May 2022" — ranges use a spaced – (en-dash). */
+	dates: string;
+	/** School mark. Required: no monogram fallback, there is one school. */
+	logo: ImageMetadata;
+}
+
+const { school, degree, minor, dates, logo } = Astro.props;
+---
+
+{/* Same anatomy as CompanyCard — tile, name, dates — over a one-line body
+    instead of a role timeline. Sits after the last employer card. */}
+<Card>
+	<Fragment slot="header">
+		<LogoTile logo={logo} />
+		<div class="identity">
+			<h3 class="name">{school}</h3>
+			<span class="dates">{dates}</span>
+		</div>
+	</Fragment>
+	<p class="credentials">
+		<span class="degree">{degree}</span>
+		{minor && <span class="minor">Minor in {minor}</span>}
+	</p>
+</Card>
+
+<style>
+	.identity {
+		display: flex;
+		flex: 1;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: var(--space-4);
+	}
+
+	.name {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-card-title);
+		font-weight: var(--weight-title);
+	}
+
+	.dates {
+		flex: none;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	.credentials {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2);
+		padding: var(--space-5) var(--space-6);
+	}
+
+	/* Degree reads as a role title does; the minor sits under it in weight. */
+	.degree {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-item-title);
+		font-weight: var(--weight-title);
+	}
+
+	.minor {
+		color: var(--text-muted);
+		font-family: var(--font-body);
+		font-size: var(--text-small);
+	}
+
+	/* Separator as a pseudo-element: punctuation between fields, not content. */
+	.credentials > span + span::before {
+		content: '·';
+		margin-right: var(--space-2);
+		color: var(--text-faint);
+	}
+</style>

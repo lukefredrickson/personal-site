@@ -4,9 +4,10 @@ import { Image } from 'astro:assets';
 import energyhubLogo from '../assets/energyhub.jpeg';
 import headshot from '../assets/luke-headshot.jpg';
 import packetizedLogo from '../assets/packetized-energy.png';
+import uvmShield from '../assets/uvm-shield.svg';
 import Button from '../components/Button.astro';
 import CompanyCard from '../components/CompanyCard.astro';
-import EducationLine from '../components/EducationLine.astro';
+import EducationCard from '../components/EducationCard.astro';
 import FeaturedPostCard from '../components/FeaturedPostCard.astro';
 import PostListItem from '../components/PostListItem.astro';
 import RoleEntry from '../components/RoleEntry.astro';
@@ -100,7 +101,13 @@ const hero =
 				/>
 			</CompanyCard>
 
-			<EducationLine degree="B.S. Computer Science" school="University of Vermont" year="2022" />
+			<EducationCard
+				school="University of Vermont"
+				degree="B.S. Computer Science"
+				minor="Statistics"
+				dates="Sept 2018 – May 2022"
+				logo={uvmShield}
+			/>
 		</section>
 
 		<section class="section">
