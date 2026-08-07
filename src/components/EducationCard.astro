@@ -5,7 +5,6 @@ import LogoTile from './LogoTile.astro';
 
 interface Props {
 	school: string;
-	/** Pass it cased ("B.S. Computer Science"). */
 	degree: string;
 	/** Subject only — the card supplies the "Minor in" label. */
 	minor?: string;
@@ -18,8 +17,8 @@ interface Props {
 const { school, degree, minor, dates, logo } = Astro.props;
 ---
 
-{/* Same anatomy as CompanyCard — tile, name, dates — over a one-line body
-    instead of a role timeline. Sits after the last employer card. */}
+{/* Header anatomy matches CompanyCard so the career history reads as one card
+    family; the body is a line of credentials rather than a role timeline. */}
 <Card>
 	<Fragment slot="header">
 		<LogoTile logo={logo} />
