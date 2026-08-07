@@ -51,10 +51,10 @@
 
    The underline is two stacked background gradients, not a border-bottom: a
    border paints outside the background area, where nothing can be layered onto
-   it or slid across it. The resting band is the lower layer at full width; the
-   hover band rides above it at zero width, and hover animates that width to
-   100%. Both are anchored bottom-left, so the sweep grows from the left and
-   retreats the same way on leave — no reverse animation to write.
+   it or slid across it. First layer listed paints on top, so the hover band is
+   the one hover widens from 0% to 100%, over a resting band already at full
+   width. Both anchor bottom-left, so the sweep grows from the left and retreats
+   the same way on leave — no reverse rule to write.
 
    A `padding-bottom` of one band thickness drops the gradients to exactly where
    the border sat (vertical padding on an inline box doesn't grow its line, so

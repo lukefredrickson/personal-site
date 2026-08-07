@@ -102,13 +102,12 @@ export default defineConfig({
 
   vite: {
     build: {
-      // Vite's default CSS target is a generation behind this site's real floor
-      // — oklch() + light-dark() already require Chrome 123 / Safari 17.5 / FF
-      // 120 (colors.css) — and the gap is not free: esbuild reads the target as
-      // license to drop vendor prefixes, and dropped
-      // `-webkit-box-decoration-break` for one it thought was fine. Stating the
-      // floor keeps the hand-written prefixes this repo relies on (no
-      // autoprefixer) all the way to `dist`.
+      // esbuild strips vendor prefixes it reads as unnecessary for the CSS
+      // target, and Vite's default target sits below this site's real floor —
+      // the one oklch() + light-dark() already set (colors.css). Naming that
+      // floor is what carries the hand-written prefixes (no autoprefixer here)
+      // through to `dist`; prose.css's `-webkit-box-decoration-break` is the
+      // one relying on it today.
       cssTarget: ['chrome123', 'safari17.5', 'firefox120'],
     },
   },
