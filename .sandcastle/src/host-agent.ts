@@ -30,6 +30,13 @@ export interface HostAgentOptions {
   readonly prompt: string;
   readonly allowedTools: readonly string[];
   readonly disallowedTools: readonly string[];
+  /**
+   * JSON Schema for the final result. When set, the CLI forces the agent
+   * to deliver its answer through a StructuredOutput tool call validated
+   * against this schema, and the returned string is that payload as JSON —
+   * any prose the agent narrates along the way stays out of the result.
+   */
+  readonly jsonSchema?: Readonly<Record<string, unknown>>;
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
 }
@@ -185,6 +192,9 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
       ...opts.allowedTools,
       "--disallowedTools",
       ...opts.disallowedTools,
+      ...(opts.jsonSchema === undefined
+        ? []
+        : ["--json-schema", JSON.stringify(opts.jsonSchema)]),
     ],
     { cwd: opts.cwd, env: opts.env, stdio: ["pipe", "pipe", "inherit"] },
   );

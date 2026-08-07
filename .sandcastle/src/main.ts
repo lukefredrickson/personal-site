@@ -1,8 +1,9 @@
 // Sequential stacked-PR orchestration, one stack per blocked-by component
 //
-// Two entry points over one walk. `plan` computes the stacks and persists
-// them; `run` executes a persisted plan and leaves one GitHub stacked-PR
-// stack per connected component of the blocked-by graph:
+// One command over one walk: bare `npm run sandcastle` plans (unless a
+// plan file already exists), pauses for approval, then executes, leaving
+// one GitHub stacked-PR stack per connected component of the blocked-by
+// graph; `plan` recomputes the plan file without executing:
 //
 //   1. Planning fetches open issues labeled `Sandcastle` and their
 //      blocked-by edges, then runs a read-only judgment agent that
@@ -67,15 +68,22 @@
 // body.
 //
 // Usage:
-//   npm run sandcastle plan  # compute, print, and persist the plan
-//   npm run sandcastle run   # execute the plan file (plans first if none)
+//   npm run sandcastle       # plan (if no plan file), approve, execute
+//   npm run sandcastle plan  # discard any existing plan and replan; no execution
 //
-// Always plan first: it exercises the full real path (issue fetch,
-// blocked-by edge fetch, grouping, ordering, branch/base assignment) minus
-// side effects, and what it prints is exactly what `run` will execute.
-// Re-running `plan` overwrites the plan file — that is the replan gesture.
-// `run` consumes the file as-is, with no staleness check.
+// The bare command is the whole loop: with no plan file it plans, prints,
+// and pauses for interactive approval (Enter to execute, Ctrl-C to stop —
+// the plan file survives an abort) before walking. With a plan file it
+// executes it as-is, no pause: a surviving plan means either a run failed
+// midway (a successful run deletes it) or the owner approved-then-aborted,
+// and both want resumption, not re-judgment. Planning is what it always
+// was — the full real path (issue fetch, blocked-by edge fetch, grouping,
+// ordering, branch/base assignment) minus side effects; what it prints is
+// exactly what execution will walk. `plan` exists to force a replan when
+// the backlog changed under a retained plan.
 
+import { existsSync } from "node:fs";
+import { createInterface } from "node:readline/promises";
 import {
   applyMutationsToGitHub,
   computePlan,
@@ -100,14 +108,39 @@ import {
 } from "./walk.ts";
 
 async function planCommand(): Promise<never> {
+  // `plan` is the force-replan gesture: whatever plan exists is stale by
+  // declaration, so it goes before the new one is computed.
+  if (existsSync(PLAN_FILE)) {
+    deletePlan();
+    console.log(`Discarded the existing plan at ${PLAN_FILE} — replanning.\n`);
+  }
   const plan = await computePlan();
   writePlan(plan);
   printPlan(plan);
   console.log(
     `\nPlan written to ${PLAN_FILE}; no GitHub writes were made. Execute ` +
-      `it with \`npm run sandcastle run\`; re-run \`plan\` to replan.`,
+      `it with \`npm run sandcastle\`.`,
   );
   process.exit(0);
+}
+
+// The approval gate between judgment and side effects. Enter proceeds;
+// Ctrl-C aborts with the plan file intact, so the next bare run executes
+// the already-reviewed plan without re-judging (replan with `plan`).
+// Non-interactive stdin gets no gate — there is nobody to ask, and
+// blocking forever would be worse than the pre-gate behavior.
+async function approvePlanOrExit(): Promise<void> {
+  if (!process.stdin.isTTY) {
+    console.log("\nstdin is not a TTY — executing without approval pause.");
+    return;
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  await rl.question(
+    `\nPress Enter to execute this plan, or Ctrl-C to stop here ` +
+      `(the plan stays at ${PLAN_FILE}: \`npm run sandcastle\` executes ` +
+      `it, \`npm run sandcastle plan\` replans). `,
+  );
+  rl.close();
 }
 
 async function runCommand(): Promise<never> {
@@ -122,16 +155,19 @@ async function runCommand(): Promise<never> {
     process.exit(1);
   }
 
-  // Load (or make) the plan to run.
+  // Load (or make) the plan to run. Only a freshly computed plan gets the
+  // approval gate — an existing file was either already approved or is a
+  // failed run's resume state, and both should proceed unprompted.
   let plan = readPlan();
+  const freshlyPlanned = plan === undefined;
   if (plan === undefined) {
     console.log(`No plan file at ${PLAN_FILE} — planning first.\n`);
     plan = await computePlan();
     writePlan(plan);
   } else {
     console.log(
-      `Executing the existing plan at ${PLAN_FILE} as-is; re-run \`plan\` ` +
-        `first if the backlog has changed.\n`,
+      `Resuming the existing plan at ${PLAN_FILE} as-is; run ` +
+        `\`npm run sandcastle plan\` first if the backlog has changed.\n`,
     );
   }
   printPlan(plan);
@@ -144,6 +180,8 @@ async function runCommand(): Promise<never> {
     process.exit(0);
   }
 
+  if (freshlyPlanned) await approvePlanOrExit();
+
   try {
     applyMutationsToGitHub(plan.mutations);
   } catch (error) {
@@ -153,7 +191,7 @@ async function runCommand(): Promise<never> {
     console.error(
       `\n✗ Failed applying blocked-by mutations: ` +
         `${error instanceof Error ? error.message : String(error)}\n` +
-        `Plan retained at ${PLAN_FILE} — fix and re-run \`npm run sandcastle run\`.`,
+        `Plan retained at ${PLAN_FILE} — fix and re-run \`npm run sandcastle\`.`,
     );
     process.exit(1);
   }
@@ -265,7 +303,7 @@ async function runCommand(): Promise<never> {
     // PRs skip their sandboxes and no-op their restacks, so each stack picks
     // back up at its first incomplete step and pruned work gets retried.
     console.error(
-      `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle run\` ` +
+      `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle\` ` +
         `to resume the same walks.`,
     );
     process.exit(1);
@@ -282,14 +320,14 @@ async function runCommand(): Promise<never> {
 
 const command = process.argv[2];
 
-if (command !== "plan" && command !== "run") {
+if (command !== "plan" && command !== undefined) {
   const hint =
-    command === "--dry-run"
-      ? ` (--dry-run is retired; \`plan\` replaces it)`
-      : command === undefined
-        ? ""
+    command === "run"
+      ? ` (\`run\` is retired; plain \`npm run sandcastle\` plans and executes)`
+      : command === "--dry-run"
+        ? ` (--dry-run is retired; \`plan\` replaces it)`
         : ` (unknown command "${command}")`;
-  console.error(`Usage: npm run sandcastle <plan|run>${hint}`);
+  console.error(`Usage: npm run sandcastle [plan]${hint}`);
   process.exit(1);
 }
 
