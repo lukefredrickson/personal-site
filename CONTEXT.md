@@ -7,6 +7,14 @@ term gets fuzzy or overloaded, sharpen it here (see `/domain-modeling`).
 
 **Personal site** — the Astro static site served at `lukefredrickson.dev`.
 
+**Mark** — the `lf.` logo: the two Fira Code 700 letterforms plus the gold
+period, committed as vector outlines in `scripts/brand/mark.mjs`. The one
+source every brand asset is drawn from (ADR 0032).
+
+**Brand asset** — a file in `public/` that carries the site's identity: the
+favicons, the touch and manifest icons, the OG card. Generated from the mark,
+never hand-edited.
+
 **Base layout** — the shared page structure every screen renders inside: site
 header, site footer, and the shared head/theme plumbing around a content slot.
 Realized by `BaseLayout.astro`.

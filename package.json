@@ -9,6 +9,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "check": "astro check",
+    "generate:icons": "node scripts/generate-icons.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "prepare": "husky",
