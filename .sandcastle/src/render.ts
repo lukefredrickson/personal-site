@@ -8,8 +8,8 @@
 // log files and GitHub timestamps), and a `[S2·#139]` stack/issue tag
 // on any line attributable to a walk, colored with a per-stack hue so
 // interleaved output reads at a glance. Phase boundaries get box-drawn
-// rules; the run's big moments — run start, planning, and the run
-// summary — get block-letter banners, and nothing else does.
+// rules; the plan and summary phases get heavy bar headings, and the
+// one block-letter banner marks run start — nothing else shouts.
 //
 // Everything that decides what a line looks like is a pure function of
 // (clock, message, tag, role, style), specced with exact strings and an
@@ -152,12 +152,29 @@ export function renderRule(
   return `${stamp} ${style("dim", "──")} ${tagText}${title} ${style("dim", fill)}`;
 }
 
+/**
+ * A heavy three-line heading for the run's major sections (plan, run
+ * summary): full-width `━` bars around a bold title. Louder than a
+ * phase rule, quieter than the run-start banner — a scrollback landmark
+ * that stays obviously text.
+ */
+export function renderHeading(
+  now: Date,
+  title: string,
+  opts: { readonly style?: Style } = {},
+): string {
+  const style = opts.style ?? plainStyle;
+  const stamp = style("dim", formatClock(now));
+  const bar = `${stamp} ${style("dim", "━".repeat(RULE_WIDTH))}`;
+  return `${bar}\n${stamp} ${style("bold", title)}\n${bar}`;
+}
+
 // ---------------------------------------------------------------------------
-// Banners: hand-picked block lettering for the run's big moments
+// The banner: hand-picked block lettering for run start only
 // ---------------------------------------------------------------------------
 
-// Literal constants, no lettering engine: a figlet-style dependency buys
-// nothing for three fixed strings, and constants are speccable
+// A literal constant, no lettering engine: a figlet-style dependency
+// buys nothing for one fixed string, and a constant is speccable
 // byte-for-byte. Rows carry no trailing whitespace.
 export const RUN_START_BANNER: readonly string[] = [
   "  █████████    █████████   ██████   █████ ██████████     █████████    █████████    █████████  ███████████ █████       ██████████",
@@ -170,27 +187,6 @@ export const RUN_START_BANNER: readonly string[] = [
   " ░░░░░░░░░  ░░░░░   ░░░░░ ░░░░░    ░░░░░ ░░░░░░░░░░     ░░░░░░░░░  ░░░░░   ░░░░░  ░░░░░░░░░     ░░░░░    ░░░░░░░░░░░ ░░░░░░░░░░",
 ];
 
-export const PLAN_BANNER: readonly string[] = [
-  " ███████████  █████         █████████   ██████   █████",
-  "░░███░░░░░███░░███         ███░░░░░███ ░░██████ ░░███",
-  " ░███    ░███ ░███        ░███    ░███  ░███░███ ░███",
-  " ░██████████  ░███        ░███████████  ░███░░███░███",
-  " ░███░░░░░░   ░███        ░███░░░░░███  ░███ ░░██████",
-  " ░███         ░███      █ ░███    ░███  ░███  ░░█████",
-  " █████        ███████████ █████   █████ █████  ░░█████",
-  "░░░░░        ░░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░    ░░░░░",
-];
-
-export const RUN_SUMMARY_BANNER: readonly string[] = [
-  "  █████████  █████  █████ ██████   ██████ ██████   ██████   █████████   ███████████   █████ █████",
-  " ███░░░░░███░░███  ░░███ ░░██████ ██████ ░░██████ ██████   ███░░░░░███ ░░███░░░░░███ ░░███ ░░███",
-  "░███    ░░░  ░███   ░███  ░███░█████░███  ░███░█████░███  ░███    ░███  ░███    ░███  ░░███ ███",
-  "░░█████████  ░███   ░███  ░███░░███ ░███  ░███░░███ ░███  ░███████████  ░██████████    ░░█████",
-  " ░░░░░░░░███ ░███   ░███  ░███ ░░░  ░███  ░███ ░░░  ░███  ░███░░░░░███  ░███░░░░░███    ░░███",
-  " ███    ░███ ░███   ░███  ░███      ░███  ░███      ░███  ░███    ░███  ░███    ░███     ░███",
-  "░░█████████  ░░████████   █████     █████ █████     █████ █████   █████ █████   █████    █████",
-  " ░░░░░░░░░    ░░░░░░░░   ░░░░░     ░░░░░ ░░░░░     ░░░░░ ░░░░░   ░░░░░ ░░░░░   ░░░░░    ░░░░░",
-];
 
 // ---------------------------------------------------------------------------
 // The console sink: the only impure part
@@ -231,6 +227,13 @@ export function phaseRule(
 ): void {
   console.log(
     renderRule(new Date(), title, { ...opts, style: styleFor(process.stdout) }),
+  );
+}
+
+/** Print a heavy section heading to stdout. */
+export function sayHeading(title: string): void {
+  console.log(
+    renderHeading(new Date(), title, { style: styleFor(process.stdout) }),
   );
 }
 

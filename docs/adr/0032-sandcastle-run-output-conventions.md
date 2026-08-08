@@ -42,11 +42,12 @@ The conventions, implemented as pure formatting functions in
   simply absent. The one pre-existing ad-hoc escape (`printPlan`'s
   manual bold) is replaced.
 - **Box-drawn `─` rules at phase boundaries** — approve, execute,
-  per-step build headers, per-wave restacks, per-stack completion — and
-  **block-letter banners for exactly three moments**: run start,
-  planning, and the run summary. The lettering is checked-in literal
-  constants (owner-picked, no figlet-style dependency at runtime);
-  keeping banners rare keeps them meaningful as scrollback landmarks.
+  per-step build headers, per-wave restacks, per-stack completion —
+  **heavy `━` bar headings for the plan and run-summary sections**, and
+  **one block-letter banner, at run start only**. The lettering is a
+  checked-in literal constant (owner-picked, no figlet-style dependency
+  at runtime); keeping the banner unique keeps it meaningful as the
+  scrollback landmark for "a run began here".
 
 Formatting is specced in `render.test.ts` with an injected clock and
 exact-string assertions against the default pass-through styler, per the

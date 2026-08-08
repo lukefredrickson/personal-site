@@ -87,12 +87,11 @@ import { createInterface } from "node:readline/promises";
 import { openRunLog } from "./exec.ts";
 import {
   phaseRule,
-  PLAN_BANNER,
   RUN_START_BANNER,
-  RUN_SUMMARY_BANNER,
   say,
   sayBanner,
   sayError,
+  sayHeading,
   stampPrompt,
 } from "./render.ts";
 import {
@@ -119,7 +118,7 @@ import {
 } from "./walk.ts";
 
 async function planCommand(): Promise<never> {
-  sayBanner(PLAN_BANNER);
+  sayHeading("PLAN");
   // `plan` is the force-replan gesture: whatever plan exists is stale by
   // declaration, so it goes before the new one is computed.
   if (existsSync(PLAN_FILE)) {
@@ -173,7 +172,7 @@ async function runCommand(): Promise<never> {
   // Load (or make) the plan to run. Only a freshly computed plan gets the
   // approval gate — an existing file was either already approved or is a
   // failed run's resume state, and both should proceed unprompted.
-  sayBanner(PLAN_BANNER);
+  sayHeading("PLAN");
   let plan = readPlan();
   const freshlyPlanned = plan === undefined;
   if (plan === undefined) {
@@ -243,7 +242,7 @@ async function runCommand(): Promise<never> {
   }
 
   // Summarize.
-  sayBanner(RUN_SUMMARY_BANNER);
+  sayHeading("RUN SUMMARY");
   for (const [i, outcome] of outcomes.entries()) {
     const tag = { stack: i + 1 };
     const done =

@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   formatClock,
   formatTag,
-  PLAN_BANNER,
+  renderHeading,
   renderLine,
   renderRule,
   RUN_START_BANNER,
-  RUN_SUMMARY_BANNER,
   STACK_PALETTE,
   stackHue,
   type Style,
@@ -123,38 +122,32 @@ describe("renderRule", () => {
   });
 });
 
-describe("banners", () => {
-  // The three banner constants are literal lettering; these specs pin
-  // their shape (8 rows, shading characters only, no trailing
-  // whitespace — renderLine would stamp a trailing-space row as if it
-  // said something) and the smallest one byte-for-byte.
-  const banners = {
-    RUN_START_BANNER,
-    PLAN_BANNER,
-    RUN_SUMMARY_BANNER,
-  } as const;
+describe("renderHeading", () => {
+  it("frames a bold title in full-width heavy bars, every line stamped", () => {
+    const bar = `14:03:09 ${"━".repeat(72)}`;
+    expect(renderHeading(at(14, 3, 9), "RUN SUMMARY")).toBe(
+      `${bar}\n14:03:09 RUN SUMMARY\n${bar}`,
+    );
+  });
 
-  for (const [name, rows] of Object.entries(banners)) {
-    it(`${name} is 8 tidy rows of block shading`, () => {
-      expect(rows).toHaveLength(8);
-      for (const row of rows) {
-        expect(row).toBe(row.trimEnd());
-        expect(row).not.toBe("");
-        expect(row).toMatch(/^[█░ ]+$/);
-      }
-    });
-  }
+  it("dims the bars and bolds the title", () => {
+    const bar = `«dim»14:03:09«/» «dim»${"━".repeat(72)}«/»`;
+    expect(renderHeading(at(14, 3, 9), "PLAN", { style: marked })).toBe(
+      `${bar}\n«dim»14:03:09«/» «bold»PLAN«/»\n${bar}`,
+    );
+  });
+});
 
-  it("letters PLAN exactly", () => {
-    expect(PLAN_BANNER).toEqual([
-      " ███████████  █████         █████████   ██████   █████",
-      "░░███░░░░░███░░███         ███░░░░░███ ░░██████ ░░███",
-      " ░███    ░███ ░███        ░███    ░███  ░███░███ ░███",
-      " ░██████████  ░███        ░███████████  ░███░░███░███",
-      " ░███░░░░░░   ░███        ░███░░░░░███  ░███ ░░██████",
-      " ░███         ░███      █ ░███    ░███  ░███  ░░█████",
-      " █████        ███████████ █████   █████ █████  ░░█████",
-      "░░░░░        ░░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░    ░░░░░",
-    ]);
+describe("the run-start banner", () => {
+  // The one banner is literal lettering; this pins its shape — 8 rows,
+  // shading characters only, no trailing whitespace (renderLine would
+  // stamp a trailing-space row as if it said something).
+  it("is 8 tidy rows of block shading", () => {
+    expect(RUN_START_BANNER).toHaveLength(8);
+    for (const row of RUN_START_BANNER) {
+      expect(row).toBe(row.trimEnd());
+      expect(row).not.toBe("");
+      expect(row).toMatch(/^[█░ ]+$/);
+    }
   });
 });
