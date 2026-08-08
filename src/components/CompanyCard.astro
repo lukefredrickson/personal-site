@@ -68,8 +68,8 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 	.name-block {
 		display: flex;
 		flex-direction: column;
-		/* Tighter than --space-1: the subline should hug its name. */
-		gap: 2px;
+		/* No gap: the lines' own line-height is all the separation needed. */
+		gap: 0;
 	}
 
 	.dates {
@@ -88,6 +88,12 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 		color: var(--text-faint);
 		font-family: var(--font-mono);
 		font-size: var(--text-meta);
+	}
+
+	/* Optical: flex-centered, the pin still sits a hair low against the mono
+	   caps; the svg reaches through the Lucide component, hence :global. */
+	.location :global(svg) {
+		margin-top: -1px;
 	}
 
 	/* Each role carries its own bottom spacing (RoleEntry's `last`), so the
