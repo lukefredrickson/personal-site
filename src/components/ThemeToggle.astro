@@ -2,11 +2,8 @@
 import { Moon, Sun } from '@lucide/astro';
 ---
 
-{/*
-	No props: the DOM is the source of truth (ADR 0012). `data-theme` on <html>
-	drives the knob through CSS, and the layout's init script owns
-	`aria-pressed` — so the value here is only the untouched-visitor default.
-*/}
+{/* No props: the DOM is the source of truth (ADR 0012). The init script
+    owns `aria-pressed`; the value here is the untouched-visitor default. */}
 <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Dark mode">
 	<Sun class="track sun" size={13} />
 	<Moon class="track moon" size={13} />
@@ -18,8 +15,8 @@ import { Moon, Sun } from '@lucide/astro';
 
 <style>
 	.theme-toggle {
-		/* Light values; the two dark rules below flip all three at once. 28px of
-		   travel lands the knob on the mirrored 2px inset at the right end. */
+		/* Light values; the two dark rules below flip all three. 28px of
+		   travel lands the knob on the mirrored 2px inset. */
 		--knob-x: 0;
 		--sun-display: block;
 		--moon-display: none;
@@ -82,23 +79,23 @@ import { Moon, Sun } from '@lucide/astro';
 		display: var(--moon-display);
 	}
 
-	/* Site-wide rule: decorative motion only for those who want it. */
+	/* Animates only when the visitor allows motion. */
 	@media (prefers-reduced-motion: no-preference) {
 		.knob {
 			transition: transform 0.18s ease;
 		}
 	}
 
-	/* A stored choice — CSS positions the knob, so it is right pre-paint and
-	   after a client-router swap, with JS never touching it. */
+	/* A stored choice. CSS positions the knob, so it is correct pre-paint
+	   and after a client-router swap. */
 	html[data-theme='dark'] .theme-toggle {
 		--knob-x: 28px;
 		--sun-display: none;
 		--moon-display: block;
 	}
 
-	/* No stored choice: follow the OS, exactly as the color tokens do. Repeating
-	   the values is the price of a media query that cannot join the selector. */
+	/* No stored choice: the OS decides, as the color tokens do. A media
+	   query cannot join the selector, so the values repeat. */
 	@media (prefers-color-scheme: dark) {
 		html:not([data-theme='light']) .theme-toggle {
 			--knob-x: 28px;
@@ -109,34 +106,33 @@ import { Moon, Sun } from '@lucide/astro';
 </style>
 
 <script>
-	// Declared by the pre-paint init script in Layout.astro (ADR 0012), which is
-	// the single owner of theme DOM state — the <html> attribute, this button's
-	// aria-pressed, and the theme-color metas.
+	// Declared by the pre-paint init script in the base layout (ADR 0012),
+	// the single owner of theme DOM state.
 	declare function applyTheme(): void;
 
 	const STORAGE_KEY = 'lfdev-theme';
 
-	// Delegated: bundled scripts run once ever, so a listener bound to the button
-	// itself would be lost the first time a client-router swap replaced it.
+	// Delegated: bundled scripts run once; a listener on the button would
+	// be lost on a client-router swap.
 	document.addEventListener('click', (event) => {
 		const target = event.target;
 		if (!(target instanceof Element) || !target.closest('[data-theme-toggle]')) return;
 
-		// The attribute is stamped only for a stored choice; without one the OS
-		// decides, so that is what there is to flip.
+		// The attribute exists only for a stored choice; otherwise the OS
+		// value is the one to flip.
 		const chosen = document.documentElement.dataset.theme;
 		const dark = chosen ? chosen === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
 		try {
 			localStorage.setItem(STORAGE_KEY, dark ? 'light' : 'dark');
 		} catch {
-			// Privacy modes throw. Storage is what a choice means here, so with
-			// nowhere to record it there is nothing to apply.
+			// Privacy modes throw. A choice lives in storage; with none,
+			// there is nothing to apply.
 			return;
 		}
 		applyTheme();
 	});
 
-	// The head script runs before <body> exists and so cannot see this button.
-	// Nothing visual depends on the correction, only the announced state.
+	// The head script runs before <body> exists and cannot see this button.
+	// Only the announced state depends on this correction.
 	applyTheme();
 </script>

@@ -7,12 +7,10 @@ export interface TagCount {
 }
 
 /**
- * Every tag in use, ordered for the filter row: most-used first, alphabetical
- * tie-break so builds are deterministic (ADR 0014). Also the list the tag
- * routes are generated from — a tag has a pill exactly when it has a page.
- *
- * "everything" is not in here: it is the unfiltered index, not a tag, and its
- * count is simply the length of the list passed in.
+ * Every tag in use, ordered for the filter row: most-used first, with an
+ * alphabetical tie-break for deterministic builds (ADR 0014). The tag routes
+ * generate from this list, so a tag has a pill exactly when it has a page.
+ * "everything" is not a tag and is not in here.
  */
 export function getTagCounts(posts: Post[]): TagCount[] {
 	const counts = new Map<string, number>();
@@ -22,8 +20,7 @@ export function getTagCounts(posts: Post[]): TagCount[] {
 		}
 	}
 
-	// Posts carry several tags, so these counts legitimately sum past the number
-	// of posts — inherent to tags (ADR 0014).
+	// Posts carry several tags, so the counts sum past the post count (ADR 0014).
 	return [...counts]
 		.map(([tag, count]) => ({ tag, count }))
 		.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));

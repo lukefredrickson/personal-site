@@ -12,10 +12,8 @@
 		line-height: var(--leading-heading);
 	}
 
-	/* The rule running to the right margin. Decorative, so a pseudo-element
-	   rather than markup in the accessibility tree. The slotted label is an
-	   anonymous flex item and keeps the default shrink, so it wraps rather than
-	   overflowing when the viewport is narrow. */
+	/* The decorative rule to the right margin; a pseudo-element stays out
+	   of the accessibility tree. The slotted label keeps shrink, so it wraps. */
 	.section-title::after {
 		content: '';
 		flex: 1;

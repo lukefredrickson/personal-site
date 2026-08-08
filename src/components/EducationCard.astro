@@ -9,20 +9,19 @@ interface Props {
 	degree: string;
 	/** Subject only — the card supplies the "Minor in" label. */
 	minor?: string;
-	/** Graduation year, e.g. "2022" — the degree is a milestone, not a tenure. */
+	/** Graduation year, e.g. "2022". */
 	dates: string;
-	/** e.g. "Burlington, VT" — a quiet subline under the name in the header. */
+	/** e.g. "Burlington, VT" — a subline under the name in the header. */
 	location?: string;
-	/** School mark. Required: no monogram fallback, there is one school. */
+	/** School logo. Required: no monogram fallback. */
 	logo: ImageMetadata;
 }
 
 const { school, degree, minor, dates, location, logo } = Astro.props;
 ---
 
-{/* Header anatomy matches CompanyCard so the career history reads as one card
-    family; the body is a line of credentials rather than a role timeline, but
-    it opens with the same dot so the columns align across the cards. */}
+{/* The header anatomy matches CompanyCard. The body opens with the same
+    dot, so the dot columns align across the cards. */}
 <Card>
 	<Fragment slot="header">
 		<LogoTile logo={logo} />
@@ -42,8 +41,8 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 		</div>
 	</Fragment>
 	<div class="credential">
-		{/* Same dot geometry as RoleEntry (ADR 0030): rem-sized, centered on the
-		    degree's first line box, so it rails up with the role dots above. */}
+		{/* Same dot geometry as RoleEntry (ADR 0030): rem-sized, centered on
+		    the degree's first line box. */}
 		<div class="timeline">
 			<span class="dot"></span>
 		</div>
@@ -63,12 +62,11 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 		gap: var(--space-4);
 	}
 
-	/* Name and location stack on the left; baseline alignment against the dates
-	   comes from the stack's first line (the name). */
+	/* The dates baseline-align against the stack's first line (the name). */
 	.name-block {
 		display: flex;
 		flex-direction: column;
-		/* No gap: the lines' own line-height is all the separation needed. */
+		/* No gap: the line-height alone separates the lines. */
 		gap: 0;
 	}
 
@@ -86,8 +84,6 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 		font-size: var(--text-meta);
 	}
 
-	/* Place belongs to the institution, so it rides under the name, a step
-	   quieter than the dates. */
 	.location {
 		display: flex;
 		align-items: center;
@@ -97,8 +93,8 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 		font-size: var(--text-meta);
 	}
 
-	/* Optical: flex-centered, the pin still sits a hair low against the mono
-	   caps; the svg reaches through the Lucide component, hence :global. */
+	/* Optical correction of the pin against the mono caps. The svg comes
+	   from the Lucide component, hence :global. */
 	.location :global(svg) {
 		margin-top: -1px;
 	}
@@ -136,8 +132,7 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 		gap: var(--space-2);
 	}
 
-	/* Degree reads as a role title does; the minor sits under it in weight.
-	   Leading is explicit because --title-line reads it for the dot. */
+	/* The leading is explicit because --title-line reads it for the dot. */
 	.degree {
 		color: var(--ink);
 		font-family: var(--font-display);

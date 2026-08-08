@@ -2,13 +2,9 @@
 import TagPill from './TagPill.astro';
 
 /*
-  The draft marker, wherever a draft post surfaces (ADR 0021). It reads the
-  entry's flag, never the environment — production filters drafts out before
-  anything renders, so the badge can only reach the contexts it belongs in:
-  `astro dev` and preview deploys.
-
-  A badge, not a tag: no link, and rose is a hue no tag maps to, so it never
-  reads as one more chip in the row.
+  The draft badge, wherever a draft post surfaces (ADR 0021). It reads the
+  entry's flag, never the environment; production filters drafts out before
+  render. A badge, not a tag: no link, and no tag maps to rose.
 */
 ---
 

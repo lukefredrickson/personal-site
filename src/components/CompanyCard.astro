@@ -9,7 +9,7 @@ interface Props {
 	name: string;
 	/** e.g. "Feb 2023 – now" or "Sept – Dec 2020" — ranges use a spaced – (en-dash). */
 	dates: string;
-	/** e.g. "Burlington, VT" — a quiet subline under the name in the header. */
+	/** e.g. "Burlington, VT" — a subline under the name in the header. */
 	location?: string;
 	/** Employer logo; falls back to the monogram when absent. */
 	logo?: ImageMetadata;
@@ -22,8 +22,8 @@ interface Props {
 const { name, dates, location, logo, monogram, tint } = Astro.props;
 ---
 
-{/* One card per employer — a single-role internship keeps the same anatomy so
-    the cards match down the page. Roles go in the default slot, newest first. */}
+{/* One card per employer; single-role cards keep the same anatomy. Roles
+    go in the default slot, newest first. */}
 <Card>
 	<Fragment slot="header">
 		<LogoTile logo={logo} tint={tint}>{monogram}</LogoTile>
@@ -63,12 +63,11 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 		font-weight: var(--weight-title);
 	}
 
-	/* Name and location stack on the left; baseline alignment against the dates
-	   comes from the stack's first line (the name). */
+	/* The dates baseline-align against the stack's first line (the name). */
 	.name-block {
 		display: flex;
 		flex-direction: column;
-		/* No gap: the lines' own line-height is all the separation needed. */
+		/* No gap: the line-height alone separates the lines. */
 		gap: 0;
 	}
 
@@ -79,8 +78,6 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 		font-size: var(--text-meta);
 	}
 
-	/* Place belongs to the institution, so it rides under the name, a step
-	   quieter than the dates. */
 	.location {
 		display: flex;
 		align-items: center;
@@ -90,14 +87,14 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 		font-size: var(--text-meta);
 	}
 
-	/* Optical: flex-centered, the pin still sits a hair low against the mono
-	   caps; the svg reaches through the Lucide component, hence :global. */
+	/* Optical correction of the pin against the mono caps. The svg comes
+	   from the Lucide component, hence :global. */
 	.location :global(svg) {
 		margin-top: -1px;
 	}
 
-	/* Each role carries its own bottom spacing (RoleEntry's `last`), so the
-	   column needs no gap. */
+	/* Each role owns its bottom spacing (RoleEntry's `last`); the column
+	   needs no gap. */
 	.roles {
 		display: flex;
 		flex-direction: column;

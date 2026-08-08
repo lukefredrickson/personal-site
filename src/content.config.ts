@@ -4,31 +4,24 @@ import { z } from 'astro/zod';
 
 /*
   One `blog` collection, mixed `.md`/`.mdx` (ADR 0013), folder-per-post as
-  `<year>/<slug>/post.{md,mdx}` (ADR 0015). Year folders are organizational
-  only: the post directory name is the slug and the whole URL
-  (`/blog/<slug>/`), so moving a post between years changes nothing rendered.
-  Everything a post owns — photos, one-off components — sits beside `post.md`,
-  where the loader pattern ignores it.
+  `<year>/<slug>/post.{md,mdx}` (ADR 0015). The post directory name is the
+  slug and the whole URL, so the year folder changes nothing rendered. A
+  post's assets sit beside `post.md`, where the loader pattern ignores them.
 */
 
-// Lowercase kebab, so a tag string is also its route segment and pill label
-// with no mapping layer (ADR 0014). `Bikes` vs `bikes` fails the build instead
-// of quietly becoming two tag pages.
+// Lowercase kebab: a tag string is also its route segment and pill label
+// (ADR 0014). `Bikes` beside `bikes` fails the build.
 const TAG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // slug -> source path of the entry that claimed it.
 const claimedSlugs = new Map<string, string>();
 
 /*
-  Taking the slug from one path segment narrows the filesystem's uniqueness
-  guarantee to per-year, so nothing but this check stops `2025/foo/` and
-  `2026/foo/` from resolving to the same id — and by `getCollection()` time the
-  loser has already silently clobbered its twin in the id-keyed data store.
-
-  The `prior !== entry` comparison is load-bearing: dev-server re-syncs re-run
-  this for files already in the map. Cost of the module-scope map: moving a post
-  to a different year folder trips a false positive until the dev server
-  restarts.
+  The slug is one path segment, so the filesystem guarantees uniqueness only
+  per year; without this check `2025/foo/` and `2026/foo/` silently clobber
+  one id. `prior !== entry` is load-bearing: dev-server re-syncs re-run this
+  for files already in the map. Moving a post between year folders trips a
+  false positive until the dev server restarts.
 */
 function generateId({ entry }: { entry: string }): string {
   // entry is `<year>/<slug>/post.md`, per the loader pattern below.
@@ -50,9 +43,8 @@ const blog = defineCollection({
     base: './src/content/blog',
     generateId,
   }),
-  // Frontmatter is only what *other* pages need — the index, feeds, and OG
-  // tags. The post body owns everything else; stat chips, figures and embeds
-  // are components in the body, not fields here (ADR 0013).
+  // Frontmatter is only what other pages need: the index, feeds, OG tags.
+  // The post body owns everything else (ADR 0013).
   schema: ({ image }) =>
     z
       .object({

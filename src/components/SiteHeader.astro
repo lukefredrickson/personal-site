@@ -1,12 +1,11 @@
 ---
 import ThemeToggle from './ThemeToggle.astro';
 
-// Active nav state derives from the URL, not a prop: the layout renders one
-// header for every page and no page can get its own nav wrong. Everything
-// outside the blog is work.
+// The active nav item derives from the URL, not a prop; the base layout
+// renders one header for every page. Everything outside the blog is work.
 function currentSection(pathname: string): 'work' | 'blog' | undefined {
 	if (pathname.startsWith('/blog')) return 'blog';
-	// The 404 is nowhere, so it lights neither item.
+	// The 404 page belongs to neither section.
 	if (pathname.startsWith('/404')) return undefined;
 	return 'work';
 }
@@ -28,8 +27,8 @@ const section = currentSection(Astro.url.pathname);
 		display: flex;
 		align-items: center;
 		gap: var(--space-6);
-		/* Below the narrowest phones the wordmark and the controls stop sharing a
-		   line; wrapping beats shrinking either. */
+		/* On the narrowest viewports the wordmark and the controls wrap
+		   instead of shrinking. */
 		flex-wrap: wrap;
 		row-gap: var(--space-4);
 	}
@@ -62,7 +61,7 @@ const section = currentSection(Astro.url.pathname);
 		font-weight: var(--weight-ui);
 		text-decoration: none;
 		/* Reserved on every item so the current one does not shift the row.
-		   Deliberately heavier than --border-w: an underline, not a border. */
+		   Heavier than --border-w: an underline, not a border. */
 		padding-bottom: 1px;
 		border-bottom: 2.5px solid transparent;
 	}

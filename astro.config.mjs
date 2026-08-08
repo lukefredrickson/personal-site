@@ -10,8 +10,8 @@ import duskfox from './src/styles/code-themes/duskfox.json';
 
 /**
  * Vendored dawnfox/duskfox VS Code themes (ADR 0016). The theme name drives
- * Expressive Code's default `[data-theme='<name>']` selector, so naming them
- * `light`/`dark` lands them straight on ADR 0012's attribute.
+ * Expressive Code's `[data-theme='<name>']` selector, so `light`/`dark`
+ * lands on ADR 0012's attribute.
  * @param {{ colors: Record<string, string> }} json
  * @param {'light' | 'dark'} name
  */
@@ -19,20 +19,15 @@ const foxTheme = ({ colors, ...theme }, name) =>
   new ExpressiveCodeTheme({
     ...theme,
     name,
-    // duskfox ships `tab.activeBorderTop: "default"`; Expressive Code takes hex
-    // only and throws on anything else. Dropping the stray key beats editing
-    // the vendored file, which stays a verbatim copy.
+    // duskfox ships `tab.activeBorderTop: "default"`; Expressive Code
+    // accepts hex only. Dropping the key keeps the vendored file verbatim.
     colors: Object.fromEntries(
       Object.entries(colors).filter(([, value]) => String(value).startsWith('#')),
     ),
   });
 
-/*
-  The one host-specific touchpoint of draft visibility (ADR 0021). Workers
-  Builds stamps `WORKERS_CI_BRANCH` on every build it runs; the `main` build is
-  production. Fail closed: drafts show only when the signal is present AND says
-  preview, so a local build, or Cloudflare renaming the variable, hides them.
-*/
+/* The one host-specific touchpoint of draft visibility (ADR 0021). Fails
+   closed: drafts show only when `WORKERS_CI_BRANCH` is present and not `main`. */
 const branch = process.env.WORKERS_CI_BRANCH;
 const isPreviewBuild = Boolean(branch) && branch !== 'main';
 
@@ -41,18 +36,14 @@ export default defineConfig({
   // Canonical site URL. Enables correct absolute URLs, sitemaps, canonical tags.
   site: 'https://lukefredrickson.dev',
 
-  // The static build physically emits `slug/index.html`, so the trailing-slash
-  // form is the real URL. Cloudflare redirects the slashless form in production;
-  // this makes dev 404 it instead, so a sloppy internal link breaks loudly
-  // before merge rather than shipping a permanent redirect hop.
+  // The static build emits `slug/index.html`, so the trailing-slash form is
+  // the real URL. Dev 404s the slashless form; production redirects it.
   trailingSlash: 'always',
 
   env: {
     schema: {
       // Typed so the post query imports a boolean and knows nothing about
-      // Cloudflare. An explicitly set `SHOW_DRAFTS` beats this default — that
-      // is the local override (`SHOW_DRAFTS=true npm run build`), and nothing
-      // in the Cloudflare dashboard sets it.
+      // Cloudflare. An explicitly set `SHOW_DRAFTS` beats this default.
       SHOW_DRAFTS: envField.boolean({
         context: 'server',
         access: 'public',
@@ -61,13 +52,8 @@ export default defineConfig({
     },
   },
 
-  // Fonts are fetched from Fontsource at build time and emitted to
-  // `_astro/fonts`, so visitors get first-party, year-cached files and Google
-  // never sees their IP. Both families load as variable fonts: one file covers
-  // the whole weight range, and Astro generates metric-matched fallbacks from
-  // the trailing generic family, which is what keeps the swap from shifting
-  // layout. The other half of "never fake Public Sans 500" is
-  // `font-synthesis-*: none` in base.css.
+  // Fontsource fonts are fetched at build time and served first-party as
+  // variable fonts. Metric-matched fallbacks keep the swap from shifting layout.
   fonts: [
     {
       provider: fontProviders.fontsource(),
@@ -91,30 +77,25 @@ export default defineConfig({
   ],
 
   image: {
-    // One responsive pipeline for every optimized image (ADR 0015): multi-width
-    // srcset, lazy loading, reserved dimensions. Set globally so plain `![]()`
-    // images in post bodies get it too, not just the `<Image>` call sites.
+    // One responsive pipeline for every image (ADR 0015). Global, so plain
+    // `![]()` images in post bodies get it too.
     layout: 'constrained',
-    // The layout only resizes with the global styles that back it; off (the
-    // default), markdown images render at intrinsic width and overflow.
+    // The layout only resizes with the global styles that back it; off,
+    // markdown images render at intrinsic width and overflow.
     responsiveStyles: true,
   },
 
   markdown: {
-    // Still Astro 7's default processor (ADR 0013) — `satteri()` spelled out is
-    // what lets a plugin ride along. Read time is computed here rather than
-    // from raw source so the estimate sees the parsed document (ADR 0020).
+    // Astro 7's default processor, spelled out so a plugin can attach
+    // (ADR 0013). Read time computes on the parsed document (ADR 0020).
     processor: satteri({ mdastPlugins: [readingTimePlugin] }),
   },
 
-  // Expressive Code goes first: it rewrites code blocks in the Markdown
-  // pipeline, and MDX inherits that config only if it is already registered.
-  // MDX itself takes no options — `.mdx` inherits the Markdown config, so the
-  // read-time plugin covers both formats.
+  // Expressive Code goes first: MDX inherits its code-block rewrite only
+  // when it is already registered.
   integrations: [
-    // Every fenced code block in every post, `.md` and `.mdx` alike (ADR 0016).
-    // Fox palettes supply the syntax colors; everything around the code — frame,
-    // filename tab, copy button — is the site's own tokens.
+    // Every fenced code block, `.md` and `.mdx` alike (ADR 0016). The fox
+    // palettes color the syntax; the site tokens style the frame.
     expressiveCode({
       themes: [foxTheme(dawnfox, 'light'), foxTheme(duskfox, 'dark')],
       // A visitor who never touches the toggle has no `data-theme` at all
@@ -135,8 +116,8 @@ export default defineConfig({
         uiPaddingBlock: 'var(--space-2)',
         uiPaddingInline: 'var(--space-5)',
         frames: {
-          // The design's header is a flat strip with a hairline under it, not a
-          // raised editor tab: every tab-shaped affordance resolves away.
+          // The header is a flat strip with a hairline, not a raised editor
+          // tab; every tab-shaped affordance resolves away.
           editorTabBarBackground: 'transparent',
           editorTabBarBorderBottomColor: 'var(--code-border)',
           editorActiveTabBackground: 'transparent',
@@ -146,17 +127,15 @@ export default defineConfig({
           editorActiveTabIndicatorTopColor: 'transparent',
           editorActiveTabIndicatorBottomColor: 'transparent',
           editorTabBorderRadius: '0',
-          // Code cards sit flat in the prose; the lift belongs to real cards.
+          // Code cards sit flat in the prose, without the card shadow.
           frameBoxShadowCssValue: 'none',
           inlineButtonForeground: 'var(--text-muted)',
           inlineButtonBorder: 'var(--code-border)',
         },
       },
     }),
-    // Posts graduate to `.mdx` when they need components in the body — stat
-    // rows, framed photos, video embeds (ADR 0013). Stays behind
-    // `expressiveCode()`, which only reaches MDX code blocks when registered
-    // ahead of it.
+    // Posts graduate to `.mdx` when the body needs components (ADR 0013).
+    // `.mdx` inherits the Markdown config, so the read-time plugin covers both.
     mdx(),
     sitemap(),
   ],

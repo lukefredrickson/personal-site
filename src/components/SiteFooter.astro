@@ -1,7 +1,5 @@
 ---
-// Prop-less: the footer is site furniture rendered once by the layout, and its
-// copy is factual and fixed. A build-time year beats a literal nobody
-// remembers to bump.
+// Prop-less: the base layout renders the footer once with fixed copy.
 const year = new Date().getFullYear();
 ---
 
@@ -14,7 +12,7 @@ const year = new Date().getFullYear();
 	.site-footer {
 		display: flex;
 		justify-content: space-between;
-		/* Both halves fit one line until the narrowest phones. */
+		/* Both halves share one line except on the narrowest viewports. */
 		flex-wrap: wrap;
 		gap: var(--space-2);
 		padding-top: var(--space-5);

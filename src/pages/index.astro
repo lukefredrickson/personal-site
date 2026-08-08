@@ -17,17 +17,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { formatPostDate, getPublishedPosts } from '../lib/posts';
 import { tintOf } from '../lib/tints';
 
-// The newest post leads the section; the rest are rows. Four keeps the home
-// list a teaser — /blog/ is where the archive lives.
+// The newest post leads the section; the next four render as rows. The
+// full archive lives at /blog/.
 const [featured, ...older] = await getPublishedPosts();
 const recent = older.slice(0, 4);
 
-// Tinting is the screen's call, off the one shared map — the chip takes a tint,
-// not a vocabulary.
+// The screen picks tints from the one shared map; the chip takes a tint.
 const chips = (tags: string[]): Tag[] => tags.map((tag) => ({ tag, tint: tintOf(tag) }));
 
-// The schema pairs a hero with its alt text; testing both is what proves that
-// pairing to TypeScript here, where the card takes them as a unit.
+// The schema pairs hero with heroAlt; testing both proves the pair to
+// TypeScript, and the card takes them as a unit.
 const hero =
 	featured?.data.hero && featured.data.heroAlt
 		? { hero: featured.data.hero, heroAlt: featured.data.heroAlt }
@@ -62,8 +61,8 @@ const hero =
 		<section class="section">
 			<SectionTitle>Where I've worked</SectionTitle>
 
-			{/* Every claim here traces to the approved bullet library in
-			    resume-builder — same facts as the resume, friendlier sentences. */}
+			{/* Every claim traces to the resume-builder bullet library: the
+			    same facts as the resume. */}
 			<CompanyCard name="EnergyHub" dates="Feb 2023 – now" location="Remote: Seattle, WA" logo={energyhubLogo}>
 				<RoleEntry
 					current
@@ -87,7 +86,7 @@ const hero =
 				/>
 			</CompanyCard>
 
-			{/* Carries the timeline across the gap between employers. */}
+			{/* The connector carries the promotion ladder across the card gap. */}
 			<div class="connector" aria-hidden="true"></div>
 
 			<CompanyCard
@@ -106,7 +105,7 @@ const hero =
 				/>
 			</CompanyCard>
 
-			{/* Education joins the same timeline the employers share. */}
+			{/* The education card joins the same promotion ladder. */}
 			<div class="connector" aria-hidden="true"></div>
 
 			<EducationCard
@@ -137,8 +136,8 @@ const hero =
 				)
 			}
 
-			{/* Month precision: rows sit under a card that carries the exact date.
-			    PostListItem closes its own group, so the rows need no divider prop. */}
+			{/* Month precision: the featured card above carries the exact date.
+			    The last row drops its own divider. */}
 			<div class="rows">
 				{
 					recent.map((post) => (
@@ -197,14 +196,14 @@ const hero =
 		line-height: var(--leading-tight);
 	}
 
-	/* Highlighter stroke: the gradient starts partway up the line, so the ink
-	   sits on the word rather than boxing it. */
+	/* Highlighter stroke: the gradient starts partway up the line and
+	   covers only the lower part of the word. */
 	.mark {
 		background: linear-gradient(transparent 64%, var(--highlight) 64%);
 	}
 
 	.intro {
-		/* Measure: the intro reads as three short lines beside the portrait. */
+		/* Measure: the intro wraps to three short lines beside the portrait. */
 		max-width: 440px;
 		color: var(--text-body);
 		font-family: var(--font-body);
@@ -254,7 +253,7 @@ const hero =
 		text-decoration: none;
 	}
 
-	/* Portrait and greeting stop fitting side by side before the column does. */
+	/* The portrait and the greeting stack on narrow viewports. */
 	@media (max-width: 40rem) {
 		.hero {
 			flex-direction: column;

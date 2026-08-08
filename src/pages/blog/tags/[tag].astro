@@ -7,10 +7,8 @@ import { getTagCounts } from '../../../lib/tags';
 export async function getStaticPaths() {
 	const posts = await getPublishedPosts();
 
-	// A page for every tag in use — no curation, no config (ADR 0014). The pill
-	// row is built from the same call, so a tag with a pill always has a page.
-	// Each page takes the whole list: the layout filters it, and the pill counts
-	// are of the blog rather than of the filtered view.
+	// A page per tag in use (ADR 0014); the pill row uses the same call.
+	// Each page takes the whole list; the layout filters, the counts cover the blog.
 	return getTagCounts(posts).map(({ tag }) => ({ params: { tag }, props: { tag, posts } }));
 }
 

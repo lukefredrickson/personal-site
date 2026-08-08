@@ -8,7 +8,7 @@ interface Props {
 	label: string;
 	/** Published posts carrying the tag. */
 	count?: number;
-	/** Exactly one pill in a row is active — the page you are on. */
+	/** Exactly one pill per row is active: the current page. */
 	active?: boolean;
 	/** Tint on the idle pill. */
 	tint?: Tint;
@@ -36,7 +36,7 @@ const text = count === undefined ? label : `${label} · ${count}`;
 		color: var(--text-body);
 		font-family: var(--font-mono);
 		font-size: var(--text-chip);
-		/* Undo the body's 1.5 so padding alone sets the pill height. */
+		/* Undoes the body's 1.5 line-height; padding alone sets the height. */
 		line-height: normal;
 		white-space: nowrap;
 		text-decoration: none;
