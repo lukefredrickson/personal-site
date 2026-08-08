@@ -84,6 +84,7 @@
 
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
+import { openRunLog } from "./exec.ts";
 import {
   applyMutationsToGitHub,
   computePlan,
@@ -330,5 +331,10 @@ if (command !== "plan" && command !== undefined) {
   console.error(`Usage: npm run sandcastle [plan]${hint}`);
   process.exit(1);
 }
+
+// Opened before anything can spawn: every child process this invocation
+// runs — git probes, npm gates, gh calls — tees its raw output here, so
+// the console can summarize without ever losing information.
+console.log(`Raw child-process output tees to ${openRunLog()}.\n`);
 
 await (command === "plan" ? planCommand() : runCommand());

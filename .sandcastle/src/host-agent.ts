@@ -17,9 +17,7 @@
 import { spawn } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { join } from "node:path";
-
-// Shared with the sandcastle library's own sandbox logs; gitignored.
-const LOGS_DIR = ".sandcastle/logs";
+import { LOGS_DIR } from "./exec.ts";
 
 const HOST_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -196,7 +194,7 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
         ? []
         : ["--json-schema", JSON.stringify(opts.jsonSchema)]),
     ],
-    { cwd: opts.cwd, env: opts.env, stdio: ["pipe", "pipe", "inherit"] },
+    { cwd: opts.cwd, env: opts.env, stdio: ["pipe", "pipe", "pipe"] },
   );
   child.stdin.write(opts.prompt);
   child.stdin.end();
@@ -234,6 +232,16 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
           }
         }
       }
+    }
+  });
+
+  // CLI stderr goes to the tailable log, off the console — a failure
+  // investigation reads it next to the progress it interrupted, and
+  // concurrent stacks' lines stay unbroken by it.
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    for (const line of chunk.split("\n")) {
+      if (line.trim() !== "") say(`[stderr] ${line}`);
     }
   });
 

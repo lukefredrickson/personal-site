@@ -8,7 +8,6 @@
 // `run` applies the accepted mutations here — the only host code that
 // ever writes blocked-by edges — before walking the stacks.
 
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
   readFileSync,
@@ -16,6 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { z } from "zod";
+import { runCaptured } from "./exec.ts";
 import { runHostAgent } from "./host-agent.ts";
 import {
   planStacks,
@@ -152,31 +152,25 @@ async function runPlanningAgent(
 
 function repoNameWithOwner(): string {
   const { nameWithOwner } = JSON.parse(
-    execFileSync("gh", ["repo", "view", "--json", "nameWithOwner"], {
-      encoding: "utf8",
-    }),
+    runCaptured("gh", ["repo", "view", "--json", "nameWithOwner"]),
   ) as { nameWithOwner: string };
   return nameWithOwner;
 }
 
 export async function computePlan(): Promise<Plan> {
   const issues: StackIssue[] = JSON.parse(
-    execFileSync(
-      "gh",
-      [
-        "issue",
-        "list",
-        "--state",
-        "open",
-        "--label",
-        "Sandcastle",
-        "--limit",
-        "100",
-        "--json",
-        "number,title",
-      ],
-      { encoding: "utf8" },
-    ),
+    runCaptured("gh", [
+      "issue",
+      "list",
+      "--state",
+      "open",
+      "--label",
+      "Sandcastle",
+      "--limit",
+      "100",
+      "--json",
+      "number,title",
+    ]),
   );
 
   // Nothing to judge and nothing to stack — skip the (paid) planning
@@ -194,14 +188,10 @@ export async function computePlan(): Promise<Plan> {
       issue.number,
       (
         JSON.parse(
-          execFileSync(
-            "gh",
-            [
-              "api",
-              `repos/${nameWithOwner}/issues/${issue.number}/dependencies/blocked_by`,
-            ],
-            { encoding: "utf8" },
-          ),
+          runCaptured("gh", [
+            "api",
+            `repos/${nameWithOwner}/issues/${issue.number}/dependencies/blocked_by`,
+          ]),
         ) as Blocker[]
       ).map(({ number, state }) => ({ number, state })),
     ]),
@@ -318,9 +308,10 @@ export function applyMutationsToGitHub(
   );
   for (const mutation of mutations) {
     const path = `repos/${nameWithOwner}/issues/${mutation.blocked}/dependencies/blocked_by`;
-    const current = JSON.parse(
-      execFileSync("gh", ["api", path], { encoding: "utf8" }),
-    ) as { id: number; number: number }[];
+    const current = JSON.parse(runCaptured("gh", ["api", path])) as {
+      id: number;
+      number: number;
+    }[];
     const existing = current.find((b) => b.number === mutation.blocker);
 
     if (mutation.op === "add") {
@@ -330,25 +321,18 @@ export function applyMutationsToGitHub(
       }
       // POST takes the blocking issue's database id, not its number.
       const { id } = JSON.parse(
-        execFileSync(
-          "gh",
-          ["api", `repos/${nameWithOwner}/issues/${mutation.blocker}`],
-          { encoding: "utf8" },
-        ),
+        runCaptured("gh", [
+          "api",
+          `repos/${nameWithOwner}/issues/${mutation.blocker}`,
+        ]),
       ) as { id: number };
-      execFileSync(
-        "gh",
-        ["api", "-X", "POST", path, "-F", `issue_id=${id}`],
-        { encoding: "utf8" },
-      );
+      runCaptured("gh", ["api", "-X", "POST", path, "-F", `issue_id=${id}`]);
     } else {
       if (!existing) {
         console.log(`  • no-op (edge already absent): ${describeMutation(mutation)}`);
         continue;
       }
-      execFileSync("gh", ["api", "-X", "DELETE", `${path}/${existing.id}`], {
-        encoding: "utf8",
-      });
+      runCaptured("gh", ["api", "-X", "DELETE", `${path}/${existing.id}`]);
     }
     console.log(`  ✓ applied ${describeMutation(mutation)}`);
   }

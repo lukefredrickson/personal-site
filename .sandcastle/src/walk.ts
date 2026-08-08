@@ -17,9 +17,9 @@
 // fakes and assert on its decisions (ADR 0029). `productionWalkEffects`
 // is the real wiring.
 
-import { execFileSync } from "node:child_process";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { ChildFailure, runCaptured } from "./exec.ts";
 import {
   branchCarries,
   fetchOrigin,
@@ -47,6 +47,12 @@ const copyToWorktree = ["node_modules"];
 // combined. One global pool, not per-stack: the binding resource
 // (containers, paid agents) is machine- and budget-wide.
 export const MAX_SANDBOXES = 3;
+
+// How long a sandboxed agent may be console-silent before the library
+// kills its run. The 600 s default read healthy agents deep in long tool
+// calls as hangs; the `--idle-timeout` CLI flag the library's error
+// message suggests does not exist in v0.12.0 — this option is the knob.
+const IDLE_TIMEOUT_SECONDS = 1800;
 
 // Counting semaphore. `use` waits for a slot, runs the thunk, and frees
 // the slot when it settles. Waiters resume in FIFO order, so a wave
@@ -128,24 +134,25 @@ export function productionWalkEffects(worktree: string): WalkEffects {
     // closed-unmerged PR means the work was rejected, not done.
     openPrUrl(branch) {
       const prs = JSON.parse(
-        execFileSync(
-          "gh",
-          ["pr", "list", "--head", branch, "--state", "open", "--json", "url"],
-          { encoding: "utf8" },
-        ),
+        runCaptured("gh", [
+          "pr",
+          "list",
+          "--head",
+          branch,
+          "--state",
+          "open",
+          "--json",
+          "url",
+        ]),
       ) as { url: string }[];
       return prs[0]?.url;
     },
     linkPrStack(urls) {
-      // gh's own chatter is suppressed; the walk reports the result.
-      execFileSync("gh", ["stack", "link", ...urls], {
-        stdio: ["ignore", "ignore", "pipe"],
-      });
+      // gh's own chatter is captured; the walk reports the result.
+      runCaptured("gh", ["stack", "link", ...urls]);
     },
     retargetPrBase(branch, base) {
-      execFileSync("gh", ["pr", "edit", branch, "--base", base], {
-        encoding: "utf8",
-      });
+      runCaptured("gh", ["pr", "edit", branch, "--base", base]);
     },
     async buildInSandbox(step, waveBase) {
       // baseBranch cuts the new branch from the wave's base, so each
@@ -163,6 +170,7 @@ export function productionWalkEffects(worktree: string): WalkEffects {
         const implement = await sandbox.run({
           name: `implementer #${step.issue.number}`,
           maxIterations: 100,
+          idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS,
           agent: sandcastle.claudeCode("claude-opus-5"),
           promptFile: "./.sandcastle/prompts/implement-prompt.md",
           promptArgs: {
@@ -177,6 +185,7 @@ export function productionWalkEffects(worktree: string): WalkEffects {
           await sandbox.run({
             name: `reviewer #${step.issue.number}`,
             maxIterations: 1,
+            idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS,
             agent: sandcastle.claudeCode("claude-opus-5"),
             promptFile: "./.sandcastle/prompts/review-prompt.md",
             promptArgs: {
@@ -225,10 +234,7 @@ export function linkChainedPrs(
     console.log(`✓ ${what}: ${urls.length} PRs linked on GitHub.`);
     return true;
   } catch (error) {
-    const stderr =
-      error instanceof Error && "stderr" in error
-        ? String((error as { stderr: unknown }).stderr ?? "").trim()
-        : "";
+    const stderr = error instanceof ChildFailure ? error.stderr.trim() : "";
     console.error(
       `⚠ ${what}: gh stack link failed — ` +
         `${stderr !== "" ? stderr : error instanceof Error ? error.message : String(error)}. ` +

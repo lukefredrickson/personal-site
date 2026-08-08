@@ -14,9 +14,9 @@
 // resolver-agent attempt, judged mechanically by the git state it
 // leaves behind — never by its own account of success.
 
-import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { printChildFailure, runCaptured } from "./exec.ts";
 import { runHostAgent } from "./host-agent.ts";
 
 // ---------------------------------------------------------------------------
@@ -57,24 +57,19 @@ function rerereEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
-// Quiet by default so expected-failure probes (rev-parse on a missing
-// branch, merge-base as a boolean) don't spray "fatal:" noise; `show`
-// streams output for the operations the operator should watch.
+// Captured, so expected-failure probes (rev-parse on a missing branch,
+// merge-base as a boolean, removing a worktree that isn't there) print
+// nothing — their "fatal:" chatter stays off the console, where it reads
+// as breakage. Every invocation's raw output lands in the per-run log
+// via runCaptured's tee.
 function git(
   args: readonly string[],
   opts: {
     readonly cwd?: string;
-    readonly show?: boolean;
     readonly env?: NodeJS.ProcessEnv;
   } = {},
 ): string {
-  const out = execFileSync("git", args as string[], {
-    encoding: "utf8",
-    cwd: opts.cwd,
-    env: opts.env,
-    stdio: opts.show ? ["ignore", "inherit", "inherit"] : undefined,
-  });
-  return typeof out === "string" ? out.trim() : "";
+  return runCaptured("git", args, opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -169,17 +164,25 @@ function pushToOrigin(worktree: string, args: readonly string[]): void {
     // emptied mid-run.
     throw new Error(`cannot push: GH_TOKEN is missing or empty in ${ENV_FILE}`);
   }
-  git(
-    [
-      "-c",
-      "credential.helper=",
-      "-c",
-      `credential.helper=${PUSH_CREDENTIAL_HELPER}`,
-      "push",
-      ...args,
-    ],
-    { cwd: worktree, show: true, env: pushEnv(token) },
-  );
+  try {
+    git(
+      [
+        "-c",
+        "credential.helper=",
+        "-c",
+        `credential.helper=${PUSH_CREDENTIAL_HELPER}`,
+        "push",
+        ...args,
+      ],
+      { cwd: worktree, env: pushEnv(token) },
+    );
+  } catch (error) {
+    // A push is a gate like any other: the callers turn this into a
+    // prune (or a failed run) with a one-line reason, so the full
+    // captured output has to reach the console here or nowhere.
+    printChildFailure(error);
+    throw error;
+  }
 }
 
 export function createRestackWorktree(): string {
@@ -336,7 +339,6 @@ function continueRerereResolvedRebase(worktree: string): boolean {
     try {
       git(["rebase", "--continue"], {
         cwd: worktree,
-        show: true,
         env: rerereEnv({ ...process.env, GIT_EDITOR: "true" }),
       });
     } catch {
@@ -619,7 +621,6 @@ export async function restackBranch(
   try {
     git([...RERERE_FLAGS, "rebase", "--onto", tipSha, windowSha], {
       cwd: worktree,
-      show: true,
     });
   } catch {
     // A conflict stops the rebase mid-flight; anything else (a rebase
@@ -657,16 +658,19 @@ export async function restackBranch(
     // lockfile regenerated against an installed node_modules tree
     // (npm/cli#4828) silently drops other platforms' optional binaries
     // and fails only in CI; this catches it before anything is pushed.
-    execFileSync("npm", ["ci", "--dry-run"], {
-      cwd: worktree,
-      stdio: ["ignore", "ignore", "inherit"],
-    });
-    execFileSync("npm", ["install", "--no-audit", "--no-fund"], {
-      cwd: worktree,
-      stdio: ["ignore", "ignore", "inherit"],
-    });
-    execFileSync("npm", ["run", "check"], { cwd: worktree, stdio: "inherit" });
-  } catch {
+    // Each gate's output is captured: a pass is one summary line, a fail
+    // reproduces the full output on the console (printChildFailure) so
+    // capture never hides what inherited stdio used to show.
+    for (const gate of [
+      ["ci", "--dry-run"],
+      ["install", "--no-audit", "--no-fund"],
+      ["run", "check"],
+    ] as const) {
+      runCaptured("npm", gate, { cwd: worktree });
+      console.log(`  · ${branch}: npm ${gate.join(" ")} passed`);
+    }
+  } catch (error) {
+    printChildFailure(error);
     return { kind: "check-failed", resolution };
   } finally {
     // That `npm install` can rewrite the worktree's lockfile with the
