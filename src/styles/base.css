@@ -1,11 +1,8 @@
-/* Page defaults — the application layer, the only place tokens become paint.
-   Kept separate from the token files (definitions) and from global.css (a pure
-   import manifest); this is where future page-level defaults land. */
+/* Page defaults — the only place tokens become paint. */
 
 :root {
-  /* Never fake a weight or an italic. 500 is Fira Code only
-     (--weight-mono-active) and Fira Code has no italic; without these the
-     browser would synthesize both. */
+  /* Weight 500 is Fira Code only (--weight-mono-active), and Fira Code has
+     no italic; block the browser from synthesizing either. */
   font-synthesis-weight: none;
   font-synthesis-style: none;
 }
