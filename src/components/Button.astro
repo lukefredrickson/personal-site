@@ -1,7 +1,7 @@
 ---
 interface Props {
-	/** `primary` is filled blue — the one main action per view (the resume
-	 *  link); `secondary` is everything else. */
+	/** `primary` is the one filled main action per view; `secondary` is
+	 *  everything else. */
 	variant?: 'primary' | 'secondary';
 	/** Renders an `<a>` when set, a `<button>` otherwise. */
 	href?: string;
@@ -24,8 +24,8 @@ const Element = href ? 'a' : 'button';
 	.button {
 		display: inline-flex;
 		align-items: center;
-		/* Separates the label from a trailing icon the caller slots in. The icon's
-		   own size stays a call-site prop — CSS here would beat it (ADR 0015). */
+		/* Separates the label from a slotted trailing icon. The icon's size
+		   stays a call-site prop (ADR 0015). */
 		gap: var(--space-1);
 		padding: var(--space-2) var(--space-5);
 		border: var(--border-w) solid var(--border-soft);
@@ -36,7 +36,7 @@ const Element = href ? 'a' : 'button';
 		font-family: var(--font-display);
 		font-size: var(--text-ui);
 		font-weight: var(--weight-ui);
-		/* Undo the body's 1.5 so padding alone sets the button height. */
+		/* Undoes the body's 1.5 line-height; padding alone sets the height. */
 		line-height: normal;
 		white-space: nowrap;
 		text-decoration: none;

@@ -21,7 +21,7 @@ const { value, unit, label } = Astro.props;
 
 <style>
 	.stat-chip {
-		/* Chips split their row evenly; the row itself belongs to the screen. */
+		/* Chips split their row evenly. */
 		flex: 1;
 		padding: var(--space-3) var(--space-4);
 		border: var(--border-w) solid var(--border-strong);
@@ -36,11 +36,11 @@ const { value, unit, label } = Astro.props;
 		gap: var(--space-1);
 		color: var(--ink);
 		font-family: var(--font-display);
-		/* No job token covers a stat value; ADR 0011 minted the `xl` step as
-		   headroom. */
+		/* No job token covers a stat value; the `xl` step is the headroom
+		   (ADR 0011). */
 		font-size: var(--font-size-xl);
 		font-weight: var(--weight-voice);
-		/* Undo the body's 1.5 so the two lines sit tight. */
+		/* Undoes the body's 1.5 line-height to tighten the two lines. */
 		line-height: var(--leading-heading);
 	}
 
@@ -59,7 +59,7 @@ const { value, unit, label } = Astro.props;
 		text-transform: uppercase;
 	}
 
-	/* Whether the row wraps is the row's call; two-up is this chip's floor. */
+	/* The row decides wrapping; 40% is this chip's two-up floor. */
 	@media (max-width: 40rem) {
 		.stat-chip {
 			min-width: 40%;

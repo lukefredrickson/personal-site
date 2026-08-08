@@ -5,8 +5,7 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import '../styles/global.css';
 
-// The layout adds nothing to the head API, so it forwards BaseHead's props
-// wholesale rather than restating them.
+// The layout forwards BaseHead's props wholesale instead of restating them.
 type Props = ComponentProps<typeof BaseHead>;
 ---
 
@@ -16,23 +15,11 @@ type Props = ComponentProps<typeof BaseHead>;
 		<BaseHead {...Astro.props} />
 
 		{/*
-			Pre-paint theme init — full rationale in ADR 0012. `is:inline` opts out of
-			Astro's deferred module handling, and that deferral is the flash of wrong
-			theme. Inline scripts are not deduplicated, so this belongs in the single
-			base layout, never in a component.
-
-			No stored value means no attribute, and CSS light-dark() tracks the OS
-			natively — so only visitors who have used the toggle depend on this script.
-
-			applyTheme is the single owner of theme DOM state (<html> attribute,
-			aria-pressed, which theme-color meta applies). Global on purpose:
-			ThemeToggle re-runs it after a click, and astro:after-swap re-runs it so
-			adopting <ClientRouter /> later is a pure addition — a swap replaces <html>
-			attributes wholesale and never re-executes kept scripts.
-
-			It sits after BaseHead because it rewrites the theme-color metas, which
-			have to be in the DOM first. Pre-paint either way — nothing renders until
-			</head> is passed.
+			Pre-paint theme init (ADR 0012). `is:inline` skips Astro's deferral,
+			which would flash the wrong theme; inline scripts are not deduplicated,
+			so this lives only in the base layout. `applyTheme` is global — the
+			single owner of theme DOM state — and sits after BaseHead because it
+			rewrites the theme-color metas.
 		*/}
 		<script is:inline>
 			function applyTheme() {
@@ -48,15 +35,15 @@ type Props = ComponentProps<typeof BaseHead>;
 				if (theme) root.setAttribute('data-theme', theme);
 				else root.removeAttribute('data-theme');
 
-				// Absent until <body> parses, and again on every swap — hence the guard.
+				// The button is absent until <body> parses and on every swap; hence the guard.
 				var toggle = document.querySelector('[data-theme-toggle]');
 				if (toggle) {
 					var dark = theme === null ? matchMedia('(prefers-color-scheme: dark)').matches : theme === 'dark';
 					toggle.setAttribute('aria-pressed', dark ? 'true' : 'false');
 				}
 
-				// An override pins one meta and disables the other; without one, both
-				// go back to tracking the OS.
+				// A stored choice pins one meta and disables the other; without
+				// one, both track the OS.
 				document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
 					var scheme = meta.getAttribute('data-scheme');
 					var media;
@@ -70,16 +57,14 @@ type Props = ComponentProps<typeof BaseHead>;
 			applyTheme();
 			document.addEventListener('astro:after-swap', applyTheme);
 
-			// Cross-tab sync. `storage` fires only in the *other* same-origin tabs —
-			// the one that was clicked already re-applied itself. A null key means
-			// localStorage.clear(); applyTheme re-reads storage either way.
+			// Cross-tab sync: `storage` fires only in the other same-origin tabs.
+			// A null key means localStorage.clear(); applyTheme re-reads either way.
 			window.addEventListener('storage', function (event) {
 				if (event.key === 'lfdev-theme' || event.key === null) applyTheme();
 			});
 		</script>
 
-		{/* Escape hatch for one-off page tags (an RSS link, a preload) — cheaper
-		    than widening the BaseHead props API for a single caller. */}
+		{/* Slot for one-off page head tags (an RSS link, a preload). */}
 		<slot name="head" />
 	</head>
 	<body>
@@ -94,9 +79,8 @@ type Props = ComponentProps<typeof BaseHead>;
 </html>
 
 <style>
-	/* The one content column. Header and footer render inside it, so they
-	   line up with whatever the page puts between them. Screens own their own
-	   internal rhythm; this gap is only the seam around them. */
+	/* The one content column: the header and the footer render inside it
+	   and align with the page content. The gap is only the seam between them. */
 	.page {
 		display: flex;
 		flex-direction: column;
@@ -112,7 +96,7 @@ type Props = ComponentProps<typeof BaseHead>;
 		flex: 1;
 	}
 
-	/* 52px of gutter is most of a phone screen. */
+	/* Narrow viewports get a smaller gutter. */
 	@media (max-width: 40rem) {
 		.page {
 			padding-inline: var(--space-6);

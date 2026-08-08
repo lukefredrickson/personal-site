@@ -3,7 +3,7 @@ interface Props {
 	title: string;
 	/** "Apr 2024 – now" — omit on single-role cards, where the header carries them. */
 	dates?: string;
-	/** Verb-first and high-level — the page's voice, not resume-speak. ~3 per role. */
+	/** Verb-first, high-level bullets; about three per role. */
 	bullets?: string[];
 	/** The role held today: accent dot and colored markers. One per page. */
 	current?: boolean;
@@ -15,8 +15,8 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 ---
 
 <div class:list={['role', { current, last }]}>
-	{/* Promotion ladder: the dot marks this role, the rail reaches to the next
-	    one down. */}
+	{/* Promotion ladder: the dot marks this role; the rail runs to the
+	    next one. */}
 	<div class="timeline">
 		<span class="dot"></span>
 		{!last && <span class="rail"></span>}
@@ -40,9 +40,8 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 
 <style>
 	.role {
-		/* The dot marks the title, so it scales with the reader's font size
-		   rather than staying px (ADR 0030). Its row is the title's first line
-		   box, which centers it on the title at any root size. */
+		/* The dot sizes in rem to track the reader's font size (ADR 0030).
+		   Its grid row is the title's first line box, which centers it. */
 		--dot-size: 0.75rem;
 		--title-line: calc(var(--text-item-title) * var(--leading-body));
 
@@ -94,8 +93,7 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 		gap: var(--space-4);
 	}
 
-	/* Leading is explicit because --title-line reads it: the dot's alignment
-	   follows whatever type the title carries. */
+	/* The leading is explicit because --title-line reads it for the dot. */
 	.title {
 		color: var(--ink);
 		font-family: var(--font-display);
@@ -129,7 +127,7 @@ const { title, dates, bullets = [], current = false, last = false } = Astro.prop
 		line-height: var(--leading-body);
 	}
 
-	/* Marker as a pseudo-element: decorative, and it keeps the bullet text a
+	/* Marker as a pseudo-element: decorative; the bullet text stays a
 	   clean string in the accessibility tree. */
 	.bullets li::before {
 		content: '▸';

@@ -1,19 +1,16 @@
 ---
 interface Props {
-	/**
-	 * Hard offset shadow. Off by default: only the featured post card lifts
-	 * off the page.
-	 */
+	/** Hard offset shadow. Only the featured post card sets it. */
 	shadow?: boolean;
-	/** Quiet cards drop to the soft border — prev/next, secondary content. */
+	/** Soft border for secondary content, e.g. prev/next. */
 	quiet?: boolean;
 }
 
 const { shadow = false, quiet = false } = Astro.props;
 ---
 
-{/* Body padding is the caller's: contents run from padded role lists to
-    full-bleed hero images. */}
+{/* The caller owns the body padding: contents range from padded role
+    lists to full-bleed hero images. */}
 <div class:list={['card', { shadow, quiet }]}>
 	{
 		Astro.slots.has('header') && (
@@ -27,8 +24,8 @@ const { shadow = false, quiet = false } = Astro.props;
 
 <style>
 	.card {
-		/* One line color for the outline and the header rule, so `quiet` moves
-		   both from one place. */
+		/* One line color for the outline and the header rule; `quiet`
+		   changes both here. */
 		--card-line: var(--border-strong);
 
 		border: var(--border-w) solid var(--card-line);

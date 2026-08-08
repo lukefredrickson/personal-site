@@ -4,9 +4,9 @@ import { Image } from 'astro:assets';
 import type { Tint } from '../lib/tints';
 
 interface Props {
-	/** Real logo. Replaces the slotted monogram and drops the tint behind it. */
+	/** Logo image. Replaces the slotted monogram and removes the tint. */
 	logo?: ImageMetadata;
-	/** Tint behind a monogram; logos sit on the card instead. */
+	/** Tint behind the monogram. Ignored when `logo` is set. */
 	tint?: Tint;
 }
 
@@ -14,8 +14,8 @@ const { logo, tint = 'neutral' } = Astro.props;
 ---
 
 <div class:list={['logo-tile', !logo && tint]}>
-	{/* Decorative — the entity's name is always right beside the tile. Rendered
-	    at twice the tile so the raster holds up on dense displays; CSS fits it. */}
+	{/* Decorative: the name sits beside the tile. Rendered at twice
+	    the tile size for dense displays; CSS fits it. */}
 	{logo ? <Image src={logo} alt="" width={104} /> : <slot />}
 </div>
 
@@ -25,7 +25,7 @@ const { logo, tint = 'neutral' } = Astro.props;
 		align-items: center;
 		justify-content: center;
 		flex: none;
-		/* Sized against the two-line header (name + location subline) beside it. */
+		/* Matches the two-line header (name + location subline) beside it. */
 		width: 52px;
 		height: 52px;
 		border: var(--border-w) solid var(--border-strong);
@@ -37,8 +37,8 @@ const { logo, tint = 'neutral' } = Astro.props;
 		font-weight: var(--weight-voice);
 	}
 
-	/* The `<img>` comes out of `<Image>`, so reach it explicitly rather than
-	   leaning on the scope attribute passing through a child component. */
+	/* `<Image>` renders the `<img>`, outside this component's scope
+	   attribute, so `:global` reaches it. */
 	.logo-tile :global(img) {
 		width: 100%;
 		height: 100%;

@@ -66,7 +66,7 @@ const readTime = formatReadTime(readingMinutes);
 				</div>
 			</header>
 
-			{/* The schema pairs hero with heroAlt; testing both is what proves it here. */}
+			{/* The schema pairs hero with heroAlt; testing both proves the pair here. */}
 			{hero && heroAlt && <FramedFigure src={hero} alt={heroAlt} caption={heroCaption} />}
 
 			{/* Typography for the rendered markdown is global (ADR 0010): bare tags
@@ -129,7 +129,7 @@ const readTime = formatReadTime(readingMinutes);
 		font-size: var(--text-meta);
 	}
 
-	/* The page padding is desktop-sized; a phone wants the words, not the margin. */
+	/* Narrow viewports get a smaller gutter. */
 	@media (max-width: 40rem) {
 		.page {
 			padding-inline: var(--space-6);

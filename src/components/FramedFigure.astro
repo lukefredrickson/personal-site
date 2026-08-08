@@ -4,8 +4,8 @@ import { Image } from 'astro:assets';
 import type { Tint } from '../lib/tints';
 
 /**
- * Media and its alt text travel together — an image with no description is
- * not a state worth rendering. Omit both for the placeholder treatment.
+ * `src` and `alt` come together or not at all. Omit both for the
+ * placeholder treatment.
  */
 type Media = { src: ImageMetadata; alt: string } | { src?: undefined; alt?: undefined };
 
@@ -22,15 +22,14 @@ type Props = Media & {
 	variant?: 'figure' | 'photo';
 };
 
-// `src` and `alt` stay on `props`: narrowing `props.src` is what proves to
-// TypeScript that `props.alt` came with it.
+// Narrowing `props.src` proves to TypeScript that `props.alt` is present.
 const props = Astro.props;
 const { height = 240, caption, tint, placeholder, variant = 'figure' } = props;
 ---
 
 <figure class:list={['frame', variant]}>
-	{/* An inline custom property rather than `define:vars`, which would inline a
-	    copy of this whole style block per figure on a photo-heavy post. */}
+	{/* An inline custom property; `define:vars` would copy this style
+	    block per figure. */}
 	<div class:list={['media', tint]} style={`--media-height: ${height}px`}>
 		{props.src ? <Image src={props.src} alt={props.alt} /> : placeholder}
 	</div>
@@ -54,8 +53,8 @@ const { height = 240, caption, tint, placeholder, variant = 'figure' } = props;
 		align-items: center;
 		justify-content: center;
 		height: var(--media-height);
-		/* Faded-ink hatch marks the box as a placeholder; a real image covers it.
-		   The 1.5px stroke on an 8px pitch is drawn geometry, not spacing. */
+		/* The hatch marks the placeholder; a real image covers it. The 1.5px
+		   stroke on an 8px pitch is drawn geometry, not spacing. */
 		background:
 			repeating-linear-gradient(45deg, var(--placeholder-hatch) 0 1.5px, transparent 1.5px 8px),
 			var(--surface);
@@ -85,8 +84,8 @@ const { height = 240, caption, tint, placeholder, variant = 'figure' } = props;
 		background: var(--tint-rose-bg);
 	}
 
-	/* The frame sets the height, so the image crops rather than dictates it.
-	   Beats the responsive-image defaults, which ship at `:where()` specificity. */
+	/* The frame sets the height; the image crops to it. Overrides the
+	   responsive-image defaults, which ship at `:where()` specificity. */
 	.media img {
 		width: 100%;
 		height: 100%;

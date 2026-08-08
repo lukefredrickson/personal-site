@@ -15,8 +15,7 @@ interface Props {
 
 const { prev, next } = Astro.props;
 
-// Both halves render identically apart from the values below, so they are
-// data rather than two near-copies of the markup.
+// Both halves render identically, so the differences are data.
 const sides = [
 	{ side: 'prev', label: 'previous', icon: MoveLeft, post: prev, fallback: "that's the first one!" },
 	{ side: 'next', label: 'next', icon: MoveRight, post: next, fallback: "that's the latest one!" },
@@ -57,7 +56,7 @@ const sides = [
 		text-decoration: none;
 	}
 
-	/* Only a real neighbor is a link, and the lift is what says so. */
+	/* Only a real neighbor is a link; only links get the shadow. */
 	a.card {
 		box-shadow: var(--shadow-sm);
 	}
@@ -75,9 +74,8 @@ const sides = [
 		font-size: var(--text-meta);
 	}
 
-	/* Arrows point outward: away from the label, toward the post. Reversing the
-	   row also packs the pair against the right edge, under the right-aligned
-	   title — main-start moves to the right with it. */
+	/* Arrows point outward. row-reverse also packs the pair against the
+	   right edge, under the right-aligned title. */
 	.next .dir {
 		flex-direction: row-reverse;
 	}
@@ -94,7 +92,7 @@ const sides = [
 		color: var(--text-faint);
 	}
 
-	/* Two titles side by side stop being readable before the column does. */
+	/* Two side-by-side titles stop being readable on narrow viewports. */
 	@media (max-width: 40rem) {
 		.prev-next {
 			grid-template-columns: 1fr;

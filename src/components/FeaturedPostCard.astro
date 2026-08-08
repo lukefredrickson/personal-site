@@ -5,8 +5,8 @@ import DraftBadge from './DraftBadge.astro';
 import TagPill, { type Tag } from './TagPill.astro';
 
 /**
- * Hero and its alt text travel together, mirroring the collection schema's
- * `heroAlt`-required-with-`hero` refinement. Omit both for the placeholder.
+ * `hero` and `heroAlt` come together or not at all, mirroring the collection
+ * schema's refinement. Omit both for the placeholder.
  */
 type Hero = { hero: ImageMetadata; heroAlt: string } | { hero?: undefined; heroAlt?: undefined };
 
@@ -19,20 +19,19 @@ type Props = Hero & {
 	/** The post's `description`. */
 	excerpt?: string;
 	tags?: Tag[];
-	/** Badges the card unpublished — only true in dev and on previews (ADR 0021). */
+	/** Shows the draft badge; true only in dev and on previews (ADR 0021). */
 	draft?: boolean;
 	/** Label drawn in the hatched frame while a post has no hero. */
 	placeholder?: string;
 };
 
-// `hero` and `heroAlt` stay on `props`: narrowing `props.hero` is what proves
-// to TypeScript that `props.heroAlt` came with it.
+// Narrowing `props.hero` proves to TypeScript that `props.heroAlt` is present.
 const props = Astro.props;
 const { title, href, date, excerpt, tags = [], draft = false, placeholder } = props;
 ---
 
-{/* Only the newest post gets this treatment; size and position say "latest",
-    so there is no badge. */}
+{/* Only the newest post renders this card. Size and position mark it as
+    latest, so there is no badge. */}
 <article class="featured-post">
 	<div class="media">
 		{props.hero ? <Image src={props.hero} alt={props.heroAlt} /> : placeholder}
@@ -65,12 +64,11 @@ const { title, href, date, excerpt, tags = [], draft = false, placeholder } = pr
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		/* Lead image: tall enough to read as a photo, short enough that the
-		   title still lands above the fold on a phone. */
+		/* 150px keeps the title above the fold on a phone. */
 		height: 150px;
 		border-bottom: var(--border-w) solid var(--border-strong);
-		/* Faded-ink hatch marks the box as a placeholder; a real hero covers it.
-		   The 1.5px stroke on an 8px pitch is drawn geometry, not spacing. */
+		/* The hatch marks the placeholder; a real hero covers it. The 1.5px
+		   stroke on an 8px pitch is drawn geometry, not spacing. */
 		background:
 			repeating-linear-gradient(45deg, var(--placeholder-hatch) 0 1.5px, transparent 1.5px 8px),
 			var(--surface);
@@ -79,8 +77,8 @@ const { title, href, date, excerpt, tags = [], draft = false, placeholder } = pr
 		font-size: var(--text-caption);
 	}
 
-	/* The card sets the height, so the hero crops rather than dictates it.
-	   Beats the responsive-image defaults, which ship at `:where()` specificity. */
+	/* The card sets the height; the hero crops to it. Overrides the
+	   responsive-image defaults, which ship at `:where()` specificity. */
 	.media img {
 		width: 100%;
 		height: 100%;
@@ -101,7 +99,7 @@ const { title, href, date, excerpt, tags = [], draft = false, placeholder } = pr
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
-		/* Chips drop to a second line before they squeeze the date. */
+		/* Chips wrap to a second line rather than compress the date. */
 		flex-wrap: wrap;
 		color: var(--text-muted);
 		font-family: var(--font-mono);
@@ -120,9 +118,8 @@ const { title, href, date, excerpt, tags = [], draft = false, placeholder } = pr
 		text-decoration: none;
 	}
 
-	/* The whole card is the target, without nesting the tag chips' links inside
-	   an outer <a> — which is invalid HTML. Cost: text over the card is no
-	   longer selectable. */
+	/* The overlay makes the whole card the target; a nested <a> is invalid
+	   HTML. Card text stops being selectable. */
 	.title a::after {
 		content: '';
 		position: absolute;

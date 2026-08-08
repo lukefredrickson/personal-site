@@ -11,24 +11,22 @@ interface Props {
 	/** The post's `description`. Index rows carry it; home rows don't. */
 	excerpt?: string;
 	tags?: Tag[];
-	/** Badges the row unpublished — only true in dev and on previews (ADR 0021). */
+	/** Shows the draft badge; true only in dev and on previews (ADR 0021). */
 	draft?: boolean;
-	/** Home "Writing" rows: chips ride the title line instead of sitting below. */
+	/** Home "Writing" rows: tag chips move onto the title line. */
 	compact?: boolean;
 }
 
 const { title, href, date, excerpt, tags = [], draft = false, compact = false } = Astro.props;
 ---
 
-{/* Text only — photos are the featured post's alone; list rows never carry
-    thumbs. */}
+{/* List rows render no images; only the featured post card carries one. */}
 <article class:list={['post-row', { compact }]}>
-	{/* h3: rows sit under a section heading on home and a year heading on the
-	    index. */}
+	{/* h3: rows sit under a section heading (home) or a year heading (index). */}
 	<h3 class="title"><a href={href}>{title}</a></h3>
 	<span class="date">{date}</span>
 	{excerpt && <p class="excerpt">{excerpt}</p>}
-	{/* The marker leads the chip row: first thing scanned, ahead of the tags. */}
+	{/* The draft badge leads the chip row, ahead of the tags. */}
 	{
 		(draft || tags.length > 0) && (
 			<div class="tags">
@@ -44,18 +42,17 @@ const { title, href, date, excerpt, tags = [], draft = false, compact = false } 
 		/* Containing block for the title link's row-wide hit area. */
 		position: relative;
 		display: grid;
-		/* The title takes the slack; the date hugs the right margin. */
+		/* The title column flexes; the date column fits its content. */
 		grid-template-columns: 1fr auto;
 		align-items: baseline;
 		column-gap: var(--space-3);
 		row-gap: var(--space-1);
 		padding: var(--space-4) 0;
-		/* Dividers are hairlines, the one place 1px beats --border-w. */
+		/* Dividers are 1px hairlines, not --border-w. */
 		border-bottom: 1px solid var(--hairline);
 	}
 
-	/* The last row closes its group — no rule under it, and no `divider` prop
-	   for a screen to keep in sync with its own list. */
+	/* The last row in a group draws no divider. */
 	.post-row:last-child {
 		border-bottom: none;
 	}
@@ -73,9 +70,8 @@ const { title, href, date, excerpt, tags = [], draft = false, compact = false } 
 		text-decoration: none;
 	}
 
-	/* The whole row is the target, without nesting the tag chips' links inside
-	   an outer <a> — which is invalid HTML. Cost: text in the row is no longer
-	   selectable. */
+	/* The overlay makes the whole row the target; a nested <a> is invalid
+	   HTML. Row text stops being selectable. */
 	.title a::after {
 		content: '';
 		position: absolute;
@@ -108,8 +104,8 @@ const { title, href, date, excerpt, tags = [], draft = false, compact = false } 
 		flex-wrap: wrap;
 	}
 
-	/* One DOM shape, two arrangements: a home row lifts its chips onto the title
-	   line by taking a third column, ahead of the date. */
+	/* Compact rows add a third column: chips sit on the title line,
+	   before the date. */
 	.compact {
 		grid-template-columns: 1fr auto auto;
 	}
@@ -123,9 +119,8 @@ const { title, href, date, excerpt, tags = [], draft = false, compact = false } 
 		grid-column: 3;
 	}
 
-	/* Title, chips and date stop sharing a line long before the column does, and
-	   the chips can't wrap inside an auto column — so a narrow compact row falls
-	   back to the default arrangement. */
+	/* Chips cannot wrap inside an auto column, so a narrow compact row
+	   falls back to the default arrangement. */
 	@media (max-width: 40rem) {
 		.compact {
 			grid-template-columns: 1fr auto;

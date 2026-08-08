@@ -6,8 +6,8 @@ import { getPublishedPosts } from '../../lib/posts';
 
 export async function getStaticPaths() {
 	const posts = await getPublishedPosts();
-	// `.at()` would wrap a -1 back onto the newest post; the bounds check is the
-	// whole reason this exists.
+	// `.at()` would wrap -1 onto the newest post; the bounds check
+	// prevents that.
 	const nth = (index: number) => (index >= 0 && index < posts.length ? posts[index] : undefined);
 
 	return posts.map((post, index) => ({
@@ -20,9 +20,8 @@ export async function getStaticPaths() {
 type Props = InferGetStaticPropsType<typeof getStaticPaths>;
 
 const { post, prev, next } = Astro.props;
-// The read-time plugin injects its minute count into the markdown pipeline's
-// frontmatter bag (ADR 0020), which `render()` hands back separately from the
-// schema-validated `post.data`.
+// The read-time plugin injects its minute count into the frontmatter bag
+// (ADR 0020); `render()` returns it separately from `post.data`.
 const { Content, remarkPluginFrontmatter } = await render(post);
 ---
 

@@ -1,22 +1,19 @@
 ---
 import type { Tint } from '../lib/tints';
 
-/** A post's tag as the cards and rows take it, one chip's worth. */
+/** One tag with its tint, as the cards and rows consume it. */
 export interface Tag {
 	/** Tag slug — the chip's label and its tag page (ADR 0014). */
 	tag: string;
-	/** Tinting is the caller's call: the chip owns no tag→tint map. */
+	/** The caller picks the tint; the chip owns no tag-to-tint map. */
 	tint?: Tint;
 }
 
 interface Props {
-	/**
-	 * Tag slug: labels the chip and links it to that tag's page (ADR 0014). Omit
-	 * for badges that are not tags — they pass their label as children, as
-	 * "latest" and "draft" do.
-	 */
+	/** Tag slug: labels the chip and links its tag page (ADR 0014). Omit
+	 * for non-tag badges ("latest", "draft"), which slot their label. */
 	tag?: string;
-	/** Color in a post row only ever appears on these chips. */
+	/** Only these chips carry color in a post row. */
 	tint?: Tint;
 	/** Outlined badge treatment, used for "latest". */
 	outlined?: boolean;
@@ -39,7 +36,7 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 		border-radius: var(--radius-chip);
 		font-family: var(--font-mono);
 		font-size: var(--text-chip);
-		/* Undo the body's 1.5 so the chip hugs its label. */
+		/* Undoes the body's 1.5 line-height to tighten the chip. */
 		line-height: normal;
 		white-space: nowrap;
 		text-decoration: none;
@@ -60,7 +57,7 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 		color: var(--tint-foam-fg);
 	}
 
-	/* No tag maps to rose; it is the draft marker's hue (ADR 0021). */
+	/* No tag maps to rose; rose is the draft badge's hue (ADR 0021). */
 	.rose {
 		background: var(--tint-rose-bg);
 		color: var(--tint-rose-fg);
@@ -68,8 +65,8 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 
 	/* Last so it wins over the tints at equal specificity. */
 	.outlined {
-		/* The border replaces a pixel of padding on each axis, so an outlined
-		   chip stands the same size as a filled one. */
+		/* The border replaces one pixel of padding per axis; outlined and
+		   filled chips match in size. */
 		padding: calc(var(--space-1) - 1px) calc(var(--space-2) - 1px);
 		border: 1px solid var(--latest-border);
 		background: var(--latest-bg);

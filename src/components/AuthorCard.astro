@@ -6,9 +6,9 @@ interface Props {
 	name?: string;
 	/** Short lowercase-ish descriptor, ending with a period. */
 	blurb?: string;
-	/** Where "more about me" points. */
+	/** Destination of the "more about me" link. */
 	href?: string;
-	/** The words it points with. */
+	/** Label of the "more about me" link. */
 	linkLabel?: string;
 	/** Headshot; without one the frame stays a dot-matrix placeholder. */
 	photo?: ImageMetadata;
@@ -23,13 +23,12 @@ const {
 } = Astro.props;
 ---
 
-{/* Bio beside the post it closes, not part of it. */}
+{/* An aside: the bio sits beside the post, not inside it. */}
 <aside class="author-card">
-	{/* The declared width is the rendered width: without it the responsive
-	    pipeline sizes a full-bleed image and ships megabytes for a 52px thumb. */}
+	{/* The declared width is the rendered width; without it the responsive
+	    pipeline ships a full-size image for a 52px thumb. */}
 	<div class="photo">{photo && <Image src={photo} alt={name} width={52} />}</div>
-	{/* The sentence around the link is boilerplate, not content — one author,
-	    one destination, and only the words worth varying are props. */}
+	{/* The sentence is fixed copy; only the varying words are props. */}
 	<p class="bio">
 		<b>{name}</b> — {blurb} More about me + career highlights on the <a href={href}>{linkLabel}</a>.
 	</p>
@@ -47,14 +46,14 @@ const {
 	}
 
 	.photo {
-		/* Square thumb, never squeezed by a long bio. */
+		/* Fixed square; a long bio does not shrink it. */
 		flex: none;
 		width: 52px;
 		height: 52px;
 		overflow: hidden;
 		border: var(--border-w) solid var(--border-strong);
 		border-radius: var(--radius-sm);
-		/* Dot matrix shows through until a headshot is passed. Drawn geometry. */
+		/* The dot matrix shows until a headshot is passed. Drawn geometry. */
 		background:
 			radial-gradient(var(--placeholder-dot) 1px, transparent 1.1px) 0 0 / 7px 7px, var(--surface);
 	}
