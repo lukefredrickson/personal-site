@@ -1,0 +1,161 @@
+---
+import { MapPin } from '@lucide/astro';
+import type { ImageMetadata } from 'astro';
+import Card from './Card.astro';
+import LogoTile from './LogoTile.astro';
+
+interface Props {
+	school: string;
+	degree: string;
+	/** Subject only — the card supplies the "Minor in" label. */
+	minor?: string;
+	/** Graduation year, e.g. "2022" — the degree is a milestone, not a tenure. */
+	dates: string;
+	/** e.g. "Burlington, VT" — a quiet subline under the name in the header. */
+	location?: string;
+	/** School mark. Required: no monogram fallback, there is one school. */
+	logo: ImageMetadata;
+}
+
+const { school, degree, minor, dates, location, logo } = Astro.props;
+---
+
+{/* Header anatomy matches CompanyCard so the career history reads as one card
+    family; the body is a line of credentials rather than a role timeline, but
+    it opens with the same dot so the columns align across the cards. */}
+<Card>
+	<Fragment slot="header">
+		<LogoTile logo={logo} />
+		<div class="identity">
+			<div class="name-block">
+				<h3 class="name">{school}</h3>
+				{
+					location && (
+						<span class="location">
+							<MapPin size={11} aria-hidden="true" />
+							{location}
+						</span>
+					)
+				}
+			</div>
+			<span class="dates">{dates}</span>
+		</div>
+	</Fragment>
+	<div class="credential">
+		{/* Same dot geometry as RoleEntry (ADR 0030): rem-sized, centered on the
+		    degree's first line box, so it rails up with the role dots above. */}
+		<div class="timeline">
+			<span class="dot"></span>
+		</div>
+		<p class="credentials">
+			<span class="degree">{degree}</span>
+			{minor && <span class="minor">Minor in {minor}</span>}
+		</p>
+	</div>
+</Card>
+
+<style>
+	.identity {
+		display: flex;
+		flex: 1;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: var(--space-4);
+	}
+
+	/* Name and location stack on the left; baseline alignment against the dates
+	   comes from the stack's first line (the name). */
+	.name-block {
+		display: flex;
+		flex-direction: column;
+		/* No gap: the lines' own line-height is all the separation needed. */
+		gap: 0;
+	}
+
+	.name {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-card-title);
+		font-weight: var(--weight-title);
+	}
+
+	.dates {
+		flex: none;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	/* Place belongs to the institution, so it rides under the name, a step
+	   quieter than the dates. */
+	.location {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		color: var(--text-faint);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	/* Optical: flex-centered, the pin still sits a hair low against the mono
+	   caps; the svg reaches through the Lucide component, hence :global. */
+	.location :global(svg) {
+		margin-top: -1px;
+	}
+
+	.credential {
+		--dot-size: 0.75rem;
+		--title-line: calc(var(--text-item-title) * var(--leading-body));
+
+		display: flex;
+		gap: var(--space-5);
+		padding: var(--space-5) var(--space-6);
+	}
+
+	.timeline {
+		display: grid;
+		grid-template-rows: var(--title-line);
+		justify-items: center;
+		flex: none;
+		width: var(--dot-size);
+	}
+
+	.dot {
+		align-self: center;
+		width: var(--dot-size);
+		height: var(--dot-size);
+		border: var(--border-w) solid var(--marker-muted);
+		border-radius: 50%;
+		background: var(--surface);
+	}
+
+	.credentials {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2);
+	}
+
+	/* Degree reads as a role title does; the minor sits under it in weight.
+	   Leading is explicit because --title-line reads it for the dot. */
+	.degree {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: var(--text-item-title);
+		font-weight: var(--weight-title);
+		line-height: var(--leading-body);
+	}
+
+	.minor {
+		color: var(--text-muted);
+		font-family: var(--font-body);
+		font-size: var(--text-small);
+	}
+
+	/* Separator as a pseudo-element: punctuation between fields, not content. */
+	.credentials > span + span::before {
+		content: '·';
+		margin-right: var(--space-2);
+		color: var(--text-faint);
+	}
+</style>
