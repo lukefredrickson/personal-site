@@ -68,7 +68,8 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 	.name-block {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-1);
+		/* Tighter than --space-1: the subline should hug its name. */
+		gap: 2px;
 	}
 
 	.dates {

@@ -67,7 +67,8 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 	.name-block {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-1);
+		/* Tighter than --space-1: the subline should hug its name. */
+		gap: 2px;
 	}
 
 	.dates {
