@@ -40,7 +40,9 @@ This branch is one layer of a stacked-PR walk, based on `{{BASE_BRANCH}}`. Revie
      @.sandcastle/prompts/CODING_STANDARDS.md.
    - Survivors speak the ubiquitous language: domain concepts use their
      glossary names from `CONTEXT.md` at repo root — no synonyms, no
-     coinages.
+     coinages. If the change introduces a brand-new concept with no
+     glossary entry, add the entry to `CONTEXT.md`; do not let the
+     concept ship unnamed.
 
    A well-written paragraph is not exempt — well-written rationale
    belongs in the ADR, well-written explanation belongs in a docs page;

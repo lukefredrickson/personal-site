@@ -66,7 +66,8 @@ it.
   - Active voice, present tense.
   - One fact per sentence. At most 20 words per sentence.
   - One word per meaning: use the glossary names from `CONTEXT.md`. No
-    synonyms, no coinages.
+    synonyms, no coinages. A brand-new concept gets a `CONTEXT.md`
+    glossary entry first; its entry name is then the one word.
   - Verbs stay verbs (the code "restacks"; it does not "do a restack").
   - No metaphor, no flourish, no scene-setting.
   - Keep the articles — telegram style is not concision.

@@ -48,7 +48,10 @@ pass over comments the diff adds or edits — delete no-constraint
 comments, swap rationale for an ADR reference, compress over-cap
 comments, rewrite survivors in the register and in the ubiquitous
 language (CONTEXT.md glossary names, called out in the pass itself, not
-only via the standards). A well-written paragraph is
+only via the standards). The language is kept current: a change that
+introduces a brand-new domain concept adds its glossary entry to
+CONTEXT.md, so the one-word-per-meaning rule always has a word to
+point at. A well-written paragraph is
 explicitly not exempt: well-written rationale is ADR content in the
 wrong place, well-written explanation is a docs page in the wrong
 place. The implement prompt gains one instruction pinning rationale to
