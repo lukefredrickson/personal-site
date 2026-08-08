@@ -16,7 +16,7 @@ const { logo, tint = 'neutral' } = Astro.props;
 <div class:list={['logo-tile', !logo && tint]}>
 	{/* Decorative — the entity's name is always right beside the tile. Rendered
 	    at twice the tile so the raster holds up on dense displays; CSS fits it. */}
-	{logo ? <Image src={logo} alt="" width={88} /> : <slot />}
+	{logo ? <Image src={logo} alt="" width={104} /> : <slot />}
 </div>
 
 <style>
@@ -25,8 +25,9 @@ const { logo, tint = 'neutral' } = Astro.props;
 		align-items: center;
 		justify-content: center;
 		flex: none;
-		width: 44px;
-		height: 44px;
+		/* Sized against the two-line header (name + location subline) beside it. */
+		width: 52px;
+		height: 52px;
 		border: var(--border-w) solid var(--border-strong);
 		border-radius: var(--radius-sm);
 		overflow: hidden;

@@ -11,7 +11,7 @@ interface Props {
 	minor?: string;
 	/** Graduation year, e.g. "2022" — the degree is a milestone, not a tenure. */
 	dates: string;
-	/** e.g. "Burlington, VT" — shown under the dates in the header. */
+	/** e.g. "Burlington, VT" — a quiet subline under the name in the header. */
 	location?: string;
 	/** School mark. Required: no monogram fallback, there is one school. */
 	logo: ImageMetadata;
@@ -26,9 +26,8 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 	<Fragment slot="header">
 		<LogoTile logo={logo} />
 		<div class="identity">
-			<h3 class="name">{school}</h3>
-			<div class="meta">
-				<span class="dates">{dates}</span>
+			<div class="name-block">
+				<h3 class="name">{school}</h3>
 				{
 					location && (
 						<span class="location">
@@ -38,6 +37,7 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 					)
 				}
 			</div>
+			<span class="dates">{dates}</span>
 		</div>
 	</Fragment>
 	<p class="credentials">
@@ -62,22 +62,23 @@ const { school, degree, minor, dates, location, logo } = Astro.props;
 		font-weight: var(--weight-title);
 	}
 
-	/* Dates and location stack on the right; baseline alignment against the
-	   name comes from the stack's first line (the dates). */
-	.meta {
+	/* Name and location stack on the left; baseline alignment against the dates
+	   comes from the stack's first line (the name). */
+	.name-block {
 		display: flex;
-		flex: none;
 		flex-direction: column;
-		align-items: flex-end;
 		gap: var(--space-1);
 	}
 
 	.dates {
+		flex: none;
 		color: var(--text-muted);
 		font-family: var(--font-mono);
 		font-size: var(--text-meta);
 	}
 
+	/* Place belongs to the institution, so it rides under the name, a step
+	   quieter than the dates. */
 	.location {
 		display: flex;
 		align-items: center;

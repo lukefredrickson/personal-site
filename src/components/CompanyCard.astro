@@ -9,7 +9,7 @@ interface Props {
 	name: string;
 	/** e.g. "Feb 2023 – now" or "Sept – Dec 2020" — ranges use a spaced – (en-dash). */
 	dates: string;
-	/** e.g. "Burlington, VT" — shown under the dates in the header. */
+	/** e.g. "Burlington, VT" — a quiet subline under the name in the header. */
 	location?: string;
 	/** Employer logo; falls back to the monogram when absent. */
 	logo?: ImageMetadata;
@@ -28,9 +28,8 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 	<Fragment slot="header">
 		<LogoTile logo={logo} tint={tint}>{monogram}</LogoTile>
 		<div class="identity">
-			<h3 class="name">{name}</h3>
-			<div class="meta">
-				<span class="dates">{dates}</span>
+			<div class="name-block">
+				<h3 class="name">{name}</h3>
 				{
 					location && (
 						<span class="location">
@@ -40,6 +39,7 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 					)
 				}
 			</div>
+			<span class="dates">{dates}</span>
 		</div>
 	</Fragment>
 	<div class="roles">
@@ -63,22 +63,23 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 		font-weight: var(--weight-title);
 	}
 
-	/* Dates and location stack on the right; baseline alignment against the
-	   name comes from the stack's first line (the dates). */
-	.meta {
+	/* Name and location stack on the left; baseline alignment against the dates
+	   comes from the stack's first line (the name). */
+	.name-block {
 		display: flex;
-		flex: none;
 		flex-direction: column;
-		align-items: flex-end;
 		gap: var(--space-1);
 	}
 
 	.dates {
+		flex: none;
 		color: var(--text-muted);
 		font-family: var(--font-mono);
 		font-size: var(--text-meta);
 	}
 
+	/* Place belongs to the institution, so it rides under the name, a step
+	   quieter than the dates. */
 	.location {
 		display: flex;
 		align-items: center;
