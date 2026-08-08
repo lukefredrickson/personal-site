@@ -86,6 +86,15 @@ import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { openRunLog } from "./exec.ts";
 import {
+  phaseRule,
+  RUN_START_BANNER,
+  RUN_SUMMARY_BANNER,
+  say,
+  sayBanner,
+  sayError,
+  stampPrompt,
+} from "./render.ts";
+import {
   applyMutationsToGitHub,
   computePlan,
   deletePlan,
@@ -109,16 +118,17 @@ import {
 } from "./walk.ts";
 
 async function planCommand(): Promise<never> {
+  phaseRule("plan");
   // `plan` is the force-replan gesture: whatever plan exists is stale by
   // declaration, so it goes before the new one is computed.
   if (existsSync(PLAN_FILE)) {
     deletePlan();
-    console.log(`Discarded the existing plan at ${PLAN_FILE} — replanning.\n`);
+    say(`Discarded the existing plan at ${PLAN_FILE} — replanning.\n`);
   }
   const plan = await computePlan();
   writePlan(plan);
   printPlan(plan);
-  console.log(
+  say(
     `\nPlan written to ${PLAN_FILE}; no GitHub writes were made. Execute ` +
       `it with \`npm run sandcastle\`.`,
   );
@@ -131,15 +141,18 @@ async function planCommand(): Promise<never> {
 // Non-interactive stdin gets no gate — there is nobody to ask, and
 // blocking forever would be worse than the pre-gate behavior.
 async function approvePlanOrExit(): Promise<void> {
+  phaseRule("approve");
   if (!process.stdin.isTTY) {
-    console.log("\nstdin is not a TTY — executing without approval pause.");
+    say("stdin is not a TTY — executing without approval pause.");
     return;
   }
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   await rl.question(
-    `\nPress Enter to execute this plan, or Ctrl-C to stop here ` +
-      `(the plan stays at ${PLAN_FILE}: \`npm run sandcastle\` executes ` +
-      `it, \`npm run sandcastle plan\` replans). `,
+    stampPrompt(
+      `Press Enter to execute this plan, or Ctrl-C to stop here ` +
+        `(the plan stays at ${PLAN_FILE}: \`npm run sandcastle\` executes ` +
+        `it, \`npm run sandcastle plan\` replans). `,
+    ),
   );
   rl.close();
 }
@@ -150,23 +163,24 @@ async function runCommand(): Promise<never> {
   try {
     preflightGhToken();
   } catch (error) {
-    console.error(
-      `✗ ${error instanceof Error ? error.message : String(error)}`,
-    );
+    sayError(`✗ ${error instanceof Error ? error.message : String(error)}`, {
+      role: "fail",
+    });
     process.exit(1);
   }
 
   // Load (or make) the plan to run. Only a freshly computed plan gets the
   // approval gate — an existing file was either already approved or is a
   // failed run's resume state, and both should proceed unprompted.
+  phaseRule("plan");
   let plan = readPlan();
   const freshlyPlanned = plan === undefined;
   if (plan === undefined) {
-    console.log(`No plan file at ${PLAN_FILE} — planning first.\n`);
+    say(`No plan file at ${PLAN_FILE} — planning first.\n`);
     plan = await computePlan();
     writePlan(plan);
   } else {
-    console.log(
+    say(
       `Resuming the existing plan at ${PLAN_FILE} as-is; run ` +
         `\`npm run sandcastle plan\` first if the backlog has changed.\n`,
     );
@@ -177,7 +191,7 @@ async function runCommand(): Promise<never> {
   // no-op that trivially succeeds, so it is consumed like any other plan.
   if (plan.stacks.length === 0) {
     deletePlan();
-    console.log("\nNothing needed changing. Plan file deleted.");
+    say("\nNothing needed changing. Plan file deleted.");
     process.exit(0);
   }
 
@@ -189,10 +203,11 @@ async function runCommand(): Promise<never> {
     // A half-applied proposal must not walk: the stacks assume the amended
     // graph. The plan is retained and application is idempotent, so a
     // re-run picks up where this one stopped.
-    console.error(
+    sayError(
       `\n✗ Failed applying blocked-by mutations: ` +
         `${error instanceof Error ? error.message : String(error)}\n` +
         `Plan retained at ${PLAN_FILE} — fix and re-run \`npm run sandcastle\`.`,
+      { role: "fail" },
     );
     process.exit(1);
   }
@@ -202,8 +217,9 @@ async function runCommand(): Promise<never> {
   // stacks actually finish in. With concurrent sandboxes the interleaved
   // log needs its lines self-identifying, which is why every walk message
   // names its issue and stack.
-  console.log(
-    `\nRunning ${plan.stacks.length} stack(s) with a global cap of ` +
+  phaseRule("execute");
+  say(
+    `Running ${plan.stacks.length} stack(s) with a global cap of ` +
       `${MAX_SANDBOXES} concurrent sandbox(es).`,
   );
   let outcomes: StackOutcome[];
@@ -226,8 +242,9 @@ async function runCommand(): Promise<never> {
   }
 
   // Summarize.
-  console.log(`\n=== Run summary ===\n`);
+  sayBanner(RUN_SUMMARY_BANNER);
   for (const [i, outcome] of outcomes.entries()) {
+    const tag = { stack: i + 1 };
     const done =
       outcome.chained.length === 0
         ? "none"
@@ -237,40 +254,46 @@ async function runCommand(): Promise<never> {
         ? ""
         : `, ${outcome.skipped.length} already complete`;
     if (outcome.pruned.length > 0) {
-      console.log(
+      say(
         `✗ Stack ${i + 1}/${outcomes.length}: ${outcome.chained.length}/` +
           `${outcome.stack.length} step(s) chained (${done}${skippedSuffix}); ` +
           `pruned:`,
+        { role: "fail", tag },
       );
       for (const { step, reason } of outcome.pruned) {
-        console.log(`    #${step.issue.number} (${step.branch}) — ${reason}`);
+        say(`    #${step.issue.number} (${step.branch}) — ${reason}`, {
+          tag: { ...tag, issue: step.issue.number },
+        });
       }
     } else {
-      console.log(
+      say(
         `✓ Stack ${i + 1}/${outcomes.length}: all ${outcome.stack.length} ` +
           `step(s) chained (${done}${skippedSuffix})`,
+        { role: "success", tag },
       );
     }
     // The audit trail for the owner: these branches carry conflict
     // resolutions an agent authored (or rerere replayed from one), not
     // just replayed commits.
     for (const { step, via } of outcome.resolved) {
-      console.log(
+      say(
         via === "agent"
           ? `    ↻ #${step.issue.number} (${step.branch}) — rebase conflict ` +
               `agent-resolved; audit the resolution when reviewing.`
           : `    ↻ #${step.issue.number} (${step.branch}) — rebase conflict ` +
               `auto-resolved from recorded rerere resolutions.`,
+        { role: "warn", tag: { ...tag, issue: step.issue.number } },
       );
     }
     // Everything the run touched outside origin: each local branch ref
     // moved to follow a force-push, so the operator can audit their own
     // checkout's state against this list.
     for (const move of outcome.localRefMoves) {
-      console.log(
+      say(
         `    ↪ local ${move.branch} moved ${move.from.slice(0, 12)} → ` +
           `${move.to.slice(0, 12)} (followed a force-push or a ` +
           `stale-branch rebuild).`,
+        { role: "dim", tag },
       );
     }
   }
@@ -286,16 +309,19 @@ async function runCommand(): Promise<never> {
   const linkFailures: string[] = [];
   for (const [i, outcome] of outcomes.entries()) {
     const label = `stack ${i + 1}/${outcomes.length}`;
-    if (!linkChainedPrs(effects, outcome.chained, label)) linkFailures.push(label);
+    if (!linkChainedPrs(effects, outcome.chained, label, { stack: i + 1 })) {
+      linkFailures.push(label);
+    }
   }
 
   const prunedCount = outcomes.filter((o) => o.pruned.length > 0).length;
   const missingPrs = outcomes.flatMap((o) => o.missingPrs);
 
   if (missingPrs.length > 0) {
-    console.error(
+    sayError(
       `\n${missingPrs.length} branch(es) have commits but no PR: ` +
         missingPrs.join(", "),
+      { role: "warn" },
     );
   }
 
@@ -303,18 +329,20 @@ async function runCommand(): Promise<never> {
     // Keep the plan: a resume re-executes identical walks — steps with open
     // PRs skip their sandboxes and no-op their restacks, so each stack picks
     // back up at its first incomplete step and pruned work gets retried.
-    console.error(
+    sayError(
       `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle\` ` +
         `to resume the same walks.`,
+      { role: "fail" },
     );
     process.exit(1);
   }
 
   deletePlan();
-  console.log(
+  say(
     `\nAll done; plan file deleted. Stacks are linked on GitHub — review ` +
       `each one bottom-up, merge the bottom PR first, and let ` +
       `auto-retargeting handle the rest.`,
+    { role: "success" },
   );
   process.exit(0);
 }
@@ -328,13 +356,17 @@ if (command !== "plan" && command !== undefined) {
       : command === "--dry-run"
         ? ` (--dry-run is retired; \`plan\` replaces it)`
         : ` (unknown command "${command}")`;
-  console.error(`Usage: npm run sandcastle [plan]${hint}`);
+  sayError(`Usage: npm run sandcastle [plan]${hint}`, { role: "fail" });
   process.exit(1);
 }
+
+// The run-start banner fires only once the invocation is valid — a usage
+// error should not announce a run that never begins.
+sayBanner(RUN_START_BANNER);
 
 // Opened before anything can spawn: every child process this invocation
 // runs — git probes, npm gates, gh calls — tees its raw output here, so
 // the console can summarize without ever losing information.
-console.log(`Raw child-process output tees to ${openRunLog()}.\n`);
+say(`Raw child-process output tees to ${openRunLog()}.\n`);
 
 await (command === "plan" ? planCommand() : runCommand());

@@ -12,6 +12,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { sayError } from "./render.ts";
 
 // Shared with the sandcastle library's own sandbox logs; gitignored.
 export const LOGS_DIR = ".sandcastle/logs";
@@ -142,11 +143,15 @@ export function runCaptured(
  */
 export function printChildFailure(error: unknown): void {
   if (!(error instanceof ChildFailure)) {
-    console.error(error instanceof Error ? error.message : String(error));
+    sayError(error instanceof Error ? error.message : String(error), {
+      role: "fail",
+    });
     return;
   }
-  console.error(`✗ ${error.message}`);
-  if (error.stdout.trim() !== "") console.error(error.stdout.trimEnd());
-  if (error.stderr.trim() !== "") console.error(error.stderr.trimEnd());
-  if (runLog !== undefined) console.error(`(raw child output: ${runLog})`);
+  sayError(`✗ ${error.message}`, { role: "fail" });
+  if (error.stdout.trim() !== "") sayError(error.stdout.trimEnd());
+  if (error.stderr.trim() !== "") sayError(error.stderr.trimEnd());
+  if (runLog !== undefined) {
+    sayError(`(raw child output: ${runLog})`, { role: "dim" });
+  }
 }

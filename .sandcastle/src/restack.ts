@@ -18,6 +18,7 @@ import { cpSync, existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { printChildFailure, runCaptured } from "./exec.ts";
 import { runHostAgent } from "./host-agent.ts";
+import { say } from "./render.ts";
 
 // ---------------------------------------------------------------------------
 // Host-side git: the restack worktree
@@ -359,9 +360,10 @@ async function attemptResolution(
   tipName: string,
   tipSha: string,
 ): Promise<string | undefined> {
-  console.log(
+  say(
     `\n↻ ${branch}: rebase onto ${tipName} conflicted — giving the ` +
       `resolver agent (claude-opus-5) one attempt before pruning…`,
+    { role: "warn" },
   );
   try {
     await runResolverAgent(worktree, branch, tipName);
@@ -667,7 +669,7 @@ export async function restackBranch(
       ["run", "check"],
     ] as const) {
       runCaptured("npm", gate, { cwd: worktree });
-      console.log(`  · ${branch}: npm ${gate.join(" ")} passed`);
+      say(`  · ${branch}: npm ${gate.join(" ")} passed`, { role: "dim" });
     }
   } catch (error) {
     printChildFailure(error);
