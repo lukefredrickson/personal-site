@@ -2,10 +2,10 @@
 // function. Issues and their blocked-by edges in, one ordered stack of
 // (issue, branch, base) per connected component out — no I/O, no side
 // effects. `main.ts` fetches the edges from GitHub's REST dependencies
-// endpoint and passes them in as data. `main.ts plan` prints the stacks
-// and persists them without touching GitHub, which is both the pre-flight
-// check before a paid run and the verification path for changes to this
-// logic (the repo intentionally has no test runner).
+// endpoint and passes them in as data. `npm run sandcastle plan` prints
+// the stacks and persists them without touching GitHub — the pre-flight
+// check before a paid run — and changes to this logic are pinned by the
+// vitest specs in `stack.test.ts` (ADR 0028).
 
 export interface StackIssue {
   readonly number: number;
