@@ -109,6 +109,11 @@ Canonical five-role vocabulary (`needs-triage`, `needs-info`,
 Single-context: one `CONTEXT.md` + `docs/adr/` at repo root. See
 `docs/agents/domain.md`.
 
+## Sandcastle
+
+The agent factory in `.sandcastle/` has its own orientation doc:
+`.sandcastle/CLAUDE.md` — read it before touching factory code.
+
 ## Development
 
 Start the dev server in background mode:
