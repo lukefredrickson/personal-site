@@ -46,7 +46,9 @@ the CONTEXT.md ubiquitous language):
 Enforcement: the review prompt's weak comment bullet becomes a mandatory
 pass over comments the diff adds or edits — delete no-constraint
 comments, swap rationale for an ADR reference, compress over-cap
-comments, rewrite survivors in the register. A well-written paragraph is
+comments, rewrite survivors in the register and in the ubiquitous
+language (CONTEXT.md glossary names, called out in the pass itself, not
+only via the standards). A well-written paragraph is
 explicitly not exempt: well-written rationale is ADR content in the
 wrong place, well-written explanation is a docs page in the wrong
 place. The implement prompt gains one instruction pinning rationale to

@@ -38,6 +38,9 @@ This branch is one layer of a stacked-PR walk, based on `{{BASE_BRANCH}}`. Revie
      record decisions; they are not documentation.
    - Rewrite the survivors in the comment register from
      @.sandcastle/prompts/CODING_STANDARDS.md.
+   - Survivors speak the ubiquitous language: domain concepts use their
+     glossary names from `CONTEXT.md` at repo root — no synonyms, no
+     coinages.
 
    A well-written paragraph is not exempt — well-written rationale
    belongs in the ADR, well-written explanation belongs in a docs page;

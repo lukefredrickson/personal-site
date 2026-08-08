@@ -29,7 +29,9 @@ client JS by default, scoped styles on the design tokens, and the Astro docs
 MCP (`astro-docs`) beats training data — consult it for any Astro question.
 
 All rationale goes in the ADR; code comments never restate it — a comment
-states a constraint and references the ADR (`/* ADR NNNN */`).
+states a constraint and references the ADR (`/* ADR NNNN */`). Comments
+speak the ubiquitous language: glossary names from `CONTEXT.md`, no
+synonyms.
 
 # EXPLORATION
 
