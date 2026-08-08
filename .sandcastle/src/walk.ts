@@ -1,26 +1,8 @@
-// The wave walk: one stack, built in waves, restacked into a chain
-//
-// Each stack executes in the wave shape: a stack's issues are grouped
-// into the topological levels of the blocked-by graph, every issue in a
-// level builds in its own sandbox cut from the current chain tip, and a
-// finished wave restacks serially into the single linear chain the plan
-// promised. The walk owns the sandbox lifecycle and the prune logic; it
-// talks to origin only through the restack module's named operations,
-// and everything it learns comes back in its StackOutcome — no hidden
-// outputs. The run's shared context (sandbox pool, restack lock,
-// effects boundary) arrives as parameters, constructed once by the run
-// command and shared by every concurrent stack.
-//
-// Every effect the walk performs — gh queries, sandbox builds, the
-// restack module's git surgery — goes through the WalkEffects boundary,
-// so the walk itself is a state machine over data: specs drive it with
-// fakes and assert on its decisions (ADR 0029). `productionWalkEffects`
-// is the real wiring.
-//
-// Across runs the walk remembers nothing but the PR ledger: every PR on
-// a step's branch, any state, decides at step start whether the step is
-// complete, rejected, or stale (ADR 0034). Branch contents are never
-// trusted as progress.
+// The wave walk of one stack: sandbox lifecycle, prune logic, and the
+// serial restack of each finished wave. Every effect goes through the
+// WalkEffects boundary, so the walk is a state machine over data
+// (ADR 0029). Across runs the walk remembers nothing but the PR ledger
+// (ADR 0034). Pipeline: .sandcastle/docs/pipeline.md.
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -40,32 +22,26 @@ import {
 } from "./restack.ts";
 import { pruneClosure, waveLevels, type StackStep } from "./stack.ts";
 
-// Hooks run inside the sandbox before the agent starts each iteration.
-// npm install ensures the sandbox always has fresh dependencies.
+// Runs inside the sandbox before each agent iteration; npm install
+// keeps the sandbox's dependencies fresh.
 const hooks = {
   sandbox: { onSandboxReady: [{ command: "npm install" }] },
 };
 
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full npm install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
+// Seed each sandbox worktree with the host's node_modules; the hook
+// above trues up platform binaries and newly added packages.
 const copyToWorktree = ["node_modules"];
 
-// How many sandboxes may run at once, across all stacks and waves
-// combined. One global pool, not per-stack: the binding resource
-// (containers, paid agents) is machine- and budget-wide.
+// One global pool across all stacks: the binding resource (containers,
+// paid agents) is machine- and budget-wide (ADR 0018).
 export const MAX_SANDBOXES = 3;
 
-// How long a sandboxed agent may be console-silent before the library
-// kills its run. The 600 s default read healthy agents deep in long tool
-// calls as hangs; the `--idle-timeout` CLI flag the library's error
-// message suggests does not exist in v0.12.0 — this option is the knob.
+// The library's 600 s default reads long tool calls as hangs, and its
+// suggested --idle-timeout flag does not exist in v0.12.0.
 const IDLE_TIMEOUT_SECONDS = 1800;
 
-// Counting semaphore. `use` waits for a slot, runs the thunk, and frees
-// the slot when it settles. Waiters resume in FIFO order, so a wave
-// wider than the cap starts its queued members in level order as slots
-// free up. With one slot it is a mutex.
+// Counting semaphore: `use` waits for a slot, runs the thunk, frees
+// the slot. Waiters resume in FIFO order. One slot makes it a mutex.
 export class Semaphore {
   #free: number;
   readonly #waiters: (() => void)[] = [];
@@ -107,10 +83,9 @@ type LedgerVerdict =
   | { readonly kind: "stale"; readonly why: string }
   | { readonly kind: "fresh" };
 
-// The resume verdict (ADR 0034). An open PR always wins; otherwise the
-// newest PR decides — merged means the work landed, closed means the
-// operator rejected it. With no PRs at all the branch is either debris
-// from a dead run (stale) or absent (fresh); its contents never count.
+// The resume verdict (ADR 0034): an open PR wins; otherwise the newest
+// PR decides — merged is complete, closed is rejected. With no PRs the
+// branch is stale (dead-run leftovers) or fresh; contents never count.
 function ledgerVerdict(
   ledger: readonly LedgerPr[],
   branchExists: boolean,
@@ -147,13 +122,10 @@ export interface SandboxBuild {
   readonly stdout: string;
 }
 
-// The walk's entire outward surface. Everything runStack does to the
-// world — ask GitHub about PRs, build a branch in a sandbox, drive the
-// restack worktree — is a method here, so specs can run the walk against
-// fakes and assert on its decisions. The restack methods close over the
-// worktree: the walk never sees a path, and "restacking owns git" stays
-// structural. Methods throw on failure exactly where the production
-// commands would; the walk's catch blocks are the behavior under test.
+// The walk's entire outward surface (ADR 0029): specs run the walk
+// against fakes and assert on its decisions. The restack methods close
+// over the worktree, so "restacking owns git" stays structural.
+// Methods throw on failure exactly where the production commands would.
 export interface WalkEffects {
   /** Every PR whose head is the branch, any state — the step's ledger. */
   prLedger(branch: string): LedgerPr[];
@@ -182,13 +154,11 @@ export interface WalkEffects {
 }
 
 // The real wiring: gh on PATH, docker sandboxes, the restack module
-// against the run's shared worktree. Each adapter is thin enough to
-// review by eye — one command, except buildInSandbox's build-then-review
-// sequence — which is the deal ADR 0029 records.
+// against the run's shared worktree. Adapters stay thin (ADR 0029).
 export function productionWalkEffects(worktree: string): WalkEffects {
   return {
-    // One query returns the whole ledger; ledgerVerdict reads it. gh
-    // reports state uppercase (OPEN/MERGED/CLOSED), matching LedgerPr.
+    // One query returns the whole ledger. gh reports state uppercase,
+    // matching LedgerPr.
     prLedger(branch) {
       return JSON.parse(
         runCaptured("gh", [
@@ -222,10 +192,8 @@ export function productionWalkEffects(worktree: string): WalkEffects {
       runCaptured("gh", ["pr", "edit", branch, "--base", base]);
     },
     async buildInSandbox(step, waveBase) {
-      // baseBranch cuts the new branch from the wave's base, so each
-      // wave builds on every earlier level even though nothing has
-      // merged. It's ignored when the branch already exists, which
-      // makes a re-run resume accumulated work.
+      // baseBranch cuts the new branch from the wave's base. The
+      // library ignores it when the branch exists, so a re-run resumes.
       const sandbox = await sandcastle.createSandbox({
         branch: step.branch,
         baseBranch: waveBase,
@@ -247,7 +215,6 @@ export function productionWalkEffects(worktree: string): WalkEffects {
             BASE_BRANCH: waveBase,
           },
         });
-        // Only review if the implementer produced commits.
         if (implement.commits.length > 0) {
           await sandbox.run({
             name: `reviewer #${step.issue.number}`,
@@ -279,12 +246,10 @@ export function productionWalkEffects(worktree: string): WalkEffects {
   };
 }
 
-// Bind a chain's open PRs into a GitHub stack, bottom-to-top. `gh stack
-// link` refuses partial updates, so the full chained membership is passed
-// every time — the same call creates a new stack, grows it wave by wave,
-// and updates one reshaped by prunes. Returns false instead of throwing:
-// a failed link never stops a walk, and the run command decides what a
-// failure at run end means.
+// Bind a chain's open PRs into a GitHub stack, bottom-to-top. `gh
+// stack link` refuses partial updates, so every call passes the full
+// chained membership. Returns false instead of throwing: a failed link
+// never stops a walk.
 export function linkChainedPrs(
   effects: WalkEffects,
   chained: readonly StackStep[],
@@ -354,10 +319,8 @@ export interface StackOutcome {
   readonly localRefMoves: readonly LocalRefMove[];
 }
 
-// The run-wide state every concurrent stack shares: one sandbox pool,
-// one lock serializing use of the shared restack worktree (it has a
-// single HEAD and index), and the effects boundary wrapping it. The run
-// command constructs this once and passes it to every walk.
+// Run-wide shared state: one sandbox pool, one lock serializing the
+// shared restack worktree (one HEAD, one index), the effects boundary.
 export interface WalkContext {
   /** How many stacks this run launched — labels progress lines only. */
   readonly stackCount: number;
@@ -372,8 +335,7 @@ export async function runStack(
   ctx: WalkContext,
 ): Promise<StackOutcome> {
   const label = `stack ${stackIndex + 1}/${ctx.stackCount}`;
-  // The tag every line this walk prints carries: [S2] for stack-level
-  // lines, [S2·#139] once a line is about one step.
+  // [S2] for stack-level lines, [S2·#139] for step lines (ADR 0032).
   const tag: StackTag = { stack: stackIndex + 1 };
   const stepTag = (step: StackStep): StackTag => ({
     ...tag,
@@ -389,12 +351,12 @@ export async function runStack(
   const missingPrs: string[] = [];
   const localRefMoves: LocalRefMove[] = [];
   const pruned = new Map<number, string>();
-  // Steps in the order they joined the chain — the membership each
-  // per-wave link passes to `gh stack link`.
+  // Steps in chain-join order — the membership each per-wave link
+  // passes to `gh stack link`.
   const chainedSoFar: StackStep[] = [];
 
-  // Pruning removes the step and its dependency-descendants from the
-  // remaining walk; descendants record why so the summary reads whole.
+  // A prune removes the step and its dependency-descendants; each
+  // descendant records why, so the summary reads whole.
   const prune = (step: StackStep, reason: string): void => {
     const closure = pruneClosure(stack, [step.issue.number]);
     const descendants: number[] = [];
@@ -418,11 +380,9 @@ export async function runStack(
     );
   };
 
-  // Build one wave member in its own sandbox, drawing a slot from the
-  // global pool. Never throws: a crashed agent or sandbox reads as a
-  // failure result, which the post-wave pass turns into a prune — the
-  // catch keeps the failure contained so its siblings and the other
-  // stacks still run.
+  // Build one wave member in its own sandbox. Never throws: a crashed
+  // agent or sandbox reads as a failure result, which the post-wave
+  // pass turns into a prune; siblings and other stacks keep running.
   const buildStep = async (
     step: StackStep,
     waveBase: string,
@@ -441,11 +401,11 @@ export async function runStack(
     let failure: string | undefined;
     let rebuiltStale = false;
     try {
-      // Read at step start, not plan time — the verdict must see GitHub
+      // Read at step start, not plan time: the verdict must see GitHub
       // as it is now. Inside the try: a flaked `gh` prunes only this step.
       const ledger = ctx.effects.prLedger(step.branch);
-      // Branch existence only matters to an empty ledger (stale branch
-      // vs fresh build); the git probe is skipped when any PR exists.
+      // Branch existence matters only to an empty ledger; the git probe
+      // is skipped when any PR exists.
       const branchExists =
         ledger.length > 0 ||
         (await ctx.restackLock.use(() =>
@@ -453,7 +413,7 @@ export async function runStack(
         ));
       const verdict = ledgerVerdict(ledger, branchExists);
       if (verdict.kind === "open") {
-        // Complete — but the branch still takes its restack turn, which
+        // Complete — the branch still takes its restack turn, which
         // detects the no-op, so the chain grows through it.
         say(
           `✓ #${step.issue.number} already complete (open PR ` +
@@ -464,7 +424,7 @@ export async function runStack(
       }
       if (verdict.kind === "merged") {
         // Merged work already sits in its base branch: no restack turn,
-        // no link member, and a missed closing keyword heals here.
+        // no link member; a missed closing keyword heals here.
         say(
           `✓ #${step.issue.number} already merged (${verdict.url}) — ` +
             `sandbox skipped; closing the issue.`,
@@ -499,13 +459,8 @@ export async function runStack(
         rebuiltStale = true;
       }
 
-      // The resume ancestry gate: a leftover branch from a dead run may
-      // not descend from the base this wave assigns, and the sandbox
-      // library would reuse it as-is — smuggling pre-restack ancestry
-      // into the chain. Stale refs reset to the base so the sandbox
-      // rebuilds fresh; refs the gate must not touch prune the step
-      // with the recovery command in the reason. Under the restack lock:
-      // the gate reads origin refs and pushes through the shared worktree.
+      // The ancestry gate (ADR 0018) keeps a leftover branch from
+      // reusing pre-restack ancestry. Locked: it reads refs and pushes.
       const gate = await ctx.restackLock.use(() =>
         ctx.effects.gateBranchAncestry(step.branch, waveBaseSha),
       );
@@ -513,9 +468,8 @@ export async function runStack(
         return { failure: gate.reason, disposition: "built" };
       }
       if (gate.kind === "rebuilt") {
-        // A gate reset that moved the local ref is audited in the run
-        // summary alongside the restack-time moves — story is the same:
-        // the run touched something outside origin.
+        // A gate reset that moved the local ref is audited alongside
+        // the restack-time moves.
         if (gate.localMove !== undefined) {
           localRefMoves.push({ branch: step.branch, ...gate.localMove });
         }
@@ -531,12 +485,8 @@ export async function runStack(
       );
 
       if (build.commitCount === 0) {
-        // The implement prompt's missing-dependency tripwire: an
-        // implementer whose tree lacks a foundation the issue's spec
-        // references stops with a tagged report instead of blindly
-        // re-implementing it. Surfacing the report as the prune
-        // reason puts the suspected missing blocked-by edge in the
-        // run summary, where the operator can act on it.
+        // The missing-dependency tripwire (ADR 0018): the report becomes
+        // the prune reason, which puts the suspected edge in the summary.
         const report = /<missing-dependency>([\s\S]*?)<\/missing-dependency>/.exec(
           build.stdout,
         );
@@ -552,16 +502,9 @@ export async function runStack(
       return { failure, disposition: "built" };
     }
 
-    // The stack is only a stack if every layer has its PR. The
-    // implementer opens it from inside the sandbox, where a flaked
-    // push or `gh pr create` would otherwise pass silently — verify
-    // from the host, with the same open-PR test the skip above uses,
-    // so a step is "complete" by one definition everywhere. A missing
-    // PR doesn't invalidate the chain (the branch still restacks), so
-    // warn and keep walking; a re-run treats the step as incomplete
-    // and effectively just opens the missing PR. A flaked verification
-    // reads as a missing PR: that path already exits non-zero and
-    // retains the plan, so the next run re-checks.
+    // Verify from the host with the same open-PR test the skip uses; a
+    // sandbox-side flake would otherwise pass silently. A missing PR
+    // warns — the branch still restacks, and a re-run reopens the PR.
     let pr: string | undefined;
     try {
       pr = openPrUrl(ctx.effects, step.branch);
@@ -586,9 +529,8 @@ export async function runStack(
     return { disposition: rebuiltStale ? "rebuilt" : "built" };
   };
 
-  // The chain tip this stack is growing: starts at the trunk, advances
-  // to each branch as it joins the chain. origin/<trunk> was fetched
-  // once before the stacks launched.
+  // The chain tip this stack grows: starts at the trunk, advances as
+  // branches join. origin/<trunk> was fetched before the stacks launched.
   let tipName = stack[0]!.base;
   let tipSha = await ctx.restackLock.use(() =>
     ctx.effects.resolveOriginTip(tipName),
@@ -597,14 +539,12 @@ export async function runStack(
   for (const [depth, level] of levels.entries()) {
     const waveBase = tipName;
     // The sha the wave's sandboxes are cut from — later the replay
-    // window's start, so each branch's restack replays only the commits
-    // the branch itself added on top of this sha.
+    // window's start (ADR 0018).
     const waveBaseSha = tipSha;
 
-    // -- Build phase: every survivor of this wave concurrently, capped
-    // by the global pool, all cut from the same base — the current
-    // chain tip. Same-level steps never depend on each other, so no
-    // same-wave prune could have changed what a sibling builds.
+    // -- Build phase: every survivor concurrently, capped by the pool,
+    // all cut from the current chain tip. Same-level steps never depend
+    // on each other.
     const survivors = level.filter((step) => {
       const already = pruned.get(step.issue.number);
       if (already === undefined) return true;
@@ -618,9 +558,8 @@ export async function runStack(
       survivors.map((step) => buildStep(step, waveBase, waveBaseSha, depth)),
     );
 
-    // The wave barrier: prunes land only after every member has
-    // finished, in level order, so the pruned set and its recorded
-    // reasons are the same whichever sandbox finished first.
+    // The wave barrier (ADR 0018): prunes land after every member
+    // finishes, in level order, whichever sandbox finished first.
     const toRestack: StackStep[] = [];
     for (const [j, step] of survivors.entries()) {
       const { failure, disposition } = results[j]!;
@@ -628,8 +567,8 @@ export async function runStack(
         prune(step, failure);
         continue;
       }
-      // A merged step's work already sits inside its base branch, so it
-      // takes no restack turn and never advances the tip.
+      // A merged step's work already sits in its base branch: no
+      // restack turn, tip unchanged.
       if (disposition === "skipped-merged") {
         skippedMerged.push(step);
         continue;
@@ -639,30 +578,22 @@ export async function runStack(
       toRestack.push(step);
     }
 
-    // -- Restack phase: serial, in ascending issue-number order (the
-    // level's own order), each sibling onto the tip the previous one
-    // left. The first sibling built from the wave base itself, so its
-    // turn is the no-op case. Under the worktree lock, since another
-    // stack may be taking its restack turn right now.
+    // -- Restack phase: serial, ascending issue number, each sibling
+    // onto the tip the previous one left. Locked — another stack may
+    // hold its restack turn now.
     if (toRestack.length === 0) continue;
     await ctx.restackLock.use(async () => {
       phaseRule(
         `Restacking wave ${depth + 1}/${levels.length} of ${label} onto ${waveBase}`,
         { tag },
       );
-      // The build phase pushed new branches; make origin refs current.
-      // The tip itself never moves during a build phase — trunk was
-      // resolved once up front and every later tip sha is one this
-      // stack's own force-pushes produced.
+      // The build phase pushed new branches; refresh origin refs. The
+      // tip itself never moves during a build phase.
       ctx.effects.fetchOrigin();
 
       for (const step of toRestack) {
-        // A branch's history carries its whole chain as of when it was
-        // built, not just its dependencies. If a step chained on a
-        // previous run got pruned on this one, any branch cut on top of
-        // it would smuggle the pruned commits back into its own PR when
-        // rebased (or spuriously replay their conflict) — prune it too,
-        // naming the contamination, and let a re-run rebuild it clean.
+        // A branch cut on top of a step pruned this run would carry the
+        // pruned commits back into its own PR — prune it too, named.
         const carrier = stack.find(
           (s) =>
             pruned.has(s.issue.number) &&
@@ -730,9 +661,8 @@ export async function runStack(
           { role: "success", tag: stepTag(step) },
         );
 
-        // The force-push may have moved the operator's matching local
-        // branch under lease; report every move for the audit trail, and
-        // every skip with its recovery command.
+        // Report every local-ref move for the audit trail, and every
+        // skip with its recovery command (ADR 0018).
         if (outcome.kind === "restacked" || outcome.kind === "resolved") {
           const { localRef } = outcome;
           if (localRef.kind === "moved") {
@@ -755,9 +685,8 @@ export async function runStack(
           }
         }
 
-        // Keep every PR based on its actual predecessor in the chain, so
-        // review diffs stay per-issue even after prunes reshaped the walk.
-        // Idempotent, so the no-op path retargets too.
+        // Keep each PR based on its actual chain predecessor, so review
+        // diffs stay per-issue after prunes. The no-op path retargets too.
         try {
           ctx.effects.retargetPrBase(step.branch, tipName);
         } catch {
@@ -774,12 +703,8 @@ export async function runStack(
       }
     });
 
-    // Progressive deliverable: the chain so far is linked as soon as
-    // this wave has fully restacked, so the stack exists on GitHub
-    // while later waves are still building instead of only at run end.
-    // On a resume an existing stack can already hold PRs above this
-    // wave; gh refuses that partial update, which reads as a warning
-    // here — the run-end link with the full membership settles it.
+    // The chain links after each wave (ADR 0018). On a resume gh can
+    // refuse the subset; the run-end full-membership link settles it.
     linkChainedPrs(
       ctx.effects,
       chainedSoFar,
@@ -788,13 +713,12 @@ export async function runStack(
     );
   }
 
-  // The stack's own closing boundary — with concurrent stacks the next
-  // rule on the console may belong to someone else, so each walk marks
-  // its end explicitly.
+  // Each walk marks its own end: with concurrent stacks the next rule
+  // on the console can belong to another stack.
   phaseRule(`Finished ${label}`, { tag });
 
-  // Merged steps are complete but not chained: their branches are gone
-  // or landed, so the chain — and the run-end stack link — omits them.
+  // Merged steps are complete but not chained: the chain and the
+  // run-end stack link omit them.
   const merged = new Set(skippedMerged.map((s) => s.issue.number));
   return {
     stack,

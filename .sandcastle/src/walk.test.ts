@@ -1,11 +1,7 @@
-// Walk/resume state-machine specs (ADR 0029)
-//
-// The walk runs against a fake WalkEffects, so every spec asserts on
-// decisions and outputs — which steps built, what was pruned and why,
-// what the outcome reports — never on internal call sequencing. The
-// fake's records (builds, restacks, retargets, links) are the walk's
-// observable behavior at its own boundary: each records a real effect
-// the production wiring would have performed against GitHub or git.
+// Walk/resume state-machine specs (ADR 0029): the walk runs against a
+// fake WalkEffects, so every spec asserts on decisions and outputs —
+// never on internal call sequencing. The fake's records are the walk's
+// observable behavior at its own boundary.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BranchGate, RestackOutcome } from "./restack.ts";
@@ -215,9 +211,8 @@ describe("step re-run selection on resume", () => {
   });
 
   it("treats an open PR as complete before the ancestry gate can object", async () => {
-    // A leftover branch may be stale *and* have its open PR — the PR is
-    // the completion marker, so the step never reaches the gate (which
-    // would otherwise reset refs or prune).
+    // A leftover branch can be stale and still hold its open PR; the PR
+    // is the completion marker, so the step never reaches the gate.
     const stack = chain([{ n: 1 }]);
     const effects = fakeEffects({
       openPrs: [branchOf(1)],
@@ -598,10 +593,8 @@ describe("prune propagation", () => {
   });
 
   it("prunes a resumed branch whose history carries a pruned sibling", async () => {
-    // Siblings 2 and 3 build in one wave. 2's build fails; 3 — completed
-    // on a previous run with 2's commits in its history — would smuggle
-    // the pruned work back into the chain, so it prunes by contamination,
-    // and it leaves the skipped list it joined via its open PR.
+    // Sibling 3, complete on a previous run with 2's commits in its
+    // history, would carry pruned work back — it prunes by contamination.
     const stack = chain([
       { n: 1 },
       { n: 2, deps: [1] },

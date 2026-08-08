@@ -1,18 +1,8 @@
-// Restacking: host-side git, the restack worktree, and the resolver agent
-//
-// Restacking owns raw git for the whole run — every other module talks to
-// origin through the named operations exported here, so "restacking owns
-// git" is a structural invariant, not a convention. Branch rewrites work
-// entirely against origin refs in one detached worktree, and local
-// `sandcastle/*` branch refs are owned by the factory: after each
-// force-push, a matching local ref follows the rewrite under the same
-// lease semantics as the push itself — moved only from exactly the
-// pre-rewrite sha, never while checked out — so the operator's checkout
-// cannot silently drift from the factory's output, and nothing the
-// operator authored is ever overwritten. A conflicting rebase first
-// replays any resolution rerere has already recorded, then gets one
-// resolver-agent attempt, judged mechanically by the git state it
-// leaves behind — never by its own account of success.
+// Host-side git: the restack worktree, branch rewrites, and the
+// resolver agent. Every other module reaches origin through the named
+// operations here, so "restacking owns git" is structural (ADR 0018).
+// Local sandcastle/* refs are factory-owned and move only under lease;
+// nothing the operator authored is ever overwritten.
 
 import { cpSync, existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
@@ -24,20 +14,12 @@ import { say } from "./render.ts";
 // Host-side git: the restack worktree
 // ---------------------------------------------------------------------------
 
-// Restacking rewrites branches with plain git, and git needs a working
-// tree that is not the operator's checkout. One detached worktree serves
-// the whole run; it is created fresh, seeded with the host's node_modules
-// so `npm run check` can run in it, and removed at the end.
+// One detached worktree serves the run: created fresh, seeded with the
+// host's node_modules so `npm run check` runs in it, removed at the end.
 const RESTACK_DIR = ".sandcastle/restack";
 
-// rerere remembers each conflict hunk's resolution and replays it when
-// the same hunk conflicts again — run 1's failure mode was one resolved
-// conflict re-fought by every downstream branch. Enabled per-invocation
-// (flags on the host's rebase commands, environment for the resolver
-// agent) rather than in any config file, so the operator's own git
-// behavior is untouched. The recorded resolutions land in the repo's
-// shared rr-cache, which linked worktrees share with the main checkout,
-// so a re-run benefits from what this run resolved.
+// rerere replays recorded conflict resolutions (ADR 0018). Enabled
+// per-invocation only, so the operator's git config stays untouched.
 const RERERE_CONFIG: readonly (readonly [string, string])[] = [
   ["rerere.enabled", "true"],
   ["rerere.autoupdate", "true"],
@@ -58,11 +40,8 @@ function rerereEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
-// Captured, so expected-failure probes (rev-parse on a missing branch,
-// merge-base as a boolean, removing a worktree that isn't there) print
-// nothing — their "fatal:" chatter stays off the console, where it reads
-// as breakage. Every invocation's raw output lands in the per-run log
-// via runCaptured's tee.
+// Captured, so expected-failure probes print no "fatal:" chatter. Raw
+// output still reaches the per-run log via runCaptured's tee.
 function git(
   args: readonly string[],
   opts: {
@@ -77,19 +56,13 @@ function git(
 // Push auth: the token from .sandcastle/.env, never operator-machine state
 // ---------------------------------------------------------------------------
 
-// Host pushes authenticate explicitly rather than through ambient git
-// state (keychain helpers, gh auth, ~/.gitconfig): sandboxes get their
-// GH_TOKEN from .sandcastle/.env, and a host that authenticated any
-// other way could disagree with them about which token a run uses — or
-// work on one machine and die at the first push on another. Only the
-// push is authenticated; fetch and the read-only probes stay anonymous
-// because the repo is public. If it ever goes private, fetch breaks
-// loudly and the authenticated surface widens consciously then.
+// Host pushes authenticate from .sandcastle/.env only — the token the
+// sandboxes use, never ambient git state. Reads stay anonymous: the
+// repo is public.
 const ENV_FILE = ".sandcastle/.env";
 
-// Mirror of the sandcastle library's env-file parsing (first `=` splits,
-// quotes stripped, double-quote escapes expanded) so host and sandbox
-// read the same value from the same line.
+// Mirrors the sandcastle library's env-file parsing, so host and
+// sandbox read the same value from the same line.
 function parseEnvFile(path: string): Record<string, string> {
   if (!existsSync(path)) return {};
   const vars: Record<string, string> = {};
@@ -117,10 +90,9 @@ function parseEnvFile(path: string): Record<string, string> {
   return vars;
 }
 
-// Same resolution rule as the library's resolveEnv: the key must appear
-// in the file, and an empty file value falls back to the process
-// environment. Absent-from-file does not fall back — a token only the
-// host could see would let host pushes succeed while sandboxes fail.
+// Same resolution rule as the library's resolveEnv. Absent-from-file
+// never falls back: a host-only token would let host pushes pass while
+// sandboxes fail.
 function resolveGhToken(): string | undefined {
   const fileVars = parseEnvFile(ENV_FILE);
   if (!("GH_TOKEN" in fileVars)) return undefined;
@@ -128,9 +100,8 @@ function resolveGhToken(): string | undefined {
   return token ? token : undefined;
 }
 
-// Called by the run command before any sandbox is created, so a run
-// that cannot push fails in milliseconds instead of after the build
-// phase has already spent its time and tokens.
+// Called before any sandbox is created, so a run that cannot push
+// fails in milliseconds, not after the build phase spent its tokens.
 export function preflightGhToken(): void {
   if (resolveGhToken() === undefined) {
     throw new Error(
@@ -142,22 +113,19 @@ export function preflightGhToken(): void {
   }
 }
 
-// The helper's shell expands $GH_TOKEN from the child environment at
-// push time, so argv carries the literal variable name — the secret
-// never appears in a `ps` listing, git config, or on disk outside .env.
+// The helper's shell expands $GH_TOKEN at push time; argv carries the
+// literal name, so the secret never reaches a ps listing or git config.
 const PUSH_CREDENTIAL_HELPER =
   '!f() { echo "username=x-access-token"; echo "password=$GH_TOKEN"; }; f';
 
-// GIT_TERMINAL_PROMPT=0 turns any residual auth gap (expired or
-// under-scoped token) into an immediate error instead of an interactive
-// prompt no unattended run will answer.
+// GIT_TERMINAL_PROMPT=0 turns an auth gap into an immediate error, not
+// a prompt an unattended run cannot answer.
 function pushEnv(token: string): NodeJS.ProcessEnv {
   return { ...process.env, GH_TOKEN: token, GIT_TERMINAL_PROMPT: "0" };
 }
 
-// The empty credential.helper entry first clears inherited helpers
-// (e.g. osxkeychain) so a stale machine credential can't shadow the
-// run's token.
+// The empty credential.helper entry clears inherited helpers, so a
+// stale machine credential cannot shadow the run's token.
 function pushToOrigin(worktree: string, args: readonly string[]): void {
   const token = resolveGhToken();
   if (token === undefined) {
@@ -178,17 +146,16 @@ function pushToOrigin(worktree: string, args: readonly string[]): void {
       { cwd: worktree, env: pushEnv(token) },
     );
   } catch (error) {
-    // A push is a gate like any other: the callers turn this into a
-    // prune (or a failed run) with a one-line reason, so the full
-    // captured output has to reach the console here or nowhere.
+    // Callers turn this into a prune with a one-line reason, so the
+    // full captured output must reach the console here or nowhere.
     printChildFailure(error);
     throw error;
   }
 }
 
 export function createRestackWorktree(): string {
-  // A dead run can leave the worktree behind; recreate it from scratch so
-  // this run never inherits stale state.
+  // A dead run can leave the worktree behind; recreate it so this run
+  // inherits no stale state.
   removeRestackWorktree();
   git(["worktree", "add", "--detach", RESTACK_DIR]);
   cpSync("node_modules", join(RESTACK_DIR, "node_modules"), {
@@ -205,9 +172,8 @@ export function removeRestackWorktree(): void {
   }
 }
 
-// Make the worktree's origin refs current — the walk calls this once up
-// front to resolve every stack's trunk, and again after each build phase
-// pushes new branches.
+// Make the worktree's origin refs current: once up front for the
+// trunks, again after each build phase pushes new branches.
 export function fetchOrigin(worktree: string): void {
   git(["fetch", "origin"], { cwd: worktree });
 }
@@ -222,10 +188,9 @@ export function originBranchExists(worktree: string, branch: string): boolean {
   return resolveRef(worktree, `refs/remotes/origin/${branch}`) !== undefined;
 }
 
-// Delete a stale branch everywhere the factory owns it: the local ref
-// first, then origin — git refuses to delete a checked-out branch, and
-// that refusal (a ChildFailure the caller turns into a prune) must
-// abort before origin is touched (ADR 0034).
+// Delete a stale branch everywhere the factory owns it: local ref
+// first — git refuses to delete a checked-out branch, and that refusal
+// must abort before origin is touched (ADR 0034).
 export function deleteStaleBranch(worktree: string, branch: string): void {
   if (resolveRef(worktree, `refs/heads/${branch}`) !== undefined) {
     git(["branch", "-D", branch], { cwd: worktree });
@@ -290,15 +255,12 @@ function rebaseInProgress(worktree: string): boolean {
   });
 }
 
-// The resolver runs on the host, in the restack worktree, because the
-// in-progress rebase state exists only there — a fresh sandbox would have
-// to redo the rebase and self-certify the result. Containment is the same
-// mechanism as the planning agent's: in -p mode every tool call outside
-// --allowedTools is auto-denied, so it can edit files and drive the rebase
-// forward but cannot push, abort, or skip commits. GIT_EDITOR=true keeps
-// `git rebase --continue` from opening an editor. Success is never taken
-// from the agent's output — the caller judges the git state afterward and
-// runs the check gate itself.
+// The resolver runs on the host, in the restack worktree — the
+// in-progress rebase state exists only there (ADR 0018). The -p
+// allowlist contains it: it can drive the rebase but cannot push,
+// abort, or skip. GIT_EDITOR=true keeps --continue from opening an
+// editor. The caller judges the git state; the agent's own account of
+// success never counts.
 async function runResolverAgent(
   worktree: string,
   branch: string,
@@ -307,9 +269,8 @@ async function runResolverAgent(
   const prompt = readFileSync(RESOLVE_PROMPT_FILE, "utf8")
     .replaceAll("{{BRANCH}}", branch)
     .replaceAll("{{TIP}}", tipName);
-  // Role carries the full branch — the tag every other log line for this
-  // step uses — keeping this run's progress lines and log file
-  // attributable when stacks interleave.
+  // Role carries the full branch, so this step's progress lines and
+  // log file stay attributable when stacks interleave.
   await runHostAgent({
     role: `resolve-${branch.replaceAll("/", "-")}`,
     model: "claude-opus-5",
@@ -343,13 +304,10 @@ async function runResolverAgent(
   });
 }
 
-// rerere's autoupdate stages every hunk it recognizes from an earlier
-// resolution, so a conflict stop where nothing is left unmerged needs
-// only `rebase --continue`. Each continue can stop again on the next
-// commit's conflict, so loop until the rebase finishes or a genuinely
-// new hunk remains for the resolver. Terminates: every successful
-// continue advances the rebase by at least one commit. Returns true
-// when recorded resolutions alone finished the rebase.
+// rerere's autoupdate stages every hunk it recognizes, so a stop with
+// nothing unmerged needs only `rebase --continue`. Each continue can
+// stop on the next commit's conflict, so loop. Returns true when
+// recorded resolutions alone finished the rebase.
 function continueRerereResolvedRebase(worktree: string): boolean {
   while (rebaseInProgress(worktree)) {
     if (git(["ls-files", "--unmerged"], { cwd: worktree }) !== "") {
@@ -367,11 +325,10 @@ function continueRerereResolvedRebase(worktree: string): boolean {
   return true;
 }
 
-// One attempt, judged mechanically. Returns undefined when the worktree
-// holds a plausible resolution — rebase finished, tree clean, HEAD
-// descends from the tip — and a reason string otherwise. The check gate
-// is not run here: the caller gates every rewritten tip the same way,
-// resolved or not.
+// One attempt, judged mechanically: undefined when the rebase
+// finished, the tree is clean, and HEAD descends from the tip; a
+// reason string otherwise. The caller runs the check gate — every
+// rewritten tip gates the same way.
 async function attemptResolution(
   worktree: string,
   branch: string,
@@ -402,10 +359,9 @@ async function attemptResolution(
   return undefined;
 }
 
-// Whatever a failed rebase or resolution left behind, put the worktree
-// back to a clean detached HEAD so the branch's prune is the only trace.
-// Nothing was pushed on any failure path, so origin still holds the
-// pre-restack branch — there is no half-resolved state to undo remotely.
+// Reset the worktree to a clean detached HEAD so the prune is the only
+// trace. Nothing was pushed on any failure path, so origin still holds
+// the pre-restack branch.
 function abandonRebase(worktree: string, originSha: string): void {
   try {
     git(["rebase", "--abort"], { cwd: worktree });
@@ -420,9 +376,8 @@ function abandonRebase(worktree: string, originSha: string): void {
 // Local `sandcastle/*` refs: factory-owned, moved only under lease
 // ---------------------------------------------------------------------------
 
-// Where refs/heads/<branch> is checked out, if anywhere. `git worktree
-// list` covers the operator's main checkout and every linked worktree;
-// refs are shared, so asking from the restack worktree sees them all.
+// Where refs/heads/<branch> is checked out, if anywhere. Refs are
+// shared, so asking from the restack worktree sees every worktree.
 function checkedOutAt(worktree: string, branch: string): string | undefined {
   let path: string | undefined;
   for (const line of git(["worktree", "list", "--porcelain"], {
@@ -445,14 +400,10 @@ function resolveRef(worktree: string, ref: string): string | undefined {
   }
 }
 
-// After a force-push rewrites origin/<branch>, move the operator's local
-// branch of the same name to match — under the same lease semantics as
-// the push itself. The local ref must point at exactly the pre-rewrite
-// sha (anything else is divergence the operator authored, never
-// overwritten) and must not be checked out anywhere (moving it would
-// desync that worktree's index from its HEAD). The move is git's own
-// compare-and-swap — update-ref asserts the old value — so a concurrent
-// move loses loudly, not silently.
+// After a force-push, move the matching local ref under the same lease
+// semantics as the push (ADR 0018): only from exactly the pre-rewrite
+// sha, never while checked out. update-ref asserts the old value, so a
+// concurrent move loses loudly.
 function syncLocalRef(
   worktree: string,
   branch: string,
@@ -511,17 +462,12 @@ export type BranchGate =
   | { readonly kind: "blocked"; readonly reason: string };
 
 /**
- * Decide whether a leftover branch may be reused for a step assigned
- * `baseSha` as its base. The sandbox library reuses an existing local
- * branch as-is (fast-forwarding from origin when it can), so a branch
- * inherited from a dead run smuggles pre-restack ancestry into every
- * wave unless it is caught here: a ref that does not descend from the
- * step's assigned base is treated as absent and reset to the base —
- * origin through the normal lease force-push, the local ref through the
- * same compare-and-swap `syncLocalRef` uses. A stale local ref that is
- * checked out, or that matches neither origin nor the base, is operator
- * state; the gate refuses to touch it and the step prunes with the
- * recovery command in its reason.
+ * Decide whether a leftover branch may be reused for a step based on
+ * `baseSha` (ADR 0018). The sandbox library reuses an existing branch
+ * as-is, so a ref that does not descend from the base resets to it —
+ * origin under lease, the local ref via compare-and-swap. A checked-out
+ * or diverged local ref is operator state: the gate refuses to touch
+ * it and the step prunes with the recovery command in its reason.
  */
 export function gateBranchAncestry(
   worktree: string,
@@ -567,9 +513,8 @@ export function gateBranchAncestry(
           `then re-run`,
       };
     }
-    // Exactly origin's stale tip, or never pushed at all: factory-owned
-    // state from a dead run. Reset it to the base so the sandbox
-    // rebuilds fresh instead of reusing stale ancestry.
+    // Exactly origin's stale tip, or never pushed: factory-owned state
+    // from a dead run. Reset to the base so the sandbox rebuilds fresh.
     git(["update-ref", `refs/heads/${branch}`, baseSha, localSha!], {
       cwd: worktree,
     });
@@ -580,10 +525,8 @@ export function gateBranchAncestry(
   }
 
   if (!originOk) {
-    // A healthy local branch is accumulated work — keep it and bring
-    // origin to it; otherwise origin resets to the base and the old
-    // history is overwritten by this same lease force-push path when
-    // the rebuilt branch pushes.
+    // A healthy local branch is accumulated work: keep it and bring
+    // origin to it. Otherwise origin resets to the base.
     const target = localOk && localSha !== undefined ? localSha : baseSha;
     pushToOrigin(worktree, [
       `--force-with-lease=refs/heads/${branch}:${originSha}`,
@@ -598,23 +541,12 @@ export function gateBranchAncestry(
   return { kind: "rebuilt", details, localMove };
 }
 
-// Rebase one branch onto the chain tip, entirely against origin refs;
-// the only local ref this can touch is the branch's own, moved after the
-// push under `syncLocalRef`'s lease. The rebase is a replay window —
-// onto the tip, from `windowSha`, the base sha the branch was actually
-// built on — so only commits the branch itself added ever replay. A
-// plain rebase replays everything back to the merge-base, and once a
-// resolver rewrote a predecessor's commit that broke patch-identity,
-// every downstream branch re-fought its conflict. The window can never
-// widen the replay: `windowSha` is always an ancestor of `tipSha` (the
-// chain grew from it), so the windowed range is a subset of what the
-// merge-base rebase would replay — a resumed branch built on an older
-// base (its predecessor rewritten since) degrades toward the old
-// behavior, never past it. Only a rebase that
-// rewrote the branch is gated with `npm run check`: a no-op means this
-// exact tree was already gated, in its sandbox on first build or by a
-// previous run's restack — that detection is also what makes re-running
-// a partially restacked wave safe.
+// Rebase one branch onto the chain tip, entirely against origin refs.
+// The rebase is a replay window — onto the tip, from `windowSha` — so
+// only commits the branch itself added replay; `windowSha` is always
+// an ancestor of `tipSha`, so the window never widens the replay
+// (ADR 0018). Only a rewrite gates with `npm run check`: a no-op tree
+// was already gated, which also makes re-running a partial wave safe.
 export async function restackBranch(
   worktree: string,
   branch: string,
@@ -643,10 +575,8 @@ export async function restackBranch(
       cwd: worktree,
     });
   } catch {
-    // A conflict stops the rebase mid-flight; anything else (a rebase
-    // that died before starting) has no conflict state to resolve.
-    // rerere gets the first look — a hunk it recorded earlier in the run
-    // resolves for free — and the resolver agent only sees what is left.
+    // A conflict leaves the rebase in progress; anything else leaves no
+    // state to resolve. rerere looks first; the resolver sees the rest.
     if (!rebaseInProgress(worktree)) {
       abandonRebase(worktree, originSha);
       return {
@@ -667,20 +597,11 @@ export async function restackBranch(
   }
   const sha = git(["rev-parse", "HEAD"], { cwd: worktree });
 
-  // The semantic-drift tripwire: each wave's siblings built blind to each
-  // other, so a rebase can apply cleanly yet break the combined tree. The
-  // install trues up dependencies an issue may have added. An agent
-  // resolution passes the same gate or prunes like any other bad tip.
+  // The semantic-drift tripwire (ADR 0018): siblings build without
+  // sight of each other, so a clean rebase can still break the tree.
   try {
-    // Lockfile-sync tripwire first: `npm ci --dry-run` proves the
-    // committed lockfile can satisfy package.json on every platform — the
-    // same test Workers Builds' `npm clean-install` applies per PR. A
-    // lockfile regenerated against an installed node_modules tree
-    // (npm/cli#4828) silently drops other platforms' optional binaries
-    // and fails only in CI; this catches it before anything is pushed.
-    // Each gate's output is captured: a pass is one summary line, a fail
-    // reproduces the full output on the console (printChildFailure) so
-    // capture never hides what inherited stdio used to show.
+    // `npm ci --dry-run` proves the lockfile satisfies package.json on
+    // every platform — it catches npm/cli#4828 pruning before any push.
     for (const gate of [
       ["ci", "--dry-run"],
       ["install", "--no-audit", "--no-fund"],
@@ -693,10 +614,8 @@ export async function restackBranch(
     printChildFailure(error);
     return { kind: "check-failed", resolution };
   } finally {
-    // That `npm install` can rewrite the worktree's lockfile with the
-    // same #4828 pruning. HEAD is already committed, so the rewrite can
-    // never be pushed — but left in place it would dirty the worktree
-    // and block the next branch's `git switch`.
+    // That `npm install` can rewrite the lockfile with the same #4828
+    // pruning; left in place it would block the next `git switch`.
     git(["checkout", "--", "package-lock.json"], { cwd: worktree });
   }
 

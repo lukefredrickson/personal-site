@@ -1,12 +1,6 @@
-// Planning: the plan file, the judgment agent, and GitHub edge writes
-//
-// Planning fetches open issues labeled `Sandcastle` and their blocked-by
-// edges, runs a read-only judgment agent that proposes edge additions and
-// removals, screens the proposal mechanically, and derives the stacks
-// from the amended graph. The persisted plan is the proposal contract
-// between planning and execution: planning never writes to GitHub, and
-// `run` applies the accepted mutations here — the only host code that
-// ever writes blocked-by edges — before walking the stacks.
+// Planning: the plan file, the judgment agent, and GitHub edge writes.
+// Planning never writes to GitHub. `run` applies the screened mutations
+// here — the only host code that writes blocked-by edges (ADR 0018).
 
 import {
   existsSync,
@@ -33,17 +27,14 @@ import { MAX_SANDBOXES } from "./walk.ts";
 // The plan file
 // ---------------------------------------------------------------------------
 
-// npm scripts always run from the package root, so a root-relative path is
-// stable. Gitignored: the plan is local run state, not repo content.
+// Root-relative is stable: npm scripts run from the package root.
+// Gitignored — the plan is local run state, not repo content.
 export const PLAN_FILE = ".sandcastle/plan.json";
 
-// The persisted plan is the proposal contract between planning and
-// execution. `mutations` holds the judgment agent's screened blocked-by
-// edge changes — `run` applies them to GitHub before walking the stacks,
-// which were already derived from the graph as amended by them. The
-// file's existence is the marker that planning ran — a plan with no
-// stacks means planning found nothing to change, while a missing file
-// means no plan exists.
+// The proposal contract between planning and execution. `run` applies
+// `mutations` to GitHub before the walk; the stacks already assume the
+// amended graph. A plan with no stacks means planning found nothing to
+// change; a missing file means no plan exists.
 export interface Plan {
   readonly stacks: readonly (readonly StackStep[])[];
   readonly mutations: readonly EdgeMutation[];
@@ -52,10 +43,8 @@ export interface Plan {
 export function readPlan(): Plan | undefined {
   if (!existsSync(PLAN_FILE)) return undefined;
   const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as Plan;
-  // Wave execution needs each step's walk-internal dependencies; a plan
-  // written before the wave format lacks them, and guessing would
-  // silently mis-prune. Replanning is cheap and the plan file is local
-  // run state, so a stale format is a re-plan, not a migration.
+  // A plan without `dependsOn` predates the wave format; guessing the
+  // edges would silently mis-prune. A stale format replans, no migration.
   if (plan.stacks.flat().some((step) => !Array.isArray(step.dependsOn))) {
     throw new Error(
       `${PLAN_FILE} predates the wave format — re-run \`npm run sandcastle plan\`.`,
@@ -69,8 +58,7 @@ export function writePlan(plan: Plan): void {
 }
 
 export function deletePlan(): void {
-  // force: deleting an absent plan is a no-op, so the force-replan path
-  // needs no existence check of its own.
+  // force: deleting an absent plan is a no-op.
   rmSync(PLAN_FILE, { force: true });
 }
 
@@ -91,13 +79,9 @@ const proposalSchema = z.object({
   ),
 });
 
-// The judgment agent runs on the host, not in a sandbox: it needs nothing
-// a sandbox provides (no branch, no worktree, no npm install) and it must
-// not write anyway. Read-only is enforced by the harness, not the prompt:
-// in -p mode every tool call outside --allowedTools is auto-denied, and
-// the only shell commands allowed are read-only gh subcommands. The
-// prompt tells it to fan exploration out to subagents (which inherit the
-// same tool restrictions) so its own context stays for judgment.
+// The judgment agent runs on the host and only proposes. The harness
+// enforces read-only, not the prompt: in -p mode every tool call
+// outside --allowedTools is auto-denied (ADR 0018).
 async function runPlanningAgent(
   issues: readonly StackIssue[],
   blockedBy: ReadonlyMap<number, readonly Blocker[]>,
@@ -136,11 +120,8 @@ async function runPlanningAgent(
       "Bash(gh issue list:*)",
     ],
     disallowedTools: ["Write", "Edit", "NotebookEdit"],
-    // Schema-enforced by the CLI: the agent delivers the proposal through
-    // a StructuredOutput tool call, so a prose preamble in its final
-    // message can't corrupt the result. The zod parse re-validates on
-    // this side of the process boundary. draft-7, not zod's default
-    // 2020-12 dialect — the CLI's validator rejects the latter.
+    // The CLI enforces the schema; the zod parse re-validates here.
+    // draft-7: the CLI rejects zod's default 2020-12 dialect.
     jsonSchema: z.toJSONSchema(proposalSchema, { target: "draft-7" }),
   });
 
@@ -174,14 +155,13 @@ export async function computePlan(): Promise<Plan> {
     ]),
   );
 
-  // Nothing to judge and nothing to stack — skip the (paid) planning
-  // agent entirely.
+  // No issues: skip the paid judgment agent.
   if (issues.length === 0) {
     return { stacks: [], mutations: [] };
   }
 
-  // Fetch each issue's blocked-by edges — grouping and ordering are derived
-  // from them. N+1 API calls; fine at this backlog size.
+  // Grouping and ordering derive from the blocked-by edges. N+1 API
+  // calls is acceptable at this backlog size.
   const nameWithOwner = repoNameWithOwner();
 
   const blockedBy = new Map<number, readonly Blocker[]>(
@@ -198,11 +178,8 @@ export async function computePlan(): Promise<Plan> {
     ]),
   );
 
-  // Judgment, then a mechanical gate: the agent proposes edge changes,
-  // screenMutations drops anything cycle-creating or out-of-walk, and the
-  // stacks are derived from the graph as amended by the survivors. The
-  // rejects are logged here, once, at proposal time — they are not part
-  // of the plan because they will never be applied.
+  // Judgment, then a mechanical gate: the stacks derive from the graph
+  // as amended by the survivors. Rejects log once; they never apply.
   const proposed = await runPlanningAgent(issues, blockedBy);
   const { accepted, rejected, amended } = screenMutations(
     issues,
@@ -234,11 +211,8 @@ export function printPlan(plan: Plan): void {
     return;
   }
 
-  // The agent's surviving proposal, before the stacks it reshaped.
   // Removals get bold: an addition only serializes work, but a removal
-  // un-gates it, so it deserves the harder look. styleText (inside the
-  // renderer) applies it only when stdout supports color, so piped
-  // output keeps the "−" marker without escape-code garbage.
+  // un-gates it. Color policy: ADR 0032.
   if (plan.mutations.length === 0) {
     say(
       "Planning agent proposed no blocked-by changes — the graph stands " +
@@ -299,11 +273,9 @@ export function printPlan(plan: Plan): void {
 // Applying the plan's blocked-by mutations to GitHub
 // ---------------------------------------------------------------------------
 
-// Only host code ever writes edges — the planning agent proposed these,
-// screening accepted them, and this is the first moment they touch
-// GitHub. Application is idempotent against the live graph (adding a
-// present edge or removing an absent one is a logged no-op), so re-running
-// a retained plan after a failure re-applies safely.
+// The one site that writes blocked-by edges (ADR 0018). Application is
+// idempotent against the live graph, so a retained plan re-applies
+// safely after a failure.
 export function applyMutationsToGitHub(
   mutations: readonly EdgeMutation[],
 ): void {

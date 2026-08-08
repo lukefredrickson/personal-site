@@ -1,21 +1,9 @@
-// Throwaway git fixtures for the factory's git-surgery specs.
-//
-// Each fixture is one temp directory holding everything the exported
-// git-surgery functions expect of the operator's machine: a bare origin
-// repo, an operator clone with `main` checked out, a detached restack
-// worktree, and a `.sandcastle/.env` carrying a dummy GH_TOKEN. The
-// functions resolve that env file relative to process.cwd(), so the
-// fixture chdirs into its root for its lifetime and `dispose()` restores
-// the previous cwd. Fixtures also point GIT_CONFIG_GLOBAL/SYSTEM at
-// /dev/null for their lifetime, so an operator's global git config
-// (gpg signing, rerere, hooks) can never leak into a spec.
-//
-// The initial commit carries a package.json with a no-op `check` script
-// and a matching lockfile, so `restackBranch`'s real gate — npm ci
-// --dry-run, npm install, npm run check — runs unmodified against the
-// fixture. Pushes go over the file protocol, which never consults a
-// credential helper, so the dummy token satisfies the token-presence
-// check without any network.
+// Throwaway git fixtures for the git-surgery specs: a bare origin, an
+// operator clone, a detached restack worktree, and a .sandcastle/.env
+// with a dummy GH_TOKEN, in one temp directory. The fixture chdirs into
+// its root (the functions resolve .env from cwd) and points git's
+// global/system config at /dev/null, so operator config never leaks.
+// The seed commit lets restackBranch's real check gate run unmodified.
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
@@ -65,10 +53,9 @@ export interface Fixture {
   /** True when `ancestor` is an ancestor of `descendant`. */
   descends(ancestor: string, descendant: string): boolean;
   /**
-   * Create `branch` at `from`, commit `files` on it, push it, and return
-   * the new tip sha. The clone ends back on `main`. The local branch ref
-   * stays behind (the operator-checkout shape the lease sync works
-   * against) unless `keepLocal: false` deletes it after the push.
+   * Create `branch` at `from`, commit `files` on it, push it, and
+   * return the new tip sha. The clone ends back on `main`. The local
+   * ref stays behind unless `keepLocal: false` deletes it after the push.
    */
   addBranch(
     branch: string,
@@ -120,8 +107,7 @@ export function createFixture(): Fixture {
   git(["init", "--bare", "-b", "main", origin], root);
   git(["clone", origin, clone], root);
   // Identity and editor live in the clone's local config, which linked
-  // worktrees share — commits made mid-rebase in the restack worktree
-  // pick them up too.
+  // worktrees share — mid-rebase commits pick them up too.
   git(["config", "user.name", "Fixture"]);
   git(["config", "user.email", "fixture@example.invalid"]);
   git(["config", "commit.gpgsign", "false"]);
@@ -139,8 +125,7 @@ export function createFixture(): Fixture {
 
   git(["worktree", "add", "--detach", worktree, mainSha]);
 
-  // The functions under test resolve `.sandcastle/.env` from cwd; the
-  // dummy token passes the presence check, and file-protocol pushes
+  // The dummy token passes the presence check; file-protocol pushes
   // never ask for credentials.
   write(root, { ".sandcastle/.env": "GH_TOKEN=fixture-token\n" });
   process.chdir(root);
