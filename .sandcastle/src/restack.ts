@@ -59,8 +59,9 @@ function rerereEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 // Captured, so expected-failure probes (rev-parse on a missing branch,
 // merge-base as a boolean, removing a worktree that isn't there) print
-// nothing — no more "fatal:" noise implying breakage. Every invocation's
-// raw output still lands in the per-run log via runCaptured's tee.
+// nothing — their "fatal:" chatter stays off the console, where it reads
+// as breakage. Every invocation's raw output lands in the per-run log
+// via runCaptured's tee.
 function git(
   args: readonly string[],
   opts: {
@@ -163,17 +164,25 @@ function pushToOrigin(worktree: string, args: readonly string[]): void {
     // emptied mid-run.
     throw new Error(`cannot push: GH_TOKEN is missing or empty in ${ENV_FILE}`);
   }
-  git(
-    [
-      "-c",
-      "credential.helper=",
-      "-c",
-      `credential.helper=${PUSH_CREDENTIAL_HELPER}`,
-      "push",
-      ...args,
-    ],
-    { cwd: worktree, env: pushEnv(token) },
-  );
+  try {
+    git(
+      [
+        "-c",
+        "credential.helper=",
+        "-c",
+        `credential.helper=${PUSH_CREDENTIAL_HELPER}`,
+        "push",
+        ...args,
+      ],
+      { cwd: worktree, env: pushEnv(token) },
+    );
+  } catch (error) {
+    // A push is a gate like any other: the callers turn this into a
+    // prune (or a failed run) with a one-line reason, so the full
+    // captured output has to reach the console here or nowhere.
+    printChildFailure(error);
+    throw error;
+  }
 }
 
 export function createRestackWorktree(): string {

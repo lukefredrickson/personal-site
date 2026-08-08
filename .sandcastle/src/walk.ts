@@ -19,7 +19,7 @@
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import { runCaptured } from "./exec.ts";
+import { ChildFailure, runCaptured } from "./exec.ts";
 import {
   branchCarries,
   fetchOrigin,
@@ -234,10 +234,7 @@ export function linkChainedPrs(
     console.log(`✓ ${what}: ${urls.length} PRs linked on GitHub.`);
     return true;
   } catch (error) {
-    const stderr =
-      error instanceof Error && "stderr" in error
-        ? String((error as { stderr: unknown }).stderr ?? "").trim()
-        : "";
+    const stderr = error instanceof ChildFailure ? error.stderr.trim() : "";
     console.error(
       `⚠ ${what}: gh stack link failed — ` +
         `${stderr !== "" ? stderr : error instanceof Error ? error.message : String(error)}. ` +

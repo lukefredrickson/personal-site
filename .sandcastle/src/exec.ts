@@ -136,9 +136,9 @@ export function runCaptured(
 
 /**
  * Reproduce a failed child's full captured output on the console, plus
- * the per-run log pointer — the promise that capture never makes a
- * failure harder to debug than inherited output did. Non-ChildFailure
- * errors print their message; there is no captured output to show.
+ * the per-run log pointer — capture must never make a failure harder to
+ * debug, so nothing is summarized on this path. Non-ChildFailure errors
+ * print their message; there is no captured output to show.
  */
 export function printChildFailure(error: unknown): void {
   if (!(error instanceof ChildFailure)) {
