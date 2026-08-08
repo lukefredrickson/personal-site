@@ -16,15 +16,15 @@ Sandcastle library, `@ai-hero/sandcastle`
 The library supplies the sandbox lifecycle and agent invocation; read
 its docs for those general concepts. This doc explains what is unique
 here: how one `npm run sandcastle` invocation plans, executes, and
-resumes. It was extracted from the `main.ts` header (ADR 0035). Design
-rationale: ADR 0018; resume verdicts: ADR 0034. Canonical term
-definitions: the glossary in root `CONTEXT.md`.
+resumes. Canonical term definitions: the glossary in root `CONTEXT.md`.
 
 Two structural terms recur throughout. Issues can block each other
 through GitHub's native issue-dependency edges; those edges over the
 labeled issues form the **blocked-by graph**. A **stack** is one
 ordered chain of PRs, one per connected group of that graph. Each PR in
 a stack is based on the PR before it, so the chain merges bottom-up.
+GitHub documents this pattern as
+[stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs).
 
 ## Commands
 
@@ -80,8 +80,8 @@ finished first.
 
 Progress lives on GitHub, not in local state. At each step start the
 walk reads the step's **PR ledger**: every PR whose head is the step's
-branch, in any state. The ledger is the only cross-run memory
-(ADR 0034). An open PR means the step is complete: the sandbox is
+branch, in any state. The ledger is the only cross-run memory. An open
+PR means the step is complete: the sandbox is
 skipped, and the restack detects a no-op. Otherwise the newest PR
 decides. Merged means complete: the step is skipped, left out of the
 chain, and its still-open issue closed. Closed means the operator
