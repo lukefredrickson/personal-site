@@ -1,21 +1,9 @@
-/*
-  global.css — live styles entry point.
-
-  This is the single stylesheet the shared layout imports. It is the stable
-  seam for site-wide styling: the layout imports it once and never needs
-  touching again. Future live partials are added behind this file via @import,
-  not in the layout.
-
-  Import order encodes the one real dependency: the reset first, then the token
-  definitions, then base.css — the only consumer, and the layer where tokens
-  become paint. prose.css comes last: it is the one global exception for
-  rendered markdown (ADR 0010), and it builds on both the tokens and base.
-
-  No @layer and no subfolders yet — both stay deferred until a utility
-  framework or third-party CSS needs arbitrating (ADR 0006/0011). Everything
-  under `src/styles/` ships — these tokens have no reference copy elsewhere
-  (ADR 0019).
-*/
+/* Live styles entry point — the one stylesheet the base layout imports
+   (ADR 0006). New live partials are added here via @import, not in the layout.
+   Import order is the dependency order: reset, then token definitions, then
+   base.css where tokens become paint, then prose.css (ADR 0010). No @layer and
+   no subfolders yet (ADR 0006, ADR 0011). Everything under `src/styles/`
+   ships — there is no reference copy (ADR 0019). */
 
 @import "./reset.css";
 @import "./colors.css";

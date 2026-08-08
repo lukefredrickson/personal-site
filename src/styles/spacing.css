@@ -1,14 +1,8 @@
 /* Spacing, radii, and layout tokens.
-
-   Units follow one test: should this scale with the reader's default
-   font-size? Line length does, so --page-max is rem (as future breakpoints
-   will be). Decoration and horizontal padding don't, so spacing, radii,
-   borders, and page padding stay px.
-
-   One carve-out (ADR 0030): decoration that must visually register against a
-   specific piece of text — the role dot against its title — sizes in rem at
-   the component level, so it tracks the text it marks. Stroke weights and
-   radii stay px even there. */
+   One test picks the unit: does it scale with the reader's default font-size?
+   Line length does, so --page-max is rem. Decoration and padding do not, so
+   spacing, radii, and borders stay px (ADR 0011). One carve-out: text-anchored
+   decoration sizes in rem at the component level (ADR 0030). */
 
 :root {
   /* spacing scale */

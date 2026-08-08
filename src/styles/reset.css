@@ -1,18 +1,7 @@
-/*
-  Josh's Custom CSS Reset
-  https://www.joshwcomeau.com/css/custom-css-reset/
-*/
-
-/*
-  Rules 1–9 below are verbatim from the source above, so this file stays
-  diffable against upstream and future revisions port as a clean diff.
-
-  Rule 10 (#root, #__next { isolation: isolate }) is intentionally omitted:
-  Astro renders HTML directly into <body> and has no JS mount root, so those
-  selectors would match nothing here. If overlay UI (modals, tooltips,
-  dropdowns) is added later, reinstate the concept by applying
-  `isolation: isolate` to `body` or a deliberate layout wrapper.
-*/
+/* Josh's Custom CSS Reset — https://www.joshwcomeau.com/css/custom-css-reset/
+   Rules 1–9 are verbatim from the source, so upstream revisions port as a
+   clean diff. Rule 10 (#root/#__next isolation) is omitted: Astro has no JS
+   mount root. If overlay UI arrives, apply `isolation: isolate` to `body`. */
 
 /* 1. Use a more-intuitive box-sizing model */
 *, *::before, *::after {

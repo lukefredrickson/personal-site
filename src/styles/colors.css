@@ -1,28 +1,17 @@
-/* Color tokens — an OKLCH hue spine, derived from the dawnfox / duskfox
-   terminal palettes.
+/* Color tokens — an OKLCH grid over the dawnfox / duskfox hues (ADR 0011).
+   Every color is oklch(L% C h): C and h come from §0, L on a ΔL 5 grid.
+   The token name is the lightness. No calc() on L/C/H; alpha is the only
+   post-hoc adjustment. Washes share one chroma (.03). Theming is a
+   color-scheme flip through light-dark() (ADR 0012). Components read §2 only.
+   Browser floor: Chrome 123+ / Safari 17.5+ / FF 120+. */
 
-   RULES OF THE SYSTEM
-   · Every color is a grid formula: oklch(L% C h), with C and h taken from the
-     §0 constants and L on a global ΔL 5 grid. The token name IS the lightness:
-     rose-65 = oklch(65% .12 5). No calc() on L/C/H, no relative color syntax.
-     Alpha is the only permitted post-hoc adjustment (shadows, highlight).
-   · Washes are one shared chroma across every root: w36 oklch(36% .03 h),
-     w88 oklch(88% .03 h), w94 oklch(94% .03 h).
-   · Theming is a color-scheme flip, not an override block: every token resolves
-     per-theme through light-dark(), which resolves at the element where the
-     var() is consumed — so data-theme works on <html>, <body>, or any div.
-   · Components read §2 semantic tokens only, never §0/§1 directly.
-
-   Browser floor set by oklch() + light-dark(): Chrome 123+ / Safari 17.5+ /
-   FF 120+. */
-
-/* ---- theme switch — no attribute means the OS decides, with zero JS ---- */
+/* ---- theme switch — no attribute means the OS decides ---- */
 :root { color-scheme: light dark; }
 [data-theme="light"] { color-scheme: light; }
 [data-theme="dark"] { color-scheme: dark; }
 
 :root {
-  /* ============== §0 — the spine: constants + minted steps ============== */
+  /* ========= §0 — hue/chroma constants + lightness steps ========= */
   --h-rose: 5;
   --h-gold: 75;
   --h-foam: 160;
@@ -31,7 +20,7 @@
   --h-iris: 305;
   --h-paper: 75;
   --c-rose: 0.12;
-  --c-gold: 0.14; /* 60/65/85 clip slightly outside sRGB — accepted for the richer gold */
+  --c-gold: 0.14; /* 60/65/85 clip slightly outside sRGB */
   --c-foam: 0.08;
   --c-blue: 0.09;
   --c-iris: 0.09;
@@ -49,7 +38,7 @@
   --rose-w88: oklch(88% 0.03 var(--h-rose));
   --rose-w94: oklch(94% 0.03 var(--h-rose));
 
-  /* gold — oklch(L .14 75); minted 60–85, 50/55/90 stay unminted */
+  /* gold — oklch(L .14 75); steps 60–85 only */
   --gold-60: oklch(60% var(--c-gold) var(--h-gold));
   --gold-65: oklch(65% var(--c-gold) var(--h-gold));
   --gold-70: oklch(70% var(--c-gold) var(--h-gold));
@@ -99,7 +88,7 @@
   --iris-w88: oklch(88% 0.03 var(--h-iris));
   --iris-w94: oklch(94% 0.03 var(--h-iris));
 
-  /* ink — oklch(L .05 290); whites detach to milk */
+  /* ink — oklch(L .05 290); --milk is the near-white */
   --ink-25: oklch(25% var(--c-ink) var(--h-ink));
   --ink-30: oklch(30% var(--c-ink) var(--h-ink));
   --ink-35: oklch(35% var(--c-ink) var(--h-ink));
@@ -113,7 +102,7 @@
   --ink-75: oklch(75% var(--c-ink) var(--h-ink));
   --milk: oklch(90% 0.02 var(--h-ink));
 
-  /* paper — fine lattice on gold's hue: L 89+2n, C .020−.003n */
+  /* paper — gold's hue: L 89+2n, C .020−.003n */
   --paper-89: oklch(89% 0.020 var(--h-paper));
   --paper-91: oklch(91% 0.017 var(--h-paper));
   --paper-93: oklch(93% 0.014 var(--h-paper));
@@ -121,8 +110,8 @@
   --paper-97: oklch(97% 0.008 var(--h-paper));
   --paper-99: oklch(99% 0.005 var(--h-paper));
 
-  /* ============= §1 — theme-resolved palette (dawn ⇄ dusk) ============= */
-  --p-bg: light-dark(var(--paper-97), var(--ink-25));       /* the TRUE terminal bgs */
+  /* ============= §1 — theme-resolved palette (dawn / dusk) ============= */
+  --p-bg: light-dark(var(--paper-97), var(--ink-25));       /* the true terminal bgs */
   --p-fg: light-dark(var(--ink-45), var(--milk));
   --p-selection: light-dark(var(--blue-w88), var(--ink-35));
   --p-muted: var(--ink-50);
@@ -158,7 +147,7 @@
   --selection-fg: var(--ink);
 
   /* ---- lines ---- */
-  --border-strong: var(--ink-45);                           /* chunky card outline — dawn fg = dusk border */
+  --border-strong: var(--ink-45);                           /* card outline — dawn fg = dusk border */
   --border-soft: light-dark(var(--paper-89), var(--ink-35)); /* secondary buttons, quiet cards, idle pills */
   --rail: var(--border-soft);                               /* timeline rail */
   --hairline: light-dark(var(--ink-65), var(--ink-35));     /* row dividers */
@@ -175,10 +164,8 @@
   --marker-muted: light-dark(var(--rail), var(--border-strong)); /* past-role dot ring / bullet */
   --dot-current-ring: light-dark(var(--border-strong), var(--accent)); /* ink outline in light; merges with gold fill in dark */
 
-  /* ---- tints — one vocabulary for everything that wears a color: tag chips,
-     filter pills, logo tiles, framed figures. Named by palette hue, never by
-     what wears it; `neutral` is the untinted role. A hue carries the slots
-     something reads — a wash-only hue has no fg or line. ---- */
+  /* ---- tints — named by palette hue, never by what wears it (ADR 0030).
+     A hue carries only the slots something reads. ---- */
   --tint-blue-bg: light-dark(var(--blue-w94), var(--blue-w36));
   --tint-blue-fg: light-dark(var(--blue-50), var(--blue-70));
   --tint-blue-line: var(--tint-blue-fg);
@@ -190,7 +177,7 @@
   --tint-rose-fg: light-dark(var(--rose-50), var(--rose-75));
   --tint-neutral-bg: light-dark(var(--paper-95), var(--ink-35));
 
-  /* ---- badges — a role over the palette, not a second name for it ---- */
+  /* ---- badges — roles over the tint palette ---- */
   --latest-bg: var(--tint-blue-bg);
   --latest-border: light-dark(var(--blue-w88), var(--blue-50));
   --latest-fg: var(--tint-blue-fg);

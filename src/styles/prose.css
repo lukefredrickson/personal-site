@@ -1,20 +1,12 @@
-/*
-  prose.css — typography for rendered markdown.
-
-  ADR 0010's one global-CSS exception: the `<p>`/`<h2>`/`<a>` a post body
-  compiles to cannot carry scoped classes, so their styles live here, under a
-  `.prose` wrapper that keeps them off the rest of the site. Typography only —
-  anything in prose with its own framing (figures, code frames, video embeds) is a
-  component or an integration and styles itself.
-
-  Vertical rhythm is authored in rem/em rather than the px spacing scale
-  (ADR 0011): article measure should scale with the reader's font size.
-*/
+/* Typography for rendered markdown — ADR 0010's one global-CSS exception.
+   Compiled markdown cannot carry scoped classes, so its styles live here,
+   under a `.prose` wrapper. Typography only: anything with its own framing
+   (figures, code frames, embeds) styles itself. Vertical rhythm is rem/em,
+   not the px spacing scale (ADR 0011). */
 
 .prose {
   display: flex;
   flex-direction: column;
-  /* Flex gap rather than margins: one spacing rule, no collapsing to reason about. */
   gap: 1.125rem;
   color: var(--text-body);
   font-family: var(--font-body);
@@ -26,7 +18,7 @@
 .prose h3 {
   color: var(--ink);
   font-family: var(--font-display);
-  /* On top of the flex gap — a new section needs more air than a paragraph. */
+  /* Adds to the flex gap: a section needs more air than a paragraph. */
   margin-top: 1rem;
 }
 
@@ -55,7 +47,6 @@
 
 .prose ul,
 .prose ol {
-  /* The hanging ▸ is placed against this, so the two stay one number. */
   --list-indent: 1.375em;
   display: flex;
   flex-direction: column;
@@ -63,7 +54,7 @@
   padding-left: var(--list-indent);
 }
 
-/* ▸ markers in gold are the site's list idiom, résumé bullets included. */
+/* Gold ▸ markers are the site's list marker, résumé bullets included. */
 .prose ul {
   list-style: none;
 }
@@ -95,11 +86,10 @@
   line-height: var(--leading-body);
 }
 
-/* Inline code only — a fenced block is Expressive Code's frame (ADR 0016),
-   which brings its own surface. */
+/* Inline code only — a fenced block is Expressive Code's frame (ADR 0016). */
 .prose :not(pre) > code {
-  /* The border replaces a pixel of padding on each axis, so the chip's box
-     matches the token scale. */
+  /* The border replaces one pixel of padding on each axis; the box stays on
+     the token scale. */
   padding: calc(var(--space-1) - 1px) calc(var(--space-2) - 1px);
   border: 1px solid var(--code-border);
   border-radius: var(--radius-chip);

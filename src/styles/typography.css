@@ -1,30 +1,16 @@
 /* Type tokens — two families, three jobs.
-
-   Public Sans does display AND body: hierarchy comes from weight
-   (400/600/700/800), never from a second face. Fira Code (ligatures always on)
-   does code and every piece of metadata.
-
-   Weight map: 800 = voice (hero, page titles, sections, logo, stat values).
-   700 = names & titles of things (companies, roles, posts, primary buttons).
-   600 = quiet UI (nav, secondary buttons, past roles). 400 = everything you
-   read. Fira Code is 400 lowercase; 500 exists only for active states (selected
-   filter pill, copy-button feedback). Italics live only in body prose
-   (400 italic) and mono comments — never in headings.
-
-   Public Sans 500 is never used, and base.css disables font synthesis so the
-   browser cannot fake it either.
-
-   Sizes are a named scale (primitive) that the job tokens alias into
-   (semantic) — the same two-layer shape as colors.css. Components read the job
-   tokens. rem throughout, because type
-   should scale with the reader's default font-size preference. */
+   Public Sans does display and body: hierarchy comes from weight, never a
+   second face. Fira Code (ligatures always on) does code and all metadata.
+   Italics live in body prose and code comments only — never in headings.
+   Sizes are a primitive scale the job tokens alias; components read the job
+   tokens. rem throughout: type scales with the reader's font-size preference. */
 
 :root {
   /* families — the CSS variables the Astro Fonts API generates, see astro.config.mjs */
   --font-display: var(--font-public-sans); /* headings, names, UI labels (600-800) */
   --font-body: var(--font-public-sans);    /* paragraphs, bullets, excerpts (400) */
   --font-mono: var(--font-fira-code);      /* code, dates, tags, meta, captions */
-  --font-logo: var(--font-fira-code);      /* the wordmark, and only the wordmark */
+  --font-logo: var(--font-fira-code);      /* the wordmark only */
 
   /* ---- size scale ---- */
   --font-size-xs: 0.75rem;      /* 12px */
