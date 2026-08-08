@@ -18,6 +18,7 @@ import { spawn } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { LOGS_DIR } from "./exec.ts";
+import { say, type Role } from "./render.ts";
 
 const HOST_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -164,16 +165,16 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
   };
   // Play-by-play goes to the tailable log; `announce` is for the few
   // lines the console should carry (start, outcome).
-  const say = (line: string): void => {
+  const record = (line: string): void => {
     progressLog.write(`[${elapsed()}] ${line}\n`);
   };
-  const announce = (line: string): void => {
-    say(line);
-    console.log(`  [${opts.role} ${elapsed()}] ${line}`);
+  const announce = (line: string, role: Role): void => {
+    record(line);
+    say(`  [${opts.role} ${elapsed()}] ${line}`, { role });
   };
-  say(`raw event stream → ${logFile}`);
-  console.log(`[${opts.role}] Started (${opts.model})`);
-  console.log(`  tail -f ${progressFile}`);
+  record(`raw event stream → ${logFile}`);
+  say(`[${opts.role}] Started (${opts.model})`);
+  say(`  tail -f ${progressFile}`, { role: "dim" });
 
   const child = spawn(
     "claude",
@@ -224,7 +225,7 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
         if (sessionAnnounced) continue;
         sessionAnnounced = true;
       }
-      for (const out of progressLines(event, subagentIds)) say(out);
+      for (const out of progressLines(event, subagentIds)) record(out);
       if (event.parent_tool_use_id == null) {
         for (const block of event.message?.content ?? []) {
           if (isSubagentSpawn(block) && block.id !== undefined) {
@@ -241,7 +242,7 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk: string) => {
     for (const line of chunk.split("\n")) {
-      if (line.trim() !== "") say(`[stderr] ${line}`);
+      if (line.trim() !== "") record(`[stderr] ${line}`);
     }
   });
 
@@ -273,11 +274,11 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
       : exitCode !== 0
         ? `exited with code ${exitCode}`
         : `returned an error result: ${oneLine(JSON.stringify(result))}`;
-    announce(`✗ failed after ${elapsed()} — ${why}`);
+    announce(`✗ failed after ${elapsed()} — ${why}`, "fail");
     progressLog.end();
     throw new Error(`${opts.role} agent ${why} (raw stream: ${logFile})`);
   }
-  announce(`✓ finished in ${elapsed()}`);
+  announce(`✓ finished in ${elapsed()}`, "success");
   progressLog.end();
   return result.result;
 }

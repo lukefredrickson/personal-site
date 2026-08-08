@@ -20,6 +20,7 @@
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { ChildFailure, runCaptured } from "./exec.ts";
+import { phaseRule, say, sayError, type StackTag } from "./render.ts";
 import {
   branchCarries,
   fetchOrigin,
@@ -222,6 +223,7 @@ export function linkChainedPrs(
   effects: WalkEffects,
   chained: readonly StackStep[],
   what: string,
+  tag?: StackTag,
 ): boolean {
   if (chained.length < 2) return true;
   try {
@@ -231,15 +233,19 @@ export function linkChainedPrs(
       return url;
     });
     effects.linkPrStack(urls);
-    console.log(`✓ ${what}: ${urls.length} PRs linked on GitHub.`);
+    say(`✓ ${what}: ${urls.length} PRs linked on GitHub.`, {
+      role: "success",
+      tag,
+    });
     return true;
   } catch (error) {
     const stderr = error instanceof ChildFailure ? error.stderr.trim() : "";
-    console.error(
+    sayError(
       `⚠ ${what}: gh stack link failed — ` +
         `${stderr !== "" ? stderr : error instanceof Error ? error.message : String(error)}. ` +
         `Re-run \`npm run sandcastle\` to re-link, or link by hand ` +
         `with gh stack link <bottom PR> … <top PR>.`,
+      { role: "warn", tag },
     );
     return false;
   }
@@ -296,7 +302,14 @@ export async function runStack(
   ctx: WalkContext,
 ): Promise<StackOutcome> {
   const label = `stack ${stackIndex + 1}/${ctx.stackCount}`;
-  console.log(`\n=== Starting ${label}: ${stack.length} step(s) ===`);
+  // The tag every line this walk prints carries: [S2] for stack-level
+  // lines, [S2·#139] once a line is about one step.
+  const tag: StackTag = { stack: stackIndex + 1 };
+  const stepTag = (step: StackStep): StackTag => ({
+    ...tag,
+    issue: step.issue.number,
+  });
+  phaseRule(`Starting ${label}: ${stack.length} step(s)`, { tag });
 
   const levels = waveLevels(stack);
   const skipped: StackStep[] = [];
@@ -322,13 +335,14 @@ export async function runStack(
         descendants.push(n);
       }
     }
-    console.error(
+    sayError(
       `\n✗ #${step.issue.number} pruned — ${reason}.` +
         (descendants.length === 0
           ? ""
           : ` Its dependents ${descendants.map((n) => `#${n}`).join(", ")} ` +
             `are pruned with it.`) +
         ` Issues that never depended on it keep building.`,
+      { role: "fail", tag: stepTag(step) },
     );
   };
 
@@ -346,9 +360,10 @@ export async function runStack(
     readonly failure?: string;
     readonly skippedSandbox: boolean;
   }> => {
-    console.log(
-      `\n=== #${step.issue.number}: ${step.issue.title} ` +
-        `(${label}, wave ${depth + 1}/${levels.length}: ${waveBase} → ${step.branch}) ===\n`,
+    phaseRule(
+      `#${step.issue.number}: ${step.issue.title} ` +
+        `(wave ${depth + 1}/${levels.length}: ${waveBase} → ${step.branch})`,
+      { tag: stepTag(step) },
     );
 
     let failure: string | undefined;
@@ -359,9 +374,10 @@ export async function runStack(
       // try so a flaked `gh` call prunes this step, not the run.
       const existingPr = ctx.effects.openPrUrl(step.branch);
       if (existingPr !== undefined) {
-        console.log(
+        say(
           `✓ #${step.issue.number} already complete (open PR ` +
             `${existingPr}) — sandbox skipped.`,
+          { role: "success", tag: stepTag(step) },
         );
         return { skippedSandbox: true };
       }
@@ -386,9 +402,10 @@ export async function runStack(
         if (gate.localMove !== undefined) {
           localRefMoves.push({ branch: step.branch, ...gate.localMove });
         }
-        console.log(
+        say(
           `↺ #${step.issue.number}: stale ${step.branch} rebuilt — ` +
             `${gate.details.join("; ")}.`,
+          { role: "warn", tag: stepTag(step) },
         );
       }
 
@@ -435,14 +452,18 @@ export async function runStack(
       pr = undefined;
     }
     if (pr !== undefined) {
-      console.log(`\n✓ #${step.issue.number} built: ${pr}`);
+      say(`\n✓ #${step.issue.number} built: ${pr}`, {
+        role: "success",
+        tag: stepTag(step),
+      });
     } else {
       missingPrs.push(step.branch);
-      console.error(
+      sayError(
         `\n⚠ #${step.issue.number}: commits exist on ${step.branch} ` +
           `but no PR was found. Continuing — open it manually with ` +
           `gh pr create --draft --head ${step.branch} --base ${waveBase}, ` +
           `or re-run \`npm run sandcastle\` to have the step retried.`,
+        { role: "warn", tag: stepTag(step) },
       );
     }
     return { skippedSandbox: false };
@@ -470,7 +491,10 @@ export async function runStack(
     const survivors = level.filter((step) => {
       const already = pruned.get(step.issue.number);
       if (already === undefined) return true;
-      console.log(`\n– #${step.issue.number} not built: ${already}.`);
+      say(`\n– #${step.issue.number} not built: ${already}.`, {
+        role: "dim",
+        tag: stepTag(step),
+      });
       return false;
     });
     const results = await Promise.all(
@@ -498,8 +522,9 @@ export async function runStack(
     // stack may be taking its restack turn right now.
     if (toRestack.length === 0) continue;
     await ctx.restackLock.use(async () => {
-      console.log(
-        `\n--- Restacking wave ${depth + 1}/${levels.length} of ${label} onto ${waveBase} ---`,
+      phaseRule(
+        `Restacking wave ${depth + 1}/${levels.length} of ${label} onto ${waveBase}`,
+        { tag },
       );
       // The build phase pushed new branches; make origin refs current.
       // The tip itself never moves during a build phase — trunk was
@@ -566,7 +591,7 @@ export async function runStack(
         if (outcome.kind === "resolved") {
           resolved.push({ step, via: outcome.via });
         }
-        console.log(
+        say(
           outcome.kind === "restacked"
             ? `✓ ${step.branch} restacked onto ${tipName}: check passed, force-pushed.`
             : outcome.kind === "resolved"
@@ -578,6 +603,7 @@ export async function runStack(
                   `auto-resolved from recorded rerere resolutions, check ` +
                   `passed, force-pushed.`
               : `✓ ${step.branch} already chains from ${tipName} — no-op.`,
+          { role: "success", tag: stepTag(step) },
         );
 
         // The force-push may have moved the operator's matching local
@@ -591,14 +617,16 @@ export async function runStack(
               from: localRef.from,
               to: localRef.to,
             });
-            console.log(
+            say(
               `  ↪ local ${step.branch} followed the force-push ` +
                 `(${localRef.from.slice(0, 12)} → ${localRef.to.slice(0, 12)}).`,
+              { role: "dim", tag: stepTag(step) },
             );
           } else if (localRef.kind === "skipped") {
-            console.error(
+            sayError(
               `  ⚠ local ${step.branch} not moved — ${localRef.reason}. ` +
                 `Recover with: ${localRef.recovery}`,
+              { role: "warn", tag: stepTag(step) },
             );
           }
         }
@@ -609,9 +637,10 @@ export async function runStack(
         try {
           ctx.effects.retargetPrBase(step.branch, tipName);
         } catch {
-          console.error(
+          sayError(
             `⚠ could not retarget the PR base of ${step.branch} — fix with ` +
               `gh pr edit ${step.branch} --base ${tipName}.`,
+            { role: "warn", tag: stepTag(step) },
           );
         }
 
@@ -631,8 +660,14 @@ export async function runStack(
       ctx.effects,
       chainedSoFar,
       `${label} through wave ${depth + 1}/${levels.length}`,
+      tag,
     );
   }
+
+  // The stack's own closing boundary — with concurrent stacks the next
+  // rule on the console may belong to someone else, so each walk marks
+  // its end explicitly.
+  phaseRule(`Finished ${label}`, { tag });
 
   return {
     stack,

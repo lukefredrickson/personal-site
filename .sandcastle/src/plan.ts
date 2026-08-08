@@ -17,6 +17,7 @@ import {
 import { z } from "zod";
 import { runCaptured } from "./exec.ts";
 import { runHostAgent } from "./host-agent.ts";
+import { say, sayError } from "./render.ts";
 import {
   planStacks,
   screenMutations,
@@ -117,7 +118,7 @@ async function runPlanningAgent(
       ),
     );
 
-  console.log(
+  say(
     "Running the planning agent (claude-fable-5, read-only) over the " +
       "blocked-by graph…",
   );
@@ -209,9 +210,10 @@ export async function computePlan(): Promise<Plan> {
     proposed,
   );
   for (const { mutation, reason } of rejected) {
-    console.error(
+    sayError(
       `✗ dropped ${describeMutation(mutation)} — ${reason}. ` +
         `(agent's reasoning: ${mutation.reasoning})`,
+      { role: "fail" },
     );
   }
 
@@ -226,61 +228,66 @@ function describeMutation(mutation: EdgeMutation): string {
 
 export function printPlan(plan: Plan): void {
   if (plan.stacks.length === 0) {
-    console.log(
+    say(
       "Empty plan: no open issues labeled Sandcastle, nothing to change.",
     );
     return;
   }
 
   // The agent's surviving proposal, before the stacks it reshaped.
-  // Removals get ANSI bold: an addition only serializes work, but a
-  // removal un-gates it, so it deserves the harder look.
+  // Removals get bold: an addition only serializes work, but a removal
+  // un-gates it, so it deserves the harder look. styleText (inside the
+  // renderer) applies it only when stdout supports color, so piped
+  // output keeps the "−" marker without escape-code garbage.
   if (plan.mutations.length === 0) {
-    console.log(
+    say(
       "Planning agent proposed no blocked-by changes — the graph stands " +
         "as the owner drew it.\n",
     );
   } else {
-    console.log(
+    say(
       `Planning agent proposed ${plan.mutations.length} blocked-by ` +
         `mutation(s), applied to GitHub when this plan runs:\n`,
     );
     for (const mutation of plan.mutations) {
-      const line = `  ${mutation.op === "add" ? "+" : "−"} ${describeMutation(mutation)}`;
-      // Bold only when stdout is a terminal; piped output keeps the "−"
-      // marker without escape-code garbage.
-      const bold = mutation.op === "remove" && process.stdout.isTTY;
-      console.log(bold ? `\x1b[1m${line}\x1b[22m` : line);
-      console.log(`      ${mutation.reasoning}`);
+      say(
+        `  ${mutation.op === "add" ? "+" : "−"} ${describeMutation(mutation)}`,
+        { role: mutation.op === "remove" ? "bold" : "plain" },
+      );
+      say(`      ${mutation.reasoning}`);
     }
-    console.log();
+    say("");
   }
 
   const issueCount = plan.stacks.reduce((n, stack) => n + stack.length, 0);
-  console.log(
+  say(
     `Planned ${plan.stacks.length} stack(s) covering ${issueCount} issue(s), ` +
       `one draft PR each:\n`,
   );
   for (const [i, stack] of plan.stacks.entries()) {
+    const tag = { stack: i + 1 };
     const levels = waveLevels(stack);
     const shape =
       stack.length === 1
         ? `standalone PR based on ${stack[0]!.base}`
         : `${stack.length} chained PRs, built in ${levels.length} wave(s)`;
-    console.log(`Stack ${i + 1} of ${plan.stacks.length} — ${shape}:`);
+    say(`Stack ${i + 1} of ${plan.stacks.length} — ${shape}:`, { tag });
     for (const [depth, level] of levels.entries()) {
       if (stack.length > 1) {
-        console.log(`  wave ${depth + 1} — builds from ${level[0]!.base}:`);
+        say(`  wave ${depth + 1} — builds from ${level[0]!.base}:`, { tag });
       }
       for (const step of level) {
-        console.log(`    #${step.issue.number} ${step.issue.title}`);
-        console.log(`        ${step.branch}  ←  chains onto ${step.base}`);
+        const stepTag = { ...tag, issue: step.issue.number };
+        say(`    #${step.issue.number} ${step.issue.title}`, { tag: stepTag });
+        say(`        ${step.branch}  ←  chains onto ${step.base}`, {
+          tag: stepTag,
+        });
       }
     }
-    console.log();
+    say("");
   }
 
-  console.log(
+  say(
     "Grouping, waves, and order derived from the blocked-by graph as " +
       "amended above. Each wave's issues build concurrently from the " +
       "wave's base — stacks share one global sandbox pool, capped at " +
@@ -303,7 +310,7 @@ export function applyMutationsToGitHub(
   if (mutations.length === 0) return;
 
   const nameWithOwner = repoNameWithOwner();
-  console.log(
+  say(
     `\nApplying ${mutations.length} blocked-by mutation(s) to GitHub:`,
   );
   for (const mutation of mutations) {
@@ -316,7 +323,9 @@ export function applyMutationsToGitHub(
 
     if (mutation.op === "add") {
       if (existing) {
-        console.log(`  • no-op (edge already present): ${describeMutation(mutation)}`);
+        say(`  • no-op (edge already present): ${describeMutation(mutation)}`, {
+          role: "dim",
+        });
         continue;
       }
       // POST takes the blocking issue's database id, not its number.
@@ -329,11 +338,13 @@ export function applyMutationsToGitHub(
       runCaptured("gh", ["api", "-X", "POST", path, "-F", `issue_id=${id}`]);
     } else {
       if (!existing) {
-        console.log(`  • no-op (edge already absent): ${describeMutation(mutation)}`);
+        say(`  • no-op (edge already absent): ${describeMutation(mutation)}`, {
+          role: "dim",
+        });
         continue;
       }
       runCaptured("gh", ["api", "-X", "DELETE", `${path}/${existing.id}`]);
     }
-    console.log(`  ✓ applied ${describeMutation(mutation)}`);
+    say(`  ✓ applied ${describeMutation(mutation)}`, { role: "success" });
   }
 }
