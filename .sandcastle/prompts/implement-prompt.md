@@ -28,6 +28,9 @@ Follow @.sandcastle/prompts/CODING_STANDARDS.md. In short: idiomatic Astro, zero
 client JS by default, scoped styles on the design tokens, and the Astro docs
 MCP (`astro-docs`) beats training data — consult it for any Astro question.
 
+All rationale goes in the ADR; code comments never restate it — a comment
+states a constraint and references the ADR (`/* ADR NNNN */`).
+
 # EXPLORATION
 
 Explore the repo and fill your context window with relevant information that

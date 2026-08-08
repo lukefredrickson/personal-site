@@ -1,8 +1,9 @@
 # Coding Standards
 
 Loaded by the implementer and reviewer agents. Self-contained: everything
-needed to follow the rules is on this page. When outside context matters
-to a task, the issue provides it.
+needed to follow the rules is on this page, plus the `CONTEXT.md` glossary
+at repo root. When outside context matters to a task, the issue provides
+it.
 
 ## Astro
 
@@ -49,12 +50,26 @@ to a task, the issue provides it.
 
 ## Comments
 
-- Describe the current implementation only — never a prior iteration or
-  how the code changed.
-- Terse over grammatical: sacrifice full sentences for concision.
-- Explain why, not what — unless the what is genuinely non-obvious (a
-  specific algorithm, a clever trick). Never narrate what plainly readable
-  code already shows.
+- The default is no comment. Comment only when the code cannot show the
+  fact.
+- A comment states a constraint the code cannot show. Rationale — why
+  this design, what was rejected — lives in the ADR; the comment
+  references it (`/* ADR NNNN */`) and never restates it.
+- Hard caps: 2 lines per comment; 6 lines for a function comment or a
+  file header.
+- Explanation that earns more than the cap is documentation. It lives as
+  a concise Markdown document under `docs/`, referenced from the code —
+  never spread across comments, and never shoved into an ADR. ADRs
+  record decisions; they are not documentation.
+- Write comments in this register (distilled Simplified Technical
+  English):
+  - Active voice, present tense.
+  - One fact per sentence. At most 20 words per sentence.
+  - One word per meaning: use the glossary names from `CONTEXT.md`. No
+    synonyms, no coinages.
+  - Verbs stay verbs (the code "restacks"; it does not "do a restack").
+  - No metaphor, no flourish, no scene-setting.
+  - Keep the articles — telegram style is not concision.
 
 ## Verification
 
