@@ -7,7 +7,6 @@ import packetizedLogo from '../assets/packetized-energy.png';
 import uvmShield from '../assets/uvm-shield.svg';
 import Button from '../components/Button.astro';
 import CompanyCard from '../components/CompanyCard.astro';
-import EducationCard from '../components/EducationCard.astro';
 import FeaturedPostCard from '../components/FeaturedPostCard.astro';
 import PostListItem from '../components/PostListItem.astro';
 import RoleEntry from '../components/RoleEntry.astro';
@@ -106,17 +105,22 @@ const hero =
 				/>
 			</CompanyCard>
 
-			{/* Education joins the same timeline the employers share. */}
+			{/* Education joins the same timeline the employers share — same card,
+			    same anatomy: the degree sits where a role would. */}
 			<div class="connector" aria-hidden="true"></div>
 
-			<EducationCard
-				school="University of Vermont"
-				degree="B.S. Computer Science"
-				minor="Statistics"
+			<CompanyCard
+				name="University of Vermont"
 				dates="2022"
 				location="Burlington, VT"
 				logo={uvmShield}
-			/>
+			>
+				<RoleEntry
+					last
+					title="B.S. Computer Science"
+					bullets={['Minor in Statistics', 'Magna cum laude']}
+				/>
+			</CompanyCard>
 		</section>
 
 		<section class="section">
