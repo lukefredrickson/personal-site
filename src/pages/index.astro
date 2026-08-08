@@ -4,9 +4,10 @@ import { Image } from 'astro:assets';
 import energyhubLogo from '../assets/energyhub.jpeg';
 import headshot from '../assets/luke-headshot.jpg';
 import packetizedLogo from '../assets/packetized-energy.png';
+import uvmShield from '../assets/uvm-shield.svg';
 import Button from '../components/Button.astro';
 import CompanyCard from '../components/CompanyCard.astro';
-import EducationLine from '../components/EducationLine.astro';
+import EducationCard from '../components/EducationCard.astro';
 import FeaturedPostCard from '../components/FeaturedPostCard.astro';
 import PostListItem from '../components/PostListItem.astro';
 import RoleEntry from '../components/RoleEntry.astro';
@@ -63,7 +64,7 @@ const hero =
 
 			{/* Every claim here traces to the approved bullet library in
 			    resume-builder — same facts as the resume, friendlier sentences. */}
-			<CompanyCard name="EnergyHub" dates="Feb 2023 – now" logo={energyhubLogo}>
+			<CompanyCard name="EnergyHub" dates="Feb 2023 – now" location="Remote: Seattle, WA" logo={energyhubLogo}>
 				<RoleEntry
 					current
 					title="Software Engineer II"
@@ -89,7 +90,12 @@ const hero =
 			{/* Carries the timeline across the gap between employers. */}
 			<div class="connector" aria-hidden="true"></div>
 
-			<CompanyCard name="Packetized Energy" dates="Sept – Dec 2020" logo={packetizedLogo}>
+			<CompanyCard
+				name="Packetized Energy"
+				dates="Sept – Dec 2020"
+				location="Burlington, VT"
+				logo={packetizedLogo}
+			>
 				<RoleEntry
 					last
 					title="Software Developer Intern"
@@ -100,7 +106,17 @@ const hero =
 				/>
 			</CompanyCard>
 
-			<EducationLine degree="B.S. Computer Science" school="University of Vermont" year="2022" />
+			{/* Education joins the same timeline the employers share. */}
+			<div class="connector" aria-hidden="true"></div>
+
+			<EducationCard
+				school="University of Vermont"
+				degree="B.S. Computer Science"
+				minor="Statistics"
+				dates="2022"
+				location="Burlington, VT"
+				logo={uvmShield}
+			/>
 		</section>
 
 		<section class="section">
