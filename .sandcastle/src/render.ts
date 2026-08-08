@@ -8,8 +8,8 @@
 // log files and GitHub timestamps), and a `[S2·#139]` stack/issue tag
 // on any line attributable to a walk, colored with a per-stack hue so
 // interleaved output reads at a glance. Phase boundaries get box-drawn
-// rules; the two biggest moments — run start and run summary — get
-// hand-rolled block-letter banners, and nothing else does.
+// rules; the run's big moments — run start, planning, and the run
+// summary — get block-letter banners, and nothing else does.
 //
 // Everything that decides what a line looks like is a pure function of
 // (clock, message, tag, role, style), specced with exact strings and an
@@ -153,44 +153,44 @@ export function renderRule(
 }
 
 // ---------------------------------------------------------------------------
-// Banners: hand-rolled block lettering for exactly two moments
+// Banners: hand-picked block lettering for the run's big moments
 // ---------------------------------------------------------------------------
 
-// A 5-row block font covering only the letters the two banners need.
-// Hand-rolled on purpose: a figlet-style dependency buys nothing for two
-// fixed strings, and constants are speccable byte-for-byte.
-const GLYPHS: Readonly<Record<string, readonly string[]>> = {
-  A: [" ███ ", "█   █", "█████", "█   █", "█   █"],
-  C: [" ████", "█    ", "█    ", "█    ", " ████"],
-  D: ["████ ", "█   █", "█   █", "█   █", "████ "],
-  E: ["█████", "█    ", "████ ", "█    ", "█████"],
-  L: ["█    ", "█    ", "█    ", "█    ", "█████"],
-  M: ["█   █", "██ ██", "█ █ █", "█   █", "█   █"],
-  N: ["█   █", "██  █", "█ █ █", "█  ██", "█   █"],
-  R: ["████ ", "█   █", "████ ", "█  █ ", "█   █"],
-  S: [" ████", "█    ", " ███ ", "    █", "████ "],
-  T: ["█████", "  █  ", "  █  ", "  █  ", "  █  "],
-  U: ["█   █", "█   █", "█   █", "█   █", " ███ "],
-  Y: ["█   █", " █ █ ", "  █  ", "  █  ", "  █  "],
-  " ": ["   ", "   ", "   ", "   ", "   "],
-};
+// Literal constants, no lettering engine: a figlet-style dependency buys
+// nothing for three fixed strings, and constants are speccable
+// byte-for-byte. Rows carry no trailing whitespace.
+export const RUN_START_BANNER: readonly string[] = [
+  "  █████████    █████████   ██████   █████ ██████████     █████████    █████████    █████████  ███████████ █████       ██████████",
+  " ███░░░░░███  ███░░░░░███ ░░██████ ░░███ ░░███░░░░███   ███░░░░░███  ███░░░░░███  ███░░░░░███░█░░░███░░░█░░███       ░░███░░░░░█",
+  "░███    ░░░  ░███    ░███  ░███░███ ░███  ░███   ░░███ ███     ░░░  ░███    ░███ ░███    ░░░ ░   ░███  ░  ░███        ░███  █ ░",
+  "░░█████████  ░███████████  ░███░░███░███  ░███    ░███░███          ░███████████ ░░█████████     ░███     ░███        ░██████",
+  " ░░░░░░░░███ ░███░░░░░███  ░███ ░░██████  ░███    ░███░███          ░███░░░░░███  ░░░░░░░░███    ░███     ░███        ░███░░█",
+  " ███    ░███ ░███    ░███  ░███  ░░█████  ░███    ███ ░░███     ███ ░███    ░███  ███    ░███    ░███     ░███      █ ░███ ░   █",
+  "░░█████████  █████   █████ █████  ░░█████ ██████████   ░░█████████  █████   █████░░█████████     █████    ███████████ ██████████",
+  " ░░░░░░░░░  ░░░░░   ░░░░░ ░░░░░    ░░░░░ ░░░░░░░░░░     ░░░░░░░░░  ░░░░░   ░░░░░  ░░░░░░░░░     ░░░░░    ░░░░░░░░░░░ ░░░░░░░░░░",
+];
 
-/** The 5 rows spelling `text` in the block font; rows carry no trailing space. */
-export function renderBanner(text: string): readonly string[] {
-  const glyphs = [...text].map((ch) => {
-    const glyph = GLYPHS[ch];
-    if (glyph === undefined) {
-      throw new Error(`no banner glyph for ${JSON.stringify(ch)}`);
-    }
-    return glyph;
-  });
-  return Array.from({ length: 5 }, (_, row) =>
-    glyphs.map((glyph) => glyph[row]!).join("  ").trimEnd(),
-  );
-}
+export const PLAN_BANNER: readonly string[] = [
+  " ███████████  █████         █████████   ██████   █████",
+  "░░███░░░░░███░░███         ███░░░░░███ ░░██████ ░░███",
+  " ░███    ░███ ░███        ░███    ░███  ░███░███ ░███",
+  " ░██████████  ░███        ░███████████  ░███░░███░███",
+  " ░███░░░░░░   ░███        ░███░░░░░███  ░███ ░░██████",
+  " ░███         ░███      █ ░███    ░███  ░███  ░░█████",
+  " █████        ███████████ █████   █████ █████  ░░█████",
+  "░░░░░        ░░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░    ░░░░░",
+];
 
-export const RUN_START_BANNER = renderBanner("SANDCASTLE");
-export const RUN_SUMMARY_BANNER = renderBanner("SUMMARY");
+export const RUN_SUMMARY_BANNER: readonly string[] = [
+  "  █████████  █████  █████ ██████   ██████ ██████   ██████   █████████   ███████████   █████ █████",
+  " ███░░░░░███░░███  ░░███ ░░██████ ██████ ░░██████ ██████   ███░░░░░███ ░░███░░░░░███ ░░███ ░░███",
+  "░███    ░░░  ░███   ░███  ░███░█████░███  ░███░█████░███  ░███    ░███  ░███    ░███  ░░███ ███",
+  "░░█████████  ░███   ░███  ░███░░███ ░███  ░███░░███ ░███  ░███████████  ░██████████    ░░█████",
+  " ░░░░░░░░███ ░███   ░███  ░███ ░░░  ░███  ░███ ░░░  ░███  ░███░░░░░███  ░███░░░░░███    ░░███",
+  " ███    ░███ ░███   ░███  ░███      ░███  ░███      ░███  ░███    ░███  ░███    ░███     ░███",
+  "░░█████████  ░░████████   █████     █████ █████     █████ █████   █████ █████   █████    █████",
+  " ░░░░░░░░░    ░░░░░░░░   ░░░░░     ░░░░░ ░░░░░     ░░░░░ ░░░░░   ░░░░░ ░░░░░   ░░░░░    ░░░░░",
+];
 
 // ---------------------------------------------------------------------------
 // The console sink: the only impure part

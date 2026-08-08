@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatClock,
   formatTag,
-  renderBanner,
+  PLAN_BANNER,
   renderLine,
   renderRule,
   RUN_START_BANNER,
@@ -124,27 +124,37 @@ describe("renderRule", () => {
 });
 
 describe("banners", () => {
-  it("letters SANDCASTLE for run start, 5 rows, no trailing whitespace", () => {
-    expect(RUN_START_BANNER).toEqual([
-      " ████   ███   █   █  ████    ████   ███    ████  █████  █      █████",
-      "█      █   █  ██  █  █   █  █      █   █  █        █    █      █",
-      " ███   █████  █ █ █  █   █  █      █████   ███     █    █      ████",
-      "    █  █   █  █  ██  █   █  █      █   █      █    █    █      █",
-      "████   █   █  █   █  ████    ████  █   █  ████     █    █████  █████",
-    ]);
-  });
+  // The three banner constants are literal lettering; these specs pin
+  // their shape (8 rows, shading characters only, no trailing
+  // whitespace — renderLine would stamp a trailing-space row as if it
+  // said something) and the smallest one byte-for-byte.
+  const banners = {
+    RUN_START_BANNER,
+    PLAN_BANNER,
+    RUN_SUMMARY_BANNER,
+  } as const;
 
-  it("letters SUMMARY for the run summary", () => {
-    expect(RUN_SUMMARY_BANNER).toEqual([
-      " ████  █   █  █   █  █   █   ███   ████   █   █",
-      "█      █   █  ██ ██  ██ ██  █   █  █   █   █ █",
-      " ███   █   █  █ █ █  █ █ █  █████  ████     █",
-      "    █  █   █  █   █  █   █  █   █  █  █     █",
-      "████    ███   █   █  █   █  █   █  █   █    █",
-    ]);
-  });
+  for (const [name, rows] of Object.entries(banners)) {
+    it(`${name} is 8 tidy rows of block shading`, () => {
+      expect(rows).toHaveLength(8);
+      for (const row of rows) {
+        expect(row).toBe(row.trimEnd());
+        expect(row).not.toBe("");
+        expect(row).toMatch(/^[█░ ]+$/);
+      }
+    });
+  }
 
-  it("refuses a character the block font does not cover", () => {
-    expect(() => renderBanner("S?")).toThrow(/no banner glyph/);
+  it("letters PLAN exactly", () => {
+    expect(PLAN_BANNER).toEqual([
+      " ███████████  █████         █████████   ██████   █████",
+      "░░███░░░░░███░░███         ███░░░░░███ ░░██████ ░░███",
+      " ░███    ░███ ░███        ░███    ░███  ░███░███ ░███",
+      " ░██████████  ░███        ░███████████  ░███░░███░███",
+      " ░███░░░░░░   ░███        ░███░░░░░███  ░███ ░░██████",
+      " ░███         ░███      █ ░███    ░███  ░███  ░░█████",
+      " █████        ███████████ █████   █████ █████  ░░█████",
+      "░░░░░        ░░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░    ░░░░░",
+    ]);
   });
 });

@@ -41,12 +41,12 @@ The conventions, implemented as pure formatting functions in
   stderr), so piped output is identical in content with the escapes
   simply absent. The one pre-existing ad-hoc escape (`printPlan`'s
   manual bold) is replaced.
-- **Box-drawn `─` rules at phase boundaries** — plan, approve, execute,
+- **Box-drawn `─` rules at phase boundaries** — approve, execute,
   per-step build headers, per-wave restacks, per-stack completion — and
-  **hand-rolled block-letter banners for exactly two moments**: run
-  start and run summary. Two banners keep them meaningful as scrollback
-  landmarks; a figlet-style dependency buys nothing for two fixed
-  strings.
+  **block-letter banners for exactly three moments**: run start,
+  planning, and the run summary. The lettering is checked-in literal
+  constants (owner-picked, no figlet-style dependency at runtime);
+  keeping banners rare keeps them meaningful as scrollback landmarks.
 
 Formatting is specced in `render.test.ts` with an injected clock and
 exact-string assertions against the default pass-through styler, per the
