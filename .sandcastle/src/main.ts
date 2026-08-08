@@ -39,13 +39,14 @@
 //      the final branches, bases, and PR chains never depend on which
 //      sandbox finished first — any interleaving the cap permits
 //      produces the same chains as a cap-1 run.
-//      A step whose branch already has an open PR is complete — progress
-//      lives on GitHub, not in local state — so its sandbox is skipped
-//      and its restack is a detected no-op; re-running after a partial
-//      failure therefore resumes at the first PR-less step. A branch
-//      with commits but no PR is incomplete and re-runs: the sandbox
-//      picks up the existing branch, finds the work done, and opens the
-//      missing PR.
+//      At each step start the PR ledger — every PR on the step's
+//      branch, any state — is the only cross-run memory (ADR 0034).
+//      An open PR means complete: sandbox skipped, restack a detected
+//      no-op. Otherwise the newest PR decides — merged means complete
+//      (skipped, left out of the chain, its still-open issue closed);
+//      closed means the operator rejected the work. A rejected or
+//      PR-less branch is stale: deleted, then rebuilt fresh under the
+//      same name. Branch contents are never trusted as progress.
 //   3. A conflicting rebase gets one resolver-agent attempt before it
 //      prunes: the agent runs in the restack worktree on the
 //      in-progress rebase, and its result counts only if host code
@@ -61,11 +62,12 @@
 //      if anything was pruned, with a per-stack summary that
 //      distinguishes agent-resolved conflicts from pruned subtrees.
 //
-// Nothing here merges branches or closes issues: each multi-PR stack is
-// linked on GitHub with `gh stack link` — wave by wave as the chain grows,
-// with a full re-link at run end — the owner reviews each PR bottom-up,
-// and merging a PR closes its issue via the closing keyword in the PR
-// body.
+// Nothing here merges branches, and the one issue-closing write is the
+// resume check healing a missed closing keyword (merged PR, open issue).
+// Each multi-PR stack is linked on GitHub with `gh stack link` — wave by
+// wave as the chain grows, with a full re-link at run end — the owner
+// reviews each PR bottom-up, and merging a PR closes its issue via the
+// closing keyword in the PR body.
 //
 // Usage:
 //   npm run sandcastle       # plan (if no plan file), approve, execute
@@ -249,14 +251,27 @@ async function runCommand(): Promise<never> {
       outcome.chained.length === 0
         ? "none"
         : outcome.chained.map((s) => `#${s.issue.number}`).join(", ");
-    const skippedSuffix =
-      outcome.skipped.length === 0
-        ? ""
-        : `, ${outcome.skipped.length} already complete`;
+    // What the ledger decided, per kind: open-PR skips, merged skips
+    // (issue auto-closed, out of the chain), stale rebuilds.
+    const notes: string[] = [];
+    if (outcome.skipped.length > 0) {
+      notes.push(`${outcome.skipped.length} already complete`);
+    }
+    if (outcome.skippedMerged.length > 0) {
+      notes.push(
+        `${outcome.skippedMerged.length} skipped as merged (` +
+          outcome.skippedMerged.map((s) => `#${s.issue.number}`).join(", ") +
+          `)`,
+      );
+    }
+    if (outcome.staleRebuilt.length > 0) {
+      notes.push(`${outcome.staleRebuilt.length} rebuilt from stale`);
+    }
+    const suffix = notes.length === 0 ? "" : `, ${notes.join(", ")}`;
     if (outcome.pruned.length > 0) {
       say(
         `✗ Stack ${i + 1}/${outcomes.length}: ${outcome.chained.length}/` +
-          `${outcome.stack.length} step(s) chained (${done}${skippedSuffix}); ` +
+          `${outcome.stack.length} step(s) chained (${done}${suffix}); ` +
           `pruned:`,
         { role: "fail", tag },
       );
@@ -267,8 +282,8 @@ async function runCommand(): Promise<never> {
       }
     } else {
       say(
-        `✓ Stack ${i + 1}/${outcomes.length}: all ${outcome.stack.length} ` +
-          `step(s) chained (${done}${skippedSuffix})`,
+        `✓ Stack ${i + 1}/${outcomes.length}: ${outcome.chained.length}/` +
+          `${outcome.stack.length} step(s) chained (${done}${suffix})`,
         { role: "success", tag },
       );
     }
@@ -326,9 +341,8 @@ async function runCommand(): Promise<never> {
   }
 
   if (prunedCount > 0 || missingPrs.length > 0 || linkFailures.length > 0) {
-    // Keep the plan: a resume re-executes identical walks — steps with open
-    // PRs skip their sandboxes and no-op their restacks, so each stack picks
-    // back up at its first incomplete step and pruned work gets retried.
+    // Keep the plan: a resume re-executes identical walks; the ledger
+    // skips complete steps, so pruned work gets retried.
     sayError(
       `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle\` ` +
         `to resume the same walks.`,

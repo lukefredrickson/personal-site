@@ -136,8 +136,19 @@ blocked-by graph, chained from `main`. A one-issue component is a
 standalone PR, not a stack.
 
 **Step** — one issue's unit of work: (issue, branch `sandcastle/issue-<n>`,
-base). Complete exactly when its branch has an open PR — progress lives
-on GitHub, not in local state.
+base). Complete exactly when its ledger's verdict says so — an open PR,
+or a newest-PR-merged. Progress lives on GitHub, not in local state.
+
+**PR ledger** — every PR whose head is a step's branch, in any state;
+fetched once per step at step start. The walk's only cross-run memory:
+an open PR wins, otherwise the newest PR decides (merged → complete,
+closed → rejected).
+_Avoid_: treating branch contents as progress.
+
+**Stale branch** — a step's branch whose newest PR is closed-unmerged,
+or which has commits but no PR: deleted (origin and local refs) and
+rebuilt fresh under the same name. The rejected history survives in its
+closed PRs.
 
 **Level** — one topological rank of a stack's blocked-by graph: the
 issues with no unbuilt blockers, ordered ascending by issue number
@@ -167,8 +178,8 @@ force-pushed with its PR base retargeted. Owns all raw git for the run
 (structural invariant).
 
 **Detected no-op** — a restack step whose branch already descends from
-the chain tip: nothing rewritten, no re-check, no push. How completed
-steps resume for free.
+the chain tip: nothing rewritten, no re-check, no push. How open-PR
+completed steps resume for free (merged steps skip restack entirely).
 
 **Resolver agent** — the host-run agent given one attempt at a conflicted
 rebase, inside the restack worktree. Judged mechanically by the git state
@@ -177,5 +188,5 @@ it leaves; its self-report is ignored (as is the implementer's).
 **Prune** — removing from the chain a step that cannot join it, together
 with its dependency-descendants (prune closure) — including any branch
 whose history contains a pruned step's commits. Pruned branches and PRs
-are left untouched for the operator or a re-run; any prune makes the run
-exit non-zero.
+are left untouched within the run — the next run judges them by their
+ledger like any other step; any prune makes the run exit non-zero.
