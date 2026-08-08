@@ -58,7 +58,7 @@ interface FakeOptions {
   readonly openPrs?: readonly string[];
   /** Closed/merged ledger entries per branch, joined with any open PR. */
   readonly ledgers?: Readonly<Record<string, readonly LedgerPr[]>>;
-  /** Branches whose origin ref exists at walk start (PR-less debris). */
+  /** Branches whose origin ref exists at walk start (PR-less, stale). */
   readonly originBranches?: readonly string[];
   /** Branches whose ledger query throws (a flaked gh call). */
   readonly prQueryFlakes?: readonly string[];
@@ -92,6 +92,8 @@ interface FakeEffects extends WalkEffects {
   readonly deleted: string[];
   /** Issues closed with their comment text. */
   readonly closedIssues: { issue: number; comment: string }[];
+  /** Interleaved "delete:<branch>" / "build:<branch>" order record. */
+  readonly events: string[];
 }
 
 function fakeEffects(options: FakeOptions = {}): FakeEffects {
@@ -107,6 +109,7 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
     links: [],
     deleted: [],
     closedIssues: [],
+    events: [],
     // The `prs` map holds the open PRs (given up front or opened by a
     // fake build); the `ledgers` option supplies the closed/merged rest.
     prLedger(branch) {
@@ -126,6 +129,7 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
       !effects.deleted.includes(branch),
     deleteStaleBranch(branch) {
       effects.deleted.push(branch);
+      effects.events.push(`delete:${branch}`);
     },
     closeIssueWithComment(issue, comment) {
       if (options.closeIssueFails) throw new Error("gh issue close exploded");
@@ -140,6 +144,7 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
     },
     async buildInSandbox(step, waveBase) {
       effects.builds.push({ branch: step.branch, waveBase });
+      effects.events.push(`build:${step.branch}`);
       const build = options.builds?.[step.branch] ?? {
         commitCount: 1,
         stdout: "",
@@ -302,10 +307,14 @@ describe("the PR ledger verdict at step start", () => {
         issue: 1,
         comment:
           `Addressed by merged PR ${urlOf(branchOf(1))}-merged ` +
-          `(Sandcastle resume check).`,
+          `(Sandcastle resume check)`,
       },
     ]);
     expect(effects.deleted).toEqual([]);
+    // The skip is surfaced as a warning, not silently absorbed.
+    expect(
+      vi.mocked(console.log).mock.calls.flat().join("\n"),
+    ).toContain("already merged");
   });
 
   it("keeps walking when the issue-close of a merged step flakes", async () => {
@@ -330,9 +339,14 @@ describe("the PR ledger verdict at step start", () => {
 
     const outcome = await walk(stack, effects);
 
-    expect(effects.deleted).toEqual([branchOf(1)]);
     expect(effects.builds).toEqual([
       { branch: branchOf(1), waveBase: "main" },
+    ]);
+    // Deletion strictly precedes the rebuild, so a fresh sandbox can
+    // never resume rejected work.
+    expect(effects.events).toEqual([
+      `delete:${branchOf(1)}`,
+      `build:${branchOf(1)}`,
     ]);
     // The gate still runs after deletion — it just finds nothing stale.
     expect(effects.gated).toEqual([branchOf(1)]);
@@ -341,14 +355,16 @@ describe("the PR ledger verdict at step start", () => {
     expect(effects.closedIssues).toEqual([]);
   });
 
-  it("treats a PR-less branch as stale debris: deleted, then rebuilt", async () => {
+  it("treats a PR-less branch as stale: deleted, then rebuilt", async () => {
     const stack = chain([{ n: 1 }]);
     const effects = fakeEffects({ originBranches: [branchOf(1)] });
 
     const outcome = await walk(stack, effects);
 
-    expect(effects.deleted).toEqual([branchOf(1)]);
-    expect(effects.builds.map((b) => b.branch)).toEqual([branchOf(1)]);
+    expect(effects.events).toEqual([
+      `delete:${branchOf(1)}`,
+      `build:${branchOf(1)}`,
+    ]);
     expect(numbers(outcome.staleRebuilt)).toEqual([1]);
   });
 

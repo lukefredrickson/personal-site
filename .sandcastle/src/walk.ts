@@ -19,8 +19,8 @@
 //
 // Across runs the walk remembers nothing but the PR ledger: every PR on
 // a step's branch, any state, decides at step start whether the step is
-// complete, rejected, or stale debris (ADR 0034). Branch contents are
-// never trusted as progress.
+// complete, rejected, or stale (ADR 0034). Branch contents are never
+// trusted as progress.
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -441,12 +441,10 @@ export async function runStack(
     let failure: string | undefined;
     let rebuiltStale = false;
     try {
-      // The ledger verdict, taken at step start so it reads GitHub as it
-      // is now, not as it was at plan time. Checked before taking a pool
-      // slot, so a finished step never queues for one. Inside the try so
-      // a flaked `gh` call prunes this step, not the run.
+      // Read at step start, not plan time — the verdict must see GitHub
+      // as it is now. Inside the try: a flaked `gh` prunes only this step.
       const ledger = ctx.effects.prLedger(step.branch);
-      // Branch existence only matters to an empty ledger (stale debris
+      // Branch existence only matters to an empty ledger (stale branch
       // vs fresh build); the git probe is skipped when any PR exists.
       const branchExists =
         ledger.length > 0 ||
@@ -465,10 +463,8 @@ export async function runStack(
         return { disposition: "skipped-open" };
       }
       if (verdict.kind === "merged") {
-        // Merged work lives in the base branch already, so this step
-        // leaves the chain entirely: no restack turn, no link member.
-        // The issue stayed open only because the closing keyword missed;
-        // close it here rather than rebuild landed work.
+        // Merged work already sits in its base branch: no restack turn,
+        // no link member, and a missed closing keyword heals here.
         say(
           `✓ #${step.issue.number} already merged (${verdict.url}) — ` +
             `sandbox skipped; closing the issue.`,
@@ -477,7 +473,7 @@ export async function runStack(
         try {
           ctx.effects.closeIssueWithComment(
             step.issue.number,
-            `Addressed by merged PR ${verdict.url} (Sandcastle resume check).`,
+            `Addressed by merged PR ${verdict.url} (Sandcastle resume check)`,
           );
         } catch (error) {
           sayError(
@@ -490,10 +486,8 @@ export async function runStack(
         return { disposition: "skipped-merged" };
       }
       if (verdict.kind === "stale") {
-        // Rejected or PR-less debris is never resumed: the refs go, the
-        // history survives in the closed PRs, and the sandbox rebuilds
-        // fresh under the same deterministic name. Under the restack
-        // lock — the deletion pushes through the shared worktree.
+        // Refs go, history survives in the closed PRs (ADR 0034). Under
+        // the restack lock — the deletion pushes via the shared worktree.
         await ctx.restackLock.use(() =>
           ctx.effects.deleteStaleBranch(step.branch),
         );

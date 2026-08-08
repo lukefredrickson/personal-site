@@ -341,9 +341,8 @@ async function runCommand(): Promise<never> {
   }
 
   if (prunedCount > 0 || missingPrs.length > 0 || linkFailures.length > 0) {
-    // Keep the plan: a resume re-executes identical walks — the ledger
-    // skips every complete step, so each stack picks back up at its
-    // first incomplete step and pruned work gets retried.
+    // Keep the plan: a resume re-executes identical walks; the ledger
+    // skips complete steps, so pruned work gets retried.
     sayError(
       `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle\` ` +
         `to resume the same walks.`,
