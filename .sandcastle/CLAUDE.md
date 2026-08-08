@@ -52,10 +52,14 @@ topological level builds concurrently in its own sandbox, then the level
 restacks serially onto the growing chain. The run ends with a per-stack
 summary and exits non-zero if anything was pruned.
 
-Resume semantics: an open PR on a step's branch means that step is
-complete — progress lives on GitHub, not in local state. A surviving plan
-file means a run failed midway or was approved-then-aborted; re-running
-executes it as-is, resuming at the first PR-less step, no re-judgment.
+Resume semantics: at step start the walk fetches the step's PR ledger —
+every PR whose head is its branch, in any state — and computes a
+verdict: an open PR means complete; otherwise the newest PR decides
+(merged → complete, issue auto-closed; closed → rejected, branch deleted
+and rebuilt fresh). Progress lives on GitHub, not in local state. A
+surviving plan file means a run failed midway or was
+approved-then-aborted; re-running executes it as-is, resuming at the
+first step whose ledger verdict is not complete, no re-judgment.
 
 ## Invariants
 
@@ -68,8 +72,10 @@ A change must not break these; each is load-bearing in an ADR or header.
 - **Restacking owns git.** All raw git goes through `restack.ts`'s named
   operations, and restack is serial under a lock in one shared worktree —
   chains never depend on which sandbox finished first.
-- **An open PR is the completion marker.** Nothing else records progress;
-  resume logic and idempotent re-runs both hang off it.
+- **The PR ledger is the only cross-run memory.** An open PR wins;
+  otherwise the newest PR decides (merged → complete, closed →
+  rejected). Branch contents are never trusted across runs — stale
+  branches are deleted and rebuilt fresh.
 - **The factory never works on its own tickets.** Issues about Sandcastle
   itself never get the `Sandcastle` label; they are built in interactive
   sessions like this one.
@@ -90,5 +96,6 @@ pure logic and the effects boundary get specs; thin production adapters
 - ADR 0018 — the orchestration design: stacks, waves, sandboxes, prune.
 - ADR 0028 — the testing stance and the factory's separate gates.
 - ADR 0029 — the `WalkEffects` boundary: walk as a state machine over data.
+- ADR 0034 — the PR ledger as the only cross-run memory; stale branches.
 
 All in `docs/adr/` at repo root.

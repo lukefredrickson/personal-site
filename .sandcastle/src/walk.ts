@@ -16,6 +16,11 @@
 // so the walk itself is a state machine over data: specs drive it with
 // fakes and assert on its decisions (ADR 0029). `productionWalkEffects`
 // is the real wiring.
+//
+// Across runs the walk remembers nothing but the PR ledger: every PR on
+// a step's branch, any state, decides at step start whether the step is
+// complete, rejected, or stale debris (ADR 0034). Branch contents are
+// never trusted as progress.
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -23,8 +28,10 @@ import { ChildFailure, runCaptured } from "./exec.ts";
 import { phaseRule, say, sayError, type StackTag } from "./render.ts";
 import {
   branchCarries,
+  deleteStaleBranch,
   fetchOrigin,
   gateBranchAncestry,
+  originBranchExists,
   resolveOriginTip,
   restackBranch,
   type BranchGate,
@@ -86,6 +93,52 @@ export class Semaphore {
   }
 }
 
+/** One PR whose head is a step's branch — an entry in its PR ledger. */
+export interface LedgerPr {
+  readonly state: "OPEN" | "MERGED" | "CLOSED";
+  readonly url: string;
+  /** ISO creation time — recency decides when nothing is open. */
+  readonly createdAt: string;
+}
+
+type LedgerVerdict =
+  | { readonly kind: "open"; readonly url: string }
+  | { readonly kind: "merged"; readonly url: string }
+  | { readonly kind: "stale"; readonly why: string }
+  | { readonly kind: "fresh" };
+
+// The resume verdict (ADR 0034). An open PR always wins; otherwise the
+// newest PR decides — merged means the work landed, closed means the
+// operator rejected it. With no PRs at all the branch is either debris
+// from a dead run (stale) or absent (fresh); its contents never count.
+function ledgerVerdict(
+  ledger: readonly LedgerPr[],
+  branchExists: boolean,
+): LedgerVerdict {
+  const open = ledger.find((pr) => pr.state === "OPEN");
+  if (open !== undefined) return { kind: "open", url: open.url };
+  const newest = [...ledger].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )[0];
+  if (newest?.state === "MERGED") return { kind: "merged", url: newest.url };
+  if (newest !== undefined) {
+    return {
+      kind: "stale",
+      why: `its newest PR ${newest.url} was closed without merging`,
+    };
+  }
+  if (branchExists) return { kind: "stale", why: "it has commits but no PR" };
+  return { kind: "fresh" };
+}
+
+/** URL of the branch's open PR, if any — the completion marker. */
+function openPrUrl(
+  effects: WalkEffects,
+  branch: string,
+): string | undefined {
+  return effects.prLedger(branch).find((pr) => pr.state === "OPEN")?.url;
+}
+
 /** What a sandbox build left behind, as the walk judges completeness. */
 export interface SandboxBuild {
   /** Commits the implementer produced on the step's branch. */
@@ -102,8 +155,14 @@ export interface SandboxBuild {
 // structural. Methods throw on failure exactly where the production
 // commands would; the walk's catch blocks are the behavior under test.
 export interface WalkEffects {
-  /** URL of the branch's open PR, if any — the completion marker. */
-  openPrUrl(branch: string): string | undefined;
+  /** Every PR whose head is the branch, any state — the step's ledger. */
+  prLedger(branch: string): LedgerPr[];
+  /** Whether origin/<branch> exists — stale debris vs a fresh build. */
+  originBranchExists(branch: string): boolean;
+  /** Delete the branch's origin ref and any local ref (restack-owned). */
+  deleteStaleBranch(branch: string): void;
+  /** Close the issue with a comment naming the merged PR. */
+  closeIssueWithComment(issueNumber: number, comment: string): void;
   /** Bind the PR urls into a GitHub stack, bottom-to-top. */
   linkPrStack(urls: readonly string[]): void;
   /** Retarget the branch's PR onto a new base branch. */
@@ -128,25 +187,32 @@ export interface WalkEffects {
 // sequence — which is the deal ADR 0029 records.
 export function productionWalkEffects(worktree: string): WalkEffects {
   return {
-    // An open PR on a step's branch means the step is done — the PR is
-    // what the whole walk exists to produce, and it lives on GitHub where
-    // every run can see it. Closed and merged PRs don't count: a merged
-    // layer's successor should rebase via the normal review flow, and a
-    // closed-unmerged PR means the work was rejected, not done.
-    openPrUrl(branch) {
-      const prs = JSON.parse(
+    // One query returns the whole ledger; ledgerVerdict reads it. gh
+    // reports state uppercase (OPEN/MERGED/CLOSED), matching LedgerPr.
+    prLedger(branch) {
+      return JSON.parse(
         runCaptured("gh", [
           "pr",
           "list",
           "--head",
           branch,
           "--state",
-          "open",
+          "all",
           "--json",
-          "url",
+          "state,url,createdAt",
         ]),
-      ) as { url: string }[];
-      return prs[0]?.url;
+      ) as LedgerPr[];
+    },
+    originBranchExists: (branch) => originBranchExists(worktree, branch),
+    deleteStaleBranch: (branch) => deleteStaleBranch(worktree, branch),
+    closeIssueWithComment(issueNumber, comment) {
+      runCaptured("gh", [
+        "issue",
+        "close",
+        String(issueNumber),
+        "--comment",
+        comment,
+      ]);
     },
     linkPrStack(urls) {
       // gh's own chatter is captured; the walk reports the result.
@@ -228,7 +294,7 @@ export function linkChainedPrs(
   if (chained.length < 2) return true;
   try {
     const urls = chained.map((step) => {
-      const url = effects.openPrUrl(step.branch);
+      const url = openPrUrl(effects, step.branch);
       if (url === undefined) throw new Error(`no open PR on ${step.branch}`);
       return url;
     });
@@ -275,6 +341,10 @@ export interface StackOutcome {
   readonly chained: readonly StackStep[];
   /** Chained steps that skipped their sandbox (already had an open PR). */
   readonly skipped: readonly StackStep[];
+  /** Steps skipped because their newest PR is merged — issue auto-closed. */
+  readonly skippedMerged: readonly StackStep[];
+  /** Chained steps whose stale branch was deleted and rebuilt fresh. */
+  readonly staleRebuilt: readonly StackStep[];
   /** Chained steps whose rebase conflict rerere or the resolver fixed. */
   readonly resolved: readonly ResolvedStep[];
   readonly pruned: readonly PrunedStep[];
@@ -313,6 +383,8 @@ export async function runStack(
 
   const levels = waveLevels(stack);
   const skipped: StackStep[] = [];
+  const skippedMerged: StackStep[] = [];
+  const staleRebuilt: StackStep[] = [];
   const resolved: ResolvedStep[] = [];
   const missingPrs: string[] = [];
   const localRefMoves: LocalRefMove[] = [];
@@ -358,7 +430,7 @@ export async function runStack(
     depth: number,
   ): Promise<{
     readonly failure?: string;
-    readonly skippedSandbox: boolean;
+    readonly disposition: "skipped-open" | "skipped-merged" | "built" | "rebuilt";
   }> => {
     phaseRule(
       `#${step.issue.number}: ${step.issue.title} ` +
@@ -367,19 +439,70 @@ export async function runStack(
     );
 
     let failure: string | undefined;
+    let rebuiltStale = false;
     try {
-      // Already complete? Skip the sandbox — but the branch still takes
-      // its restack turn, which detects the no-op. Checked before taking
-      // a pool slot, so a finished step never queues for one. Inside the
-      // try so a flaked `gh` call prunes this step, not the run.
-      const existingPr = ctx.effects.openPrUrl(step.branch);
-      if (existingPr !== undefined) {
+      // The ledger verdict, taken at step start so it reads GitHub as it
+      // is now, not as it was at plan time. Checked before taking a pool
+      // slot, so a finished step never queues for one. Inside the try so
+      // a flaked `gh` call prunes this step, not the run.
+      const ledger = ctx.effects.prLedger(step.branch);
+      // Branch existence only matters to an empty ledger (stale debris
+      // vs fresh build); the git probe is skipped when any PR exists.
+      const branchExists =
+        ledger.length > 0 ||
+        (await ctx.restackLock.use(() =>
+          ctx.effects.originBranchExists(step.branch),
+        ));
+      const verdict = ledgerVerdict(ledger, branchExists);
+      if (verdict.kind === "open") {
+        // Complete — but the branch still takes its restack turn, which
+        // detects the no-op, so the chain grows through it.
         say(
           `✓ #${step.issue.number} already complete (open PR ` +
-            `${existingPr}) — sandbox skipped.`,
+            `${verdict.url}) — sandbox skipped.`,
           { role: "success", tag: stepTag(step) },
         );
-        return { skippedSandbox: true };
+        return { disposition: "skipped-open" };
+      }
+      if (verdict.kind === "merged") {
+        // Merged work lives in the base branch already, so this step
+        // leaves the chain entirely: no restack turn, no link member.
+        // The issue stayed open only because the closing keyword missed;
+        // close it here rather than rebuild landed work.
+        say(
+          `✓ #${step.issue.number} already merged (${verdict.url}) — ` +
+            `sandbox skipped; closing the issue.`,
+          { role: "warn", tag: stepTag(step) },
+        );
+        try {
+          ctx.effects.closeIssueWithComment(
+            step.issue.number,
+            `Addressed by merged PR ${verdict.url} (Sandcastle resume check).`,
+          );
+        } catch (error) {
+          sayError(
+            `⚠ could not close issue #${step.issue.number} — close it ` +
+              `manually with gh issue close ${step.issue.number}. ` +
+              `(${error instanceof Error ? error.message : String(error)})`,
+            { role: "warn", tag: stepTag(step) },
+          );
+        }
+        return { disposition: "skipped-merged" };
+      }
+      if (verdict.kind === "stale") {
+        // Rejected or PR-less debris is never resumed: the refs go, the
+        // history survives in the closed PRs, and the sandbox rebuilds
+        // fresh under the same deterministic name. Under the restack
+        // lock — the deletion pushes through the shared worktree.
+        await ctx.restackLock.use(() =>
+          ctx.effects.deleteStaleBranch(step.branch),
+        );
+        say(
+          `↺ #${step.issue.number}: stale ${step.branch} deleted ` +
+            `(${verdict.why}) — rebuilding fresh.`,
+          { role: "warn", tag: stepTag(step) },
+        );
+        rebuiltStale = true;
       }
 
       // The resume ancestry gate: a leftover branch from a dead run may
@@ -393,7 +516,7 @@ export async function runStack(
         ctx.effects.gateBranchAncestry(step.branch, waveBaseSha),
       );
       if (gate.kind === "blocked") {
-        return { failure: gate.reason, skippedSandbox: false };
+        return { failure: gate.reason, disposition: "built" };
       }
       if (gate.kind === "rebuilt") {
         // A gate reset that moved the local ref is audited in the run
@@ -432,7 +555,7 @@ export async function runStack(
     }
 
     if (failure !== undefined) {
-      return { failure, skippedSandbox: false };
+      return { failure, disposition: "built" };
     }
 
     // The stack is only a stack if every layer has its PR. The
@@ -447,7 +570,7 @@ export async function runStack(
     // retains the plan, so the next run re-checks.
     let pr: string | undefined;
     try {
-      pr = ctx.effects.openPrUrl(step.branch);
+      pr = openPrUrl(ctx.effects, step.branch);
     } catch {
       pr = undefined;
     }
@@ -466,7 +589,7 @@ export async function runStack(
         { role: "warn", tag: stepTag(step) },
       );
     }
-    return { skippedSandbox: false };
+    return { disposition: rebuiltStale ? "rebuilt" : "built" };
   };
 
   // The chain tip this stack is growing: starts at the trunk, advances
@@ -506,12 +629,19 @@ export async function runStack(
     // reasons are the same whichever sandbox finished first.
     const toRestack: StackStep[] = [];
     for (const [j, step] of survivors.entries()) {
-      const { failure, skippedSandbox } = results[j]!;
+      const { failure, disposition } = results[j]!;
       if (failure !== undefined) {
         prune(step, failure);
         continue;
       }
-      if (skippedSandbox) skipped.push(step);
+      // A merged step's work already sits inside its base branch, so it
+      // takes no restack turn and never advances the tip.
+      if (disposition === "skipped-merged") {
+        skippedMerged.push(step);
+        continue;
+      }
+      if (disposition === "skipped-open") skipped.push(step);
+      if (disposition === "rebuilt") staleRebuilt.push(step);
       toRestack.push(step);
     }
 
@@ -669,10 +799,17 @@ export async function runStack(
   // its end explicitly.
   phaseRule(`Finished ${label}`, { tag });
 
+  // Merged steps are complete but not chained: their branches are gone
+  // or landed, so the chain — and the run-end stack link — omits them.
+  const merged = new Set(skippedMerged.map((s) => s.issue.number));
   return {
     stack,
-    chained: stack.filter((s) => !pruned.has(s.issue.number)),
+    chained: stack.filter(
+      (s) => !pruned.has(s.issue.number) && !merged.has(s.issue.number),
+    ),
     skipped: skipped.filter((s) => !pruned.has(s.issue.number)),
+    skippedMerged,
+    staleRebuilt: staleRebuilt.filter((s) => !pruned.has(s.issue.number)),
     resolved: resolved.filter((r) => !pruned.has(r.step.issue.number)),
     pruned: stack
       .filter((s) => pruned.has(s.issue.number))

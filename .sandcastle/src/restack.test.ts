@@ -24,7 +24,12 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, type Fixture } from "./fixtures.ts";
-import { gateBranchAncestry, restackBranch } from "./restack.ts";
+import {
+  deleteStaleBranch,
+  gateBranchAncestry,
+  originBranchExists,
+  restackBranch,
+} from "./restack.ts";
 
 // npm spawns dominate; a cold CI cache can take a while.
 const GATED = { timeout: 120_000 };
@@ -381,6 +386,64 @@ describe("restackBranch: local-ref lease sync", () => {
       }
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// Stale-branch deletion
+// ---------------------------------------------------------------------------
+
+// A stale step's branch is deleted everywhere the factory owns it, so the
+// rebuild starts from nothing. `originGone` asserts against the bare
+// origin itself (ls-remote over the file protocol), not just the clone's
+// remote-tracking ref.
+function originGone(f: Fixture, branch: string): boolean {
+  return f.git(["ls-remote", "origin", `refs/heads/${branch}`]) === "";
+}
+
+describe("deleteStaleBranch", () => {
+  it("deletes both origin and local refs when both exist", () => {
+    const f = fixture();
+    f.addBranch("stale", f.mainSha, {
+      message: "stale: rejected work",
+      files: { "stale.txt": "x\n" },
+    });
+    expect(originBranchExists(f.worktree, "stale")).toBe(true);
+    deleteStaleBranch(f.worktree, "stale");
+    expect(f.sha("refs/heads/stale")).toBeUndefined();
+    expect(originGone(f, "stale")).toBe(true);
+    expect(originBranchExists(f.worktree, "stale")).toBe(false);
+  });
+
+  it("deletes the origin ref when no local ref exists", () => {
+    const f = fixture();
+    f.addBranch("stale", f.mainSha, {
+      message: "stale: rejected work",
+      files: { "stale.txt": "x\n" },
+      keepLocal: false,
+    });
+    deleteStaleBranch(f.worktree, "stale");
+    expect(originGone(f, "stale")).toBe(true);
+    expect(originBranchExists(f.worktree, "stale")).toBe(false);
+  });
+
+  it("is a no-op when neither ref exists", () => {
+    const f = fixture();
+    expect(originBranchExists(f.worktree, "ghost")).toBe(false);
+    expect(() => deleteStaleBranch(f.worktree, "ghost")).not.toThrow();
+  });
+
+  it("refuses when the local branch is checked out, leaving origin untouched", () => {
+    const f = fixture();
+    const tip = f.addBranch("stale", f.mainSha, {
+      message: "stale: rejected work",
+      files: { "stale.txt": "x\n" },
+    });
+    f.git(["switch", "stale"]);
+    expect(() => deleteStaleBranch(f.worktree, "stale")).toThrow();
+    expect(f.sha("refs/heads/stale")).toBe(tip);
+    expect(f.sha("origin/stale")).toBe(tip);
+    expect(originGone(f, "stale")).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

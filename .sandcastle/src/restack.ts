@@ -217,6 +217,25 @@ export function resolveOriginTip(worktree: string, branch: string): string {
   return git(["rev-parse", "--verify", `origin/${branch}`], { cwd: worktree });
 }
 
+// True when origin/<branch> resolves in the worktree's fetched refs.
+export function originBranchExists(worktree: string, branch: string): boolean {
+  return resolveRef(worktree, `refs/remotes/origin/${branch}`) !== undefined;
+}
+
+// Delete a stale branch everywhere the factory owns it: the local ref
+// first, then origin. Local first because git refuses to delete a
+// checked-out branch — that refusal (a ChildFailure the caller turns
+// into a prune) aborts before origin is touched. Rejected work survives
+// in the branch's closed PRs, so deleting the refs loses nothing.
+export function deleteStaleBranch(worktree: string, branch: string): void {
+  if (resolveRef(worktree, `refs/heads/${branch}`) !== undefined) {
+    git(["branch", "-D", branch], { cwd: worktree });
+  }
+  if (originBranchExists(worktree, branch)) {
+    pushToOrigin(worktree, ["origin", "--delete", branch]);
+  }
+}
+
 /** How a conflicted rebase got finished without pruning. */
 export type ConflictResolution = "rerere" | "agent";
 
