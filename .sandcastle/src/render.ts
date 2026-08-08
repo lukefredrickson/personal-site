@@ -1,25 +1,8 @@
-// Structured sequential rendering for the factory's console
-//
-// The run's console is an append-only log, deliberately not a live TUI:
-// concurrent stacks interleave on one stream, and a repainting dashboard
-// dies in scrollback and needs a second renderer for non-TTY output. So
-// every line is made self-sufficient instead — a wall-clock HH:MM:SS
-// stamp (wall-clock, not run-relative, because runs are read against
-// log files and GitHub timestamps), and a `[S2·#139]` stack/issue tag
-// on any line attributable to a walk, colored with a per-stack hue so
-// interleaved output reads at a glance. Phase boundaries get box-drawn
-// rules; the plan and summary phases get heavy bar headings, and the
-// one block-letter banner marks run start — nothing else shouts.
-//
-// Everything that decides what a line looks like is a pure function of
-// (clock, message, tag, role, style), specced with exact strings and an
-// injected clock. The console sink at the bottom is the only impure
-// part: it supplies `new Date()` and a styler bound to the real stream.
-// Color goes through Node's built-in `util.styleText` with the target
-// stream passed in, so the TTY/NO_COLOR/FORCE_COLOR matrix is the
-// platform's problem — piped output carries identical text with the
-// escapes simply absent, which is also why specs default to `plainStyle`
-// and stay byte-stable.
+// The structured console renderer: timestamps, stack tags, role colors,
+// phase rules, banners (ADR 0032). The console is an append-only log,
+// not a live TUI; every line is self-sufficient. Line shape is a pure
+// function of (clock, message, tag, role, style); the console sink at
+// the bottom is the only impure part.
 
 import { styleText } from "node:util";
 
@@ -59,10 +42,8 @@ const ROLE_FORMAT: Partial<Record<Role, TextFormat>> = {
   bold: "bold",
 };
 
-// The rotating per-stack hues. Deliberately disjoint from the role
-// palette above (no green/red/yellow), so a tag's color never reads as
-// a verdict. Keyed by stack number mod length: a run with more stacks
-// than hues repeats colors, which is still better than none.
+// The rotating per-stack hues, disjoint from the role palette so a
+// tag's color never reads as a verdict (ADR 0032).
 export const STACK_PALETTE = [
   "cyan",
   "magenta",
@@ -98,10 +79,8 @@ export interface LineOpts {
 
 /**
  * Render one message as console-ready text: every non-blank line gets
- * the timestamp (dimmed) and, when tagged, the hue-colored tag; the
- * role colors the message text itself. Blank lines pass through blank —
- * they are spacing, and a bare timestamp on an empty line is noise, so
- * "every line carries a timestamp" means every line that says anything.
+ * the dimmed timestamp and, when tagged, the hue-colored tag; the role
+ * colors the message text. Blank lines pass through blank.
  */
 export function renderLine(
   now: Date,
@@ -125,9 +104,8 @@ export function renderLine(
     .join("\n");
 }
 
-// One width for every rule, so phase boundaries scan as a column of
-// same-length bars whatever their titles are. Long titles win over the
-// width — the fill just disappears rather than the title truncating.
+// One width for every rule, so phase boundaries scan as a column. A
+// long title wins over the width: the fill disappears, never the title.
 const RULE_WIDTH = 72;
 
 /**
@@ -173,9 +151,8 @@ export function renderHeading(
 // The banner: hand-picked block lettering for run start only
 // ---------------------------------------------------------------------------
 
-// A literal constant, no lettering engine: a figlet-style dependency
-// buys nothing for one fixed string, and a constant is speccable
-// byte-for-byte. Rows carry no trailing whitespace.
+// A literal constant: a lettering dependency buys nothing for one
+// fixed string (ADR 0032). Rows carry no trailing whitespace.
 export const RUN_START_BANNER: readonly string[] = [
   "  █████████    █████████   ██████   █████ ██████████     █████████    █████████    █████████  ███████████ █████       ██████████",
   " ███░░░░░███  ███░░░░░███ ░░██████ ░░███ ░░███░░░░███   ███░░░░░███  ███░░░░░███  ███░░░░░███░█░░░███░░░█░░███       ░░███░░░░░█",
@@ -192,10 +169,8 @@ export const RUN_START_BANNER: readonly string[] = [
 // The console sink: the only impure part
 // ---------------------------------------------------------------------------
 
-// Binding the target stream into the styler is what makes color a
-// per-stream decision: stdout piped to a file goes plain while stderr
-// on the terminal stays red, and NO_COLOR/FORCE_COLOR are honored —
-// all inside styleText's own stream validation.
+// Binding the target stream into the styler makes color a per-stream
+// decision; styleText's own validation honors NO_COLOR/FORCE_COLOR.
 const styleFor =
   (stream: NodeJS.WriteStream): Style =>
   (format, text) =>

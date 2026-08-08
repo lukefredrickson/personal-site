@@ -181,6 +181,14 @@ force-pushed with its PR base retargeted. Owns all raw git for the run
 the chain tip: nothing rewritten, no re-check, no push. How open-PR
 completed steps resume for free (merged steps skip restack entirely).
 
+**Replay window** — the range a restack rebase replays: onto the chain
+tip, from the base sha the branch was built on, so only the branch's own
+commits ever replay (ADR 0018).
+
+**Ancestry gate** — the resume check on a leftover branch: a ref that
+does not descend from the step's assigned base resets to it, and a
+checked-out or diverged local ref blocks the step untouched (ADR 0018).
+
 **Resolver agent** — the host-run agent given one attempt at a conflicted
 rebase, inside the restack worktree. Judged mechanically by the git state
 it leaves; its self-report is ignored (as is the implementer's).

@@ -1,18 +1,8 @@
-// Host-run agents: streaming execution
-//
-// Both host-run `claude -p` invocations (planning, conflict resolution)
-// spawn through here, with stream-json output — one JSON event per stdout
-// line as the run progresses, so a legitimately long multi-subagent run
-// is always distinguishable from a hang. The runner narrates those events
-// as compact tagged progress lines written to a per-run `.log` file, tees
-// the raw stream to a sibling `.jsonl`, both under LOGS_DIR (the same
-// place the sandboxed agents log), and returns the final result text; it
-// throws on timeout, non-zero exit, or an error result. The console gets
-// the same three lines a sandboxed agent gets — a start line, a `tail -f`
-// pointer, and the outcome — so concurrent stacks stay readable; the
-// play-by-play lives in the tailable log. Observability only: prompts,
-// tool allowlists, working directory, and environment pass through from
-// the call sites.
+// Streaming `claude -p` runner for the host-run agents (judgment,
+// resolver). Narrates stream-json events as tagged progress lines in a
+// per-run .log, tees the raw stream to a sibling .jsonl, and returns
+// the final result text. The console carries only start, tail pointer,
+// and outcome (ADR 0032). Prompts and allowlists pass through.
 
 import { spawn } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
@@ -40,10 +30,8 @@ export interface HostAgentOptions {
   readonly env?: NodeJS.ProcessEnv;
 }
 
-// The slice of a stream-json event the formatter reads. One event per
-// stdout line; assistant/user events wrap an API message whose content
-// blocks carry the interesting parts. `parent_tool_use_id` attributes an
-// event to the subagent spawned by that Task tool call.
+// The slice of a stream-json event the formatter reads.
+// `parent_tool_use_id` attributes an event to a spawned subagent.
 interface StreamBlock {
   readonly type: string;
   readonly id?: string;
@@ -64,8 +52,8 @@ interface StreamEvent {
   readonly result?: string;
 }
 
-// A Task/Agent tool call fans work out to a subagent; both the spawn
-// line and the tool_use-id bookkeeping key off the same test.
+// A Task/Agent tool call spawns a subagent; the spawn line and the
+// tool_use-id bookkeeping key off the same test.
 function isSubagentSpawn(block: StreamBlock): boolean {
   return (
     block.type === "tool_use" &&
@@ -96,11 +84,8 @@ function toolResultText(content: unknown): string {
     .join(" ");
 }
 
-// One terminal line per meaningful event — main-agent tool call, subagent
-// spawn, forwarded subagent text, subagent report — everything else
-// (thinking, token counts, interim main-agent text) stays in the raw log.
-// Pure: which tool_use ids were subagent spawns is passed in, not tracked
-// here.
+// One line per meaningful event; everything else stays in the raw log.
+// Pure: subagent-spawn ids are passed in, not tracked here.
 function progressLines(
   event: StreamEvent,
   subagentIds: ReadonlySet<string>,
@@ -111,7 +96,7 @@ function progressLines(
   const blocks = event.message?.content ?? [];
   if (event.type === "assistant") {
     // Forwarded subagent text (--forward-subagent-text): the liveness
-    // signal while all the work is inside a fan-out.
+    // signal while the work is inside a subagent.
     if (event.parent_tool_use_id != null) {
       return blocks.flatMap((block) =>
         block.type === "text" &&
@@ -164,7 +149,7 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
   };
   // Play-by-play goes to the tailable log; `announce` is for the few
-  // lines the console should carry (start, outcome).
+  // console lines (start, outcome).
   const record = (line: string): void => {
     progressLog.write(`[${elapsed()}] ${line}\n`);
   };
@@ -220,7 +205,7 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
       }
       if (event.type === "result") finalEvent = event;
       // The CLI re-emits the init event mid-run; announce the session
-      // once and leave the duplicates to the raw log.
+      // once.
       if (event.type === "system" && event.subtype === "init") {
         if (sessionAnnounced) continue;
         sessionAnnounced = true;
@@ -236,9 +221,8 @@ export async function runHostAgent(opts: HostAgentOptions): Promise<string> {
     }
   });
 
-  // CLI stderr goes to the tailable log, off the console — a failure
-  // investigation reads it next to the progress it interrupted, and
-  // concurrent stacks' lines stay unbroken by it.
+  // CLI stderr goes to the tailable log, off the console, so a failure
+  // reads next to the progress it interrupted.
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk: string) => {
     for (const line of chunk.split("\n")) {

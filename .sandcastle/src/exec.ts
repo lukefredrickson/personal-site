@@ -1,13 +1,7 @@
-// Captured child execution and the per-run raw log
-//
-// Every host-side child process (git, npm, gh) runs through here, with
-// output captured instead of inherited — the factory's console carries
-// only lines the factory chose to print. What the console policy is
-// belongs to each call site: expected-failure probes print nothing,
-// successful gates collapse to a one-line summary, and a failing gate
-// dumps its full captured output via `printChildFailure`. Whatever the
-// console shows, the raw output of every child is teed verbatim to one
-// per-run log file, so summarization never loses anything.
+// Captured child execution and the per-run raw log. Every host child
+// (git, npm, gh) runs through here with output captured; console policy
+// belongs to the call sites. Raw output tees verbatim to one per-run
+// log, so summarization never loses anything (ADR 0032).
 
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
@@ -19,10 +13,9 @@ export const LOGS_DIR = ".sandcastle/logs";
 
 let runLog: string | undefined;
 
-// One log per invocation, opened by main.ts before anything spawns.
-// Module state rather than a threaded parameter: children run many call
-// layers deep (walk → restack → git), and the log is genuinely global to
-// the process. Unopened (as in specs), teeing is a no-op.
+// Module state, not a threaded parameter: children run many call
+// layers deep and the log is global to the process. Unopened, as in
+// specs, teeing is a no-op.
 export function openRunLog(): string {
   mkdirSync(LOGS_DIR, { recursive: true });
   runLog = join(
@@ -67,8 +60,8 @@ export class ChildFailure extends Error {
   readonly stderr: string;
 
   constructor(command: string, exit: string, stdout: string, stderr: string) {
-    // The one-line summary a prune reason or error path can carry; the
-    // full output lives on the instance and in the per-run log.
+    // The one-line summary a prune reason can carry; the full output
+    // lives on the instance and in the per-run log.
     const headline = stderr
       .split("\n")
       .find((line) => line.trim() !== "");
@@ -89,11 +82,9 @@ function oneLine(text: string): string {
 }
 
 /**
- * Run a child with stdout and stderr captured, tee the raw output to the
- * per-run log, and return trimmed stdout. Throws `ChildFailure` on a
- * non-zero exit; callers decide whether that is an expected probe result
- * (swallow silently) or a real failure (report, with
- * `printChildFailure` when the full output should reach the console).
+ * Run a child with output captured, tee the raw output to the per-run
+ * log, and return trimmed stdout. Throws `ChildFailure` on a non-zero
+ * exit; callers decide probe (swallow) or real failure (report).
  */
 export function runCaptured(
   file: string,
@@ -136,10 +127,9 @@ export function runCaptured(
 }
 
 /**
- * Reproduce a failed child's full captured output on the console, plus
- * the per-run log pointer — capture must never make a failure harder to
- * debug, so nothing is summarized on this path. Non-ChildFailure errors
- * print their message; there is no captured output to show.
+ * Reproduce a failed child's full captured output on the console —
+ * capture must never make a failure harder to debug. Non-ChildFailure
+ * errors print their message; there is no captured output to show.
  */
 export function printChildFailure(error: unknown): void {
   if (!(error instanceof ChildFailure)) {

@@ -1,24 +1,8 @@
-// Tier-1 git-surgery specs: the behavioral assertions PR #100 recorded
-// as prose in its "How to verify" section, transcribed against the same
-// seam that verification used — the exported functions driven through
-// throwaway git fixture repos (issue #104). Four behavior families:
-//
-//   - the replay-window restack: a resolver-modified predecessor commit
-//     never re-replays downstream, and the old full-lineage rebase
-//     provably conflicts on the same fixture;
-//   - the resume ancestry gate: stale branches rebuild instead of being
-//     reused, while checked-out or diverged refs are blocked untouched
-//     with the recovery command in the reason;
-//   - the local-ref lease sync: a local ref at exactly the pre-rewrite
-//     sha moves, anything else is skipped with reason and recovery;
-//   - rerere replay: a textually recurring conflict hunk auto-resolves
-//     without a resolver-agent attempt.
-//
-// Every assertion is on observable git state — ref positions, commit
-// lists, returned outcome values, reason/recovery strings — never on
-// internal function structure. Restacks that push run the real check
-// gate (npm ci --dry-run, npm install, npm run check) against the
-// fixture's no-op package, so those specs carry generous timeouts.
+// Tier-1 git-surgery specs (ADR 0028): the exported functions driven
+// through throwaway fixture repos. Every assertion is on observable git
+// state — ref positions, commit lists, outcome values, reason strings —
+// never on internal structure. Specs that push run the real check gate,
+// so they carry generous timeouts.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -34,9 +18,8 @@ import {
 // npm spawns dominate; a cold CI cache can take a while.
 const GATED = { timeout: 120_000 };
 
-// Each spec opens with `const f = fixture()`; the hook disposes it even
-// when the spec fails, and tolerates a spec that died before creating
-// one.
+// The hook disposes the fixture even when a spec fails, and tolerates
+// a spec that died before creating one.
 let active: Fixture | undefined;
 afterEach(() => {
   active?.dispose();
@@ -70,9 +53,8 @@ function rewrittenPredecessorFixture(f: Fixture): {
     keepLocal: false,
   });
   const m1 = f.commitOn("main", "main: advance", { "advance.txt": "x\n" });
-  // The "resolver-modified" rewrite: b1's commit rebuilt on the new main
-  // with different file content, force-pushed — patch-identity with the
-  // old commit is gone.
+  // The "resolver-modified" rewrite: b1's commit rebuilt with different
+  // content, force-pushed — patch-identity with the old commit is gone.
   f.git(["branch", "-f", "b1", m1]);
   const newB1 = f.commitOn(
     "b1",
@@ -88,9 +70,8 @@ describe("restackBranch: replay window", () => {
   it("the old full-lineage rebase re-replays the rewritten predecessor and conflicts", () => {
     const f = fixture();
     const { newB1, b2Tip } = rewrittenPredecessorFixture(f);
-    // What the pre-#100 restack did: a plain rebase onto the tip, which
-    // replays everything back to the merge-base — including b1's old
-    // commit, which no longer patch-matches its rewritten form.
+    // The pre-#100 restack: a plain rebase replays back to the
+    // merge-base, including b1's old commit, which no longer matches.
     f.git(["switch", "--detach", b2Tip], f.worktree);
     expect(() => f.git(["rebase", newB1], f.worktree)).toThrow();
     expect(f.git(["ls-files", "--unmerged"], f.worktree)).toContain(
@@ -225,9 +206,8 @@ describe("gateBranchAncestry", () => {
       message: "stale: dead-run work",
       files: { "stale.txt": "x\n" },
     });
-    // The operator (or a previous gate) already rebuilt the local branch
-    // on the right base and accumulated work there; only origin still
-    // carries the dead run.
+    // The local branch was already rebuilt on the right base with new
+    // work; only origin still carries the dead run.
     f.git(["branch", "-f", "stale", base]);
     const rebuilt = f.commitOn(
       "stale",
@@ -392,10 +372,8 @@ describe("restackBranch: local-ref lease sync", () => {
 // Stale-branch deletion
 // ---------------------------------------------------------------------------
 
-// A stale step's branch is deleted everywhere the factory owns it, so the
-// rebuild starts from nothing. `originGone` asserts against the bare
-// origin itself (ls-remote over the file protocol), not just the clone's
-// remote-tracking ref.
+// `originGone` asserts against the bare origin itself (ls-remote), not
+// just the clone's remote-tracking ref.
 function originGone(f: Fixture, branch: string): boolean {
   return f.git(["ls-remote", "origin", `refs/heads/${branch}`]) === "";
 }
@@ -469,12 +447,8 @@ describe("restackBranch: rerere replay", () => {
         keepLocal: false,
       });
 
-      // Record the resolution the way the run does: an earlier conflicted
-      // rebase in the restack worktree, resolved once with rerere
-      // enabled, then discarded — only the rr-cache entry survives (it
-      // lives in the clone's shared .git, which the worktree shares).
-      // These -c flags mirror the unexported RERERE_FLAGS in restack.ts;
-      // if that constant changes, this recording must change with it.
+      // Record the resolution the way a run does; only the rr-cache
+      // entry survives. The -c flags mirror restack.ts's RERERE_FLAGS.
       const rr = [
         "-c",
         "rerere.enabled=true",
@@ -490,11 +464,8 @@ describe("restackBranch: rerere replay", () => {
       f.git([...rr, "rebase", "--continue"], f.worktree);
       f.git(["switch", "--detach", f.mainSha], f.worktree);
 
-      // The same hunk conflicts again; rerere replays the recorded
-      // resolution and the restack completes as "resolved via rerere".
-      // Had the resolver agent been attempted instead, the outcome could
-      // not carry via: "rerere" — that value exists only on the path
-      // where recorded resolutions alone finished the rebase.
+      // via: "rerere" exists only on the path where recorded
+      // resolutions alone finished the rebase — no resolver attempt.
       const outcome = await restackBranch(f.worktree, "r2", "r1", r1Tip, mBase);
       expect(outcome).toMatchObject({ kind: "resolved", via: "rerere" });
       expect(f.git(["show", "origin/r2:conflict.txt"])).toBe(

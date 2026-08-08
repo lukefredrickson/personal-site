@@ -15,7 +15,8 @@ authority on each module's behavior — read the header before editing.
 Everything lives in `.sandcastle/src/`:
 
 - `main.ts` — CLI entry and run orchestration: plan → approve → execute,
-  concurrency caps, per-stack summary. Its header narrates the whole run.
+  concurrency caps, per-stack summary. The full pipeline narrative lives
+  in `docs/pipeline.md`.
 - `plan.ts` — planning: the plan file, the judgment agent, and the only
   host code that ever writes blocked-by edges to GitHub.
 - `stack.ts` — the pure seam: issues + edges in, ordered stacks of

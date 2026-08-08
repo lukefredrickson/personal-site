@@ -1,11 +1,7 @@
-// The feature's single seam: grouping, ordering, and chaining as a pure
-// function. Issues and their blocked-by edges in, one ordered stack of
-// (issue, branch, base) per connected component out — no I/O, no side
-// effects. `main.ts` fetches the edges from GitHub's REST dependencies
-// endpoint and passes them in as data. `npm run sandcastle plan` prints
-// the stacks and persists them without touching GitHub — the pre-flight
-// check before a paid run — and changes to this logic are pinned by the
-// vitest specs in `stack.test.ts` (ADR 0028).
+// The pure seam: issues and their blocked-by edges in, one ordered
+// stack of (issue, branch, base) per connected component out. No I/O —
+// callers fetch the edges and pass them as data. The specs in
+// `stack.test.ts` pin this logic (ADR 0028).
 
 export interface StackIssue {
   readonly number: number;
@@ -55,18 +51,11 @@ export interface ScreenedMutations {
 }
 
 /**
- * Mechanically screen the planning agent's proposed edge mutations. The
- * agent has no write authority — this is the host-side gate between its
- * proposal and anything that persists or executes. Two rules, no judgment:
- * both endpoints must be issues in the walk, and an addition must not
- * create a cycle in the graph as amended so far. Mutations are screened in
- * proposal order, so a removal can legitimately make room for a later
- * addition. Re-adding a present edge or removing an absent one is accepted
- * unchanged — application is idempotent, so both are harmless no-ops.
- *
- * Blockers outside the walk pass through to the amended graph untouched:
- * the agent may only rewire edges among walk members, and `planStacks`
- * keeps its existing authority over external blockers.
+ * Screen the judgment agent's proposed mutations — the host gate
+ * between proposal and execution (ADR 0018). Two rules: both endpoints
+ * must be walk members, and an addition must not create a cycle in the
+ * graph as amended so far. Idempotent no-ops pass unchanged. Blockers
+ * outside the walk pass through to the amended graph untouched.
  */
 export function screenMutations(
   issues: readonly StackIssue[],
@@ -161,31 +150,12 @@ export function screenMutations(
 }
 
 /**
- * Partition issues into the connected components of the blocked-by graph
- * (treated as undirected — two issues are related if either blocks the
- * other, directly or transitively) and chain each component into its own
- * stacked-PR walk: the component's first step is based on `trunk`, every
- * later step on the previous step's branch. A component of one issue is a
- * one-step stack — a plain standalone PR based on `trunk`. Nothing tagged
- * is ever excluded; grouping replaces gatekeeping.
- *
- * Within a component the order is level-major: issues are grouped into
- * topological levels of the blocked-by graph (a level-0 issue has no
- * blockers in the walk; a deeper issue sits one past its deepest
- * dependency), levels come out shallowest first, and within a level the
- * lowest issue number goes first. That is a valid topological order —
- * every dependency lives on a strictly shallower level — it is
- * deterministic, so no LLM judgment call decides what gets built when,
- * and it is exactly the order the wave restack chains branches in, so
- * the sequential walk and the wave path produce the same chain by
- * construction (see `waveLevels`). Stacks themselves are ordered by
- * their lowest member's issue number, for the same reason.
- *
- * A blocker outside the walk counts as satisfied if it is closed; an open
- * one is an error, since the stack would build on a missing layer. A cycle
- * among walk members is also an error. All errors are aggregated into a
- * single throw so the operator can fix everything in one pass and re-run
- * `plan`.
+ * Partition issues into connected components of the blocked-by graph
+ * and chain each component into one stack in level-major order
+ * (ADR 0018). The order is deterministic and equals the wave restack's
+ * chain order by construction. Open external blockers and cycles are
+ * errors, aggregated into one throw so the operator fixes everything
+ * in one pass.
  */
 export function planStacks(
   issues: readonly StackIssue[],
@@ -196,9 +166,8 @@ export function planStacks(
 
   const errors: string[] = [];
 
-  // Directed edges among walk members (blocker → dependent), used for the
-  // per-component sort. Blockers outside the walk are satisfied (closed)
-  // or fatal (open) — either way they never gate the sort or grouping.
+  // Directed edges among walk members (blocker → dependent). External
+  // blockers are satisfied (closed) or fatal (open); they never gate.
   const inDegree = new Map<number, number>();
   const dependents = new Map<number, number[]>();
   const blockersOf = new Map<number, number[]>();
@@ -229,10 +198,8 @@ export function planStacks(
     }
   }
 
-  // Connected components via BFS over the undirected adjacency. Iterating
-  // issue numbers in ascending order discovers each component at its
-  // lowest member first, so the components come out already ordered by
-  // lowest issue number.
+  // BFS over the undirected adjacency. Ascending iteration discovers
+  // each component at its lowest member, so components come out ordered.
   const seen = new Set<number>();
   const components: number[][] = [];
   for (const start of [...byNumber.keys()].sort((a, b) => a - b)) {
@@ -253,10 +220,8 @@ export function planStacks(
     components.push(members);
   }
 
-  // Kahn's algorithm within each component, for cycle detection only —
-  // the chain order comes from the levels computed just after. (Edges
-  // never cross components, so handling each component alone changes
-  // nothing about a global sort.)
+  // Kahn's algorithm per component, for cycle detection only — the
+  // chain order comes from the levels computed just after.
   const stacks: StackStep[][] = [];
   for (const members of components) {
     const ready = members.filter((n) => inDegree.get(n) === 0);
@@ -288,11 +253,8 @@ export function planStacks(
       continue;
     }
 
-    // The chain order is the wave levels flattened, ascending issue
-    // number within each level. Deriving it through `waveLevels` itself —
-    // over the Kahn order, which is topological as `waveLevels` requires —
-    // is what makes "the sequential chain and the wave-built chain
-    // coincide" structural rather than two computations kept in sync.
+    // The chain order is the wave levels flattened. Deriving it through
+    // `waveLevels` makes the two chain orders coincide structurally.
     const provisional = orderedNumbers.map((n) => ({
       issue: byNumber.get(n)!,
       dependsOn: [...blockersOf.get(n)!].sort((a, b) => a - b),
@@ -323,19 +285,12 @@ export function planStacks(
 }
 
 /**
- * Group one stack's steps into its topological levels — the wave shape.
- * Every step in a level has all its dependencies in strictly earlier
- * levels, so a level's issues are mutually independent: they can all
- * build from the same base (the chain tip left by the previous level)
- * and then restack serially in ascending issue-number order.
- *
- * The input must be a topological order (each step's dependencies before
- * it); within a level the input order is preserved. `planStacks` derives
- * its chain order through this function, so on a planned stack the
- * levels are consecutive runs of the chain and flattening them back
- * yields the chain order unchanged. Levels are recomputed from
- * `dependsOn` rather than persisted, so a plan file round-trip cannot
- * disagree with the graph it recorded.
+ * Group one stack's steps into topological levels — the wave shape. A
+ * level's steps are mutually independent: all build from the previous
+ * level's chain tip, then restack serially. The input must be a
+ * topological order; input order is preserved within a level. Levels
+ * recompute from `dependsOn`, never persist, so a plan-file round-trip
+ * cannot disagree with the graph it recorded.
  */
 export function waveLevels<
   T extends {
@@ -357,11 +312,9 @@ export function waveLevels<
 }
 
 /**
- * The issues a prune takes with it: the seeds plus every transitive
- * dependent among the stack's members. A step whose branch cannot join
- * the chain — rebase conflict, failed check, failed build — leaves its
- * dependents without their foundation, so they are pruned too; steps
- * that never depended on it are untouched and keep building.
+ * The issues a prune removes: the seeds plus every transitive dependent
+ * among the stack's members. Steps that never depended on a seed are
+ * untouched and keep building.
  */
 export function pruneClosure(
   stack: readonly StackStep[],
@@ -369,7 +322,7 @@ export function pruneClosure(
 ): Set<number> {
   const pruned = new Set(seeds);
   // Chain order visits dependencies before dependents, so one pass
-  // propagates the closure all the way down.
+  // propagates the closure.
   for (const step of stack) {
     if (step.dependsOn.some((d) => pruned.has(d))) {
       pruned.add(step.issue.number);
