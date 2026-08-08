@@ -109,6 +109,28 @@ Canonical five-role vocabulary (`needs-triage`, `needs-info`,
 Single-context: one `CONTEXT.md` + `docs/adr/` at repo root. See
 `docs/agents/domain.md`.
 
+## Comments
+
+Repo-wide standard (ADR 0033, adopted repo-wide by ADR 0035):
+
+- The default is no comment. Comment only when the code cannot show the
+  fact.
+- A comment states a constraint the code cannot show. Rationale — why
+  this design, what was rejected — lives in the ADR; the comment
+  references it (`/* ADR NNNN */`) and never restates it.
+- Hard caps: 2 lines per comment; 6 lines for a function comment or a
+  file header.
+- Explanation that earns more than the cap is documentation: a concise
+  Markdown document referenced from the code — never an ADR. ADRs record
+  decisions; they are not documentation. Docs live beside the code they
+  document: site docs under `docs/`, Sandcastle implementation docs
+  under `.sandcastle/docs/`.
+- Write comments in this register (distilled Simplified Technical
+  English): active voice, present tense; one fact per sentence, at most
+  20 words; the glossary names from `CONTEXT.md` — no synonyms, no
+  coinages, and a brand-new concept gets a glossary entry first; verbs
+  stay verbs; no metaphor, no flourish; keep the articles.
+
 ## Sandcastle
 
 The agent factory in `.sandcastle/` has its own orientation doc:
