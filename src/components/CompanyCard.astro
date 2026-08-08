@@ -27,13 +27,30 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 <Card>
 	<Fragment slot="header">
 		<LogoTile logo={logo} tint={tint}>{monogram}</LogoTile>
+		{/* PROTOTYPE — all four location placements render; html[data-loc-variant]
+		    (set by PrototypeLocationSwitcher) picks the visible one. */}
 		<div class="identity">
-			<h3 class="name">{name}</h3>
-			<div class="meta">
-				<span class="dates">{dates}</span>
+			<div class="name-block">
+				<h3 class="name">
+					{name}
+					{location && <span class="proto-loc proto-d badge">{location}</span>}
+				</h3>
 				{
 					location && (
-						<span class="location">
+						<span class="proto-loc proto-b subline">
+							<MapPin size={11} aria-hidden="true" />
+							{location}
+						</span>
+					)
+				}
+			</div>
+			<div class="meta">
+				<span class="dates">
+					{dates}{location && <span class="proto-loc proto-c inline-loc">&nbsp;·&nbsp;{location}</span>}
+				</span>
+				{
+					location && (
+						<span class="proto-loc proto-a location">
 							<MapPin size={11} aria-hidden="true" />
 							{location}
 						</span>
@@ -80,12 +97,71 @@ const { name, dates, location, logo, monogram, tint } = Astro.props;
 	}
 
 	.location {
-		display: flex;
 		align-items: center;
 		gap: var(--space-1);
 		color: var(--text-faint);
 		font-family: var(--font-mono);
 		font-size: var(--text-meta);
+	}
+
+	/* PROTOTYPE — variant plumbing and per-variant styling below. Fold the
+	   winner in (restoring its display to a plain rule) and delete the rest. */
+	.name-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+
+	/* B: place belongs to the institution — a quiet subline under the name. */
+	.subline {
+		align-items: center;
+		gap: var(--space-1);
+		color: var(--text-faint);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+	}
+
+	/* C: one metadata string — location rides the dates line. */
+	.inline-loc {
+		color: var(--text-faint);
+	}
+
+	/* D: location as a badge beside the title. */
+	.badge {
+		align-items: center;
+		margin-left: var(--space-2);
+		padding: 2px var(--space-2);
+		border: var(--border-w) solid var(--border-strong);
+		border-radius: 999px;
+		background: var(--tint-neutral-bg);
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-meta);
+		font-weight: normal;
+		vertical-align: middle;
+	}
+
+	/* No attribute (production, or pre-switcher) falls back to A, the landed
+	   design. Show rules out-specify the hide rule via the html selector. */
+	.proto-loc {
+		display: none;
+	}
+
+	:global(html:not([data-loc-variant])) .proto-a,
+	:global(html[data-loc-variant='a']) .proto-a {
+		display: flex;
+	}
+
+	:global(html[data-loc-variant='b']) .proto-b {
+		display: flex;
+	}
+
+	:global(html[data-loc-variant='c']) .proto-c {
+		display: inline;
+	}
+
+	:global(html[data-loc-variant='d']) .proto-d {
+		display: inline-flex;
 	}
 
 	/* Each role carries its own bottom spacing (RoleEntry's `last`), so the

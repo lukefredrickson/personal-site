@@ -10,6 +10,7 @@ import CompanyCard from '../components/CompanyCard.astro';
 import EducationCard from '../components/EducationCard.astro';
 import FeaturedPostCard from '../components/FeaturedPostCard.astro';
 import PostListItem from '../components/PostListItem.astro';
+import PrototypeLocationSwitcher from '../components/PrototypeLocationSwitcher.astro';
 import RoleEntry from '../components/RoleEntry.astro';
 import SectionTitle from '../components/SectionTitle.astro';
 import type { Tag } from '../components/TagPill.astro';
@@ -157,6 +158,10 @@ const hero =
 			<a class="more" href="/blog/">all posts <MoveRight size={14} /></a>
 		</section>
 	</div>
+
+	{/* PROTOTYPE — four location placements on the cards above, switchable via
+	    ?variant= or the arrows. Dev-only; delete with the prototype. */}
+	<PrototypeLocationSwitcher />
 </BaseLayout>
 
 <style>

@@ -1,0 +1,103 @@
+---
+/* PROTOTYPE — floating switcher for the location-placement question. Four
+   variants of where a card's location line lives, switchable via `?variant=`
+   on the homepage. Dev-only: nothing renders in a production build, where the
+   cards fall back to variant A. Delete this file with the prototype. */
+const variants: [string, string][] = [
+	['a', 'Meta stack — under the dates'],
+	['b', 'Subline — under the name'],
+	['c', 'Inline — appended to the dates'],
+	['d', 'Badge — pill beside the name'],
+];
+---
+
+{
+	import.meta.env.DEV && (
+		<div id="proto-loc-switcher" class="switcher" data-variants={JSON.stringify(variants)}>
+			<button type="button" data-dir="-1" aria-label="Previous variant">
+				←
+			</button>
+			<span class="label" />
+			<button type="button" data-dir="1" aria-label="Next variant">
+				→
+			</button>
+		</div>
+	)
+}
+
+<script>
+	if (import.meta.env.DEV) {
+		const bar = document.getElementById('proto-loc-switcher');
+		if (bar) {
+			const variants: [string, string][] = JSON.parse(bar.dataset.variants ?? '[]');
+			const keys = variants.map((v) => v[0]);
+			const label = bar.querySelector('.label');
+			let current = new URLSearchParams(window.location.search).get('variant') ?? 'a';
+			if (!keys.includes(current)) current = 'a';
+
+			const set = (key: string) => {
+				current = key;
+				document.documentElement.dataset.locVariant = key;
+				const url = new URL(window.location.href);
+				url.searchParams.set('variant', key);
+				history.replaceState(null, '', url);
+				const name = variants.find((v) => v[0] === key)?.[1] ?? '';
+				if (label) label.textContent = `${key.toUpperCase()} — ${name}`;
+			};
+
+			const cycle = (dir: number) => {
+				const next = keys[(keys.indexOf(current) + dir + keys.length) % keys.length];
+				if (next) set(next);
+			};
+
+			for (const button of bar.querySelectorAll('button')) {
+				button.addEventListener('click', () => cycle(Number(button.dataset.dir)));
+			}
+
+			document.addEventListener('keydown', (event) => {
+				const target = event.target;
+				if (target instanceof Element && target.closest('input, textarea, [contenteditable]'))
+					return;
+				if (event.key === 'ArrowLeft') cycle(-1);
+				if (event.key === 'ArrowRight') cycle(1);
+			});
+
+			set(current);
+		}
+	}
+</script>
+
+<style>
+	/* Deliberately not on the site's palette — the bar must read as scaffolding,
+	   not as part of the design under evaluation. */
+	.switcher {
+		display: flex;
+		position: fixed;
+		bottom: 16px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 9999;
+		align-items: center;
+		gap: 10px;
+		padding: 8px 14px;
+		border-radius: 999px;
+		background: #111;
+		color: #fff;
+		box-shadow: 0 4px 16px rgb(0 0 0 / 0.35);
+		font-family: var(--font-mono);
+		font-size: 13px;
+	}
+
+	.switcher button {
+		cursor: pointer;
+		border: 0;
+		background: none;
+		color: #fff;
+		font-size: 15px;
+	}
+
+	.label {
+		min-width: 230px;
+		text-align: center;
+	}
+</style>
