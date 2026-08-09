@@ -81,6 +81,11 @@ accent.
 **Tagline** — the OG card's one line under the wordmark: "building software for
 the energy transition".
 
+**Run** — one string of set type. The generator outlines every run from the
+mark source, and steps the pen by a fixed em fraction rather than by the font's
+advance (ADR 0038). The OG card carries three runs: the wordmark's domain, its
+`.dev`, and the tagline.
+
 **Highlighter** — the translucent gold stroke behind a run of words: the home
 hero's, and the OG card's under the wordmark's domain. It covers the run's
 bottom 36%.

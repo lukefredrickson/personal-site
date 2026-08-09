@@ -4,12 +4,10 @@
 import { fileURLToPath } from 'node:url';
 import { openSync } from 'fontkit';
 
-const MARK_SOURCE = fileURLToPath(
-  new URL('./FiraCode-VariableFont_wght.ttf', import.meta.url),
+const MARK_SOURCE = openSync(
+  fileURLToPath(new URL('./FiraCode-VariableFont_wght.ttf', import.meta.url)),
 );
-
-const SOURCE = openSync(MARK_SOURCE);
-const EM = SOURCE.unitsPerEm;
+const EM = MARK_SOURCE.unitsPerEm;
 const instances = new Map();
 
 /* The mark instantiates the maximum of the variable `wght` axis. */
@@ -68,12 +66,10 @@ export function outlineRun(text, { weight, advanceEm, start = 0 }) {
   const advance = advanceEm * EM;
 
   return [...text]
-    .map((char, index) =>
-      font
-        .layout(char)
-        .glyphs[0].path.translate((start + index) * advance, 0)
-        .toSVG(),
-    )
+    .map((char, index) => {
+      const glyph = font.layout(char).glyphs[0];
+      return glyph.path.translate((start + index) * advance, 0).toSVG();
+    })
     .join('');
 }
 
@@ -88,7 +84,7 @@ export function fitRun({ x, baseline, size }) {
 
 function instance(weight) {
   if (!instances.has(weight)) {
-    instances.set(weight, SOURCE.getVariation({ wght: weight }));
+    instances.set(weight, MARK_SOURCE.getVariation({ wght: weight }));
   }
   return instances.get(weight);
 }

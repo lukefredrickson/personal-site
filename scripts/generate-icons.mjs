@@ -30,10 +30,10 @@ const PNGS = [
   { name: 'icon-512.png', size: 512, insetFraction: 0.154 },
 ];
 
-/* The OG card's palette is the dusk theme; its geometry is measured from
-   the shipped card (ADR 0038). Every length is a canvas unit. */
+/* Every OG card length is a unit on the canvas below, never a fraction of
+   it (ADR 0038). */
 const OG = {
-  size: { width: 1200, height: 630 },
+  canvas: { width: 1200, height: 630 },
   card: { inset: 40, radius: 16, border: 1.5, fill: '#2d2945', stroke: '#55516f' },
   tile: { x: 116, y: 156.17, size: 150, inset: 12.5, radius: 10 },
   wordmark: {
@@ -42,6 +42,7 @@ const OG = {
     x: 116,
     baseline: 404.1,
     size: 72,
+    weight: 700,
     advanceEm: 0.56,
   },
   highlighter: { fill: '#ffc05a', opacity: 0.6, heightEm: 0.36, dropEm: 0.1665 },
@@ -68,7 +69,7 @@ const icoSvg = tileSvg(mark, ICO);
 const icoFrames = ICO.sizes.map((size) => ({ size, png: frame(icoSvg, size) }));
 write('favicon.ico', ico(icoFrames));
 
-write('og-default.png', frame(ogCardSvg(mark), OG.size.width));
+write('og-default.png', frame(ogCardSvg(mark), OG.canvas.width));
 
 function faviconSvg({ outlines, ink }) {
   const transform = fitMark(ink, FAVICON);
@@ -122,32 +123,38 @@ function tile({ outlines, ink }, { size, inset, radius }) {
 }
 
 function ogCardSvg(mark) {
-  const { size, card, tile: tileBox, wordmark, highlighter, tagline } = OG;
-  const run = { weight: 700, advanceEm: wordmark.advanceEm };
+  const { canvas, card, tile: tileBox, wordmark, highlighter, tagline } = OG;
+  const { width, height } = canvas;
+  const { domain, tld } = wordmark;
 
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size.width} ${size.height}" width="${size.width}" height="${size.height}">`,
-    `<rect width="${size.width}" height="${size.height}" fill="${TILE.fill}"/>`,
-    `<rect x="${card.inset}" y="${card.inset}" width="${size.width - 2 * card.inset}" height="${size.height - 2 * card.inset}" rx="${card.radius}" fill="${card.fill}" stroke="${card.stroke}" stroke-width="${card.border}"/>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">`,
+    `<rect width="${width}" height="${height}" fill="${TILE.fill}"/>`,
+    cardRect(card, canvas),
     `<g transform="translate(${tileBox.x},${tileBox.y})">${tile(mark, tileBox)}</g>`,
     highlighterRect(wordmark, highlighter),
     `<g transform="${fitRun(wordmark)}">`,
-    `<path fill="${THEMES.dark.ltr}" d="${outlineRun(wordmark.domain, run)}"/>`,
-    `<path fill="${THEMES.dark.dot}" d="${outlineRun(wordmark.tld, { ...run, start: wordmark.domain.length })}"/>`,
+    `<path fill="${THEMES.dark.ltr}" d="${outlineRun(domain, wordmark)}"/>`,
+    `<path fill="${THEMES.dark.dot}" d="${outlineRun(tld, { ...wordmark, start: domain.length })}"/>`,
     '</g>',
     `<g transform="${fitRun(tagline)}"><path fill="${tagline.fill}" d="${outlineRun(tagline.text, tagline)}"/></g>`,
     '</svg>',
   ].join('');
 }
 
-/* The highlighter runs under the domain only, never under the `.dev`. */
+function cardRect({ inset, radius, border, fill, stroke }, { width, height }) {
+  return `<rect x="${inset}" y="${inset}" width="${width - 2 * inset}" height="${height - 2 * inset}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${border}"/>`;
+}
+
 function highlighterRect(
   { x, baseline, size, advanceEm, domain },
   { fill, opacity, heightEm, dropEm },
 ) {
   const height = heightEm * size;
+  const bottom = baseline + dropEm * size;
+  const width = domain.length * advanceEm * size;
 
-  return `<rect x="${x}" y="${baseline + dropEm * size - height}" width="${domain.length * advanceEm * size}" height="${height}" fill="${fill}" fill-opacity="${opacity}"/>`;
+  return `<rect x="${x}" y="${bottom - height}" width="${width}" height="${height}" fill="${fill}" fill-opacity="${opacity}"/>`;
 }
 
 function frame(svg, size) {
