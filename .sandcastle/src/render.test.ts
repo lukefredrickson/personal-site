@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   formatClock,
   formatTag,
+  grammarGap,
+  grammarStart,
   renderHeading,
   renderLine,
   renderOmittedUmbrellas,
@@ -9,6 +11,9 @@ import {
   RUN_START_BANNER,
   STACK_PALETTE,
   stackHue,
+  type EntryKind,
+  type GrammarState,
+  type StackTag,
   type Style,
 } from "./render.ts";
 
@@ -186,6 +191,90 @@ describe("renderOmittedUmbrellas", () => {
       "      inferred by the judgment agent; label it `parent` to confirm, " +
         "or re-plan to override.",
     ]);
+  });
+});
+
+describe("the blank-line grammar", () => {
+  // Feed a transcript through grammarGap the way the sink does, and
+  // pin the exact rendered text (docs/log-grammar.md).
+  interface Entry {
+    readonly kind: EntryKind;
+    readonly text: string;
+    readonly tag?: StackTag;
+    readonly endsBlank?: boolean;
+  }
+  const feed = (entries: readonly Entry[]): string => {
+    let state: GrammarState = grammarStart;
+    const now = at(14, 3, 9);
+    return entries
+      .map((e) => {
+        const { gap, next } = grammarGap(state, e.kind, e.tag, e.endsBlank);
+        state = next;
+        const rendered =
+          e.kind === "heading"
+            ? renderHeading(now, e.text)
+            : e.kind === "rule"
+              ? renderRule(now, e.text, { tag: e.tag })
+              : renderLine(now, e.text, { tag: e.tag });
+        return gap ? `\n${rendered}` : rendered;
+      })
+      .join("\n");
+  };
+
+  it("puts blanks before headings, before rules, and at stack switches only", () => {
+    const S1: StackTag = { stack: 1 };
+    const S2: StackTag = { stack: 2 };
+    const bar = `14:03:09 ${"━".repeat(72)}`;
+    expect(
+      feed([
+        { kind: "heading", text: "EXECUTE" },
+        { kind: "line", text: "Running 2 stack(s)." },
+        { kind: "rule", text: "Starting stack 1/2", tag: S1 },
+        { kind: "line", text: "#7: build it", tag: { ...S1, issue: 7 } },
+        { kind: "rule", text: "Starting stack 2/2", tag: S2 },
+        { kind: "line", text: "✓ #7 built", tag: { ...S1, issue: 7 } },
+        { kind: "line", text: "Restacking wave 1/1", tag: S1 },
+        { kind: "heading", text: "RUN SUMMARY" },
+        { kind: "line", text: "✓ Stack 1/2", tag: S1 },
+      ]),
+    ).toBe(
+      [
+        `${bar}\n14:03:09 EXECUTE\n${bar}`,
+        `14:03:09 Running 2 stack(s).`,
+        ``,
+        `14:03:09 ── [S1] Starting stack 1/2 ${"─".repeat(45)}`,
+        `14:03:09 [S1·#7] #7: build it`,
+        ``,
+        `14:03:09 ── [S2] Starting stack 2/2 ${"─".repeat(45)}`,
+        ``,
+        `14:03:09 [S1·#7] ✓ #7 built`,
+        `14:03:09 [S1] Restacking wave 1/1`,
+        ``,
+        `${bar}\n14:03:09 RUN SUMMARY\n${bar}`,
+        `14:03:09 [S1] ✓ Stack 1/2`,
+      ].join("\n"),
+    );
+  });
+
+  it("keeps the lane across untagged lines instead of gapping around them", () => {
+    const start = grammarGap(grammarStart, "line", { stack: 1 });
+    const untagged = grammarGap(start.next, "line");
+    expect(untagged.gap).toBe(false);
+    const sameStack = grammarGap(untagged.next, "line", { stack: 1 });
+    expect(sameStack.gap).toBe(false);
+    const otherStack = grammarGap(untagged.next, "line", { stack: 2 });
+    expect(otherStack.gap).toBe(true);
+  });
+
+  it("resets the lane at a heading, so the first summary line has no gap", () => {
+    const line = grammarGap(grammarStart, "line", { stack: 3 });
+    const heading = grammarGap(line.next, "heading");
+    expect(grammarGap(heading.next, "line", { stack: 1 }).gap).toBe(false);
+  });
+
+  it("suppresses the gap after a message that ends blank", () => {
+    const framed = grammarGap(grammarStart, "line", undefined, true);
+    expect(grammarGap(framed.next, "heading").gap).toBe(false);
   });
 });
 

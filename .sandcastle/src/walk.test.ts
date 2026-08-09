@@ -9,15 +9,19 @@ import type { StackStep } from "./stack.ts";
 import {
   linkChainedPrs,
   runStack,
+  runSucceeded,
   Semaphore,
   type LedgerPr,
   type SandboxBuild,
+  type StackOutcome,
   type WalkContext,
   type WalkEffects,
 } from "./walk.ts";
 
-// The walk narrates heavily; keep spec output readable.
+// The walk narrates heavily; keep spec output readable. Cleared per
+// test so console assertions see only their own walk's lines.
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -68,6 +72,10 @@ interface FakeOptions {
   readonly reviewFails?: readonly string[];
   /** Branches whose draft-PR creation throws. */
   readonly createPrFails?: readonly string[];
+  /** Initial PR base per branch, for PRs that predate the walk. */
+  readonly prBases?: Readonly<Record<string, string>>;
+  /** Branches whose retargetPrBase call throws. */
+  readonly retargetFails?: readonly string[];
   /** Restack outcome per branch; an Error throws. Default: restacked. */
   readonly restacks?: Readonly<Record<string, RestackOutcome | Error>>;
   /** [outer, inner] pairs where outer's history carries inner. */
@@ -102,6 +110,8 @@ interface FakeEffects extends WalkEffects {
 
 function fakeEffects(options: FakeOptions = {}): FakeEffects {
   const prs = new Map((options.openPrs ?? []).map((b) => [b, urlOf(b)]));
+  // PR bases track createDraftPr and retargetPrBase, the way GitHub would.
+  const bases = new Map(Object.entries(options.prBases ?? {}));
   const carries = new Set(
     (options.carries ?? []).map(([outer, inner]) => `${outer} ${inner}`),
   );
@@ -146,8 +156,13 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
       if (options.linkFails) throw new Error("gh stack link exploded");
       effects.links.push([...urls]);
     },
+    prBase: (branch) => bases.get(branch),
     retargetPrBase(branch, base) {
+      if (options.retargetFails?.includes(branch)) {
+        throw new Error(`gh pr edit exploded for ${branch}`);
+      }
       effects.retargets.push({ branch, base });
+      bases.set(branch, base);
     },
     async implementInSandbox(step, waveBase) {
       effects.builds.push({ branch: step.branch, waveBase });
@@ -177,6 +192,7 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
       effects.prsCreated.push({ branch, base, title, body });
       effects.events.push(`pr:${branch}`);
       prs.set(branch, urlOf(branch));
+      bases.set(branch, base);
       return urlOf(branch);
     },
     fetchOrigin() {},
@@ -601,7 +617,9 @@ describe("prune propagation", () => {
       { n: 4, deps: [2] },
     ]);
 
-  it("prunes an empty build and its dependents; independents keep building", async () => {
+  it("splices an empty build as a no-op; its dependent builds from the no-op's base", async () => {
+    // The no-op branch equals its wave base, so #4 loses nothing by
+    // building on without it (ADR 0040).
     const stack = diamond();
     const effects = fakeEffects({
       builds: { [branchOf(2)]: { commitCount: 0, stdout: "" } },
@@ -610,23 +628,52 @@ describe("prune propagation", () => {
 
     const outcome = await walk(stack, effects);
 
-    expect(numbers(outcome.chained)).toEqual([1, 3]);
-    expect(outcome.pruned).toEqual([
-      {
-        step: stack[1],
-        reason: `its branch carries nothing ahead of ${branchOf(1)}`,
-      },
-      { step: stack[3], reason: "depends on pruned #2" },
-    ]);
-    // The empty branch never got a review sandbox or a PR.
+    expect(numbers(outcome.noops)).toEqual([2]);
+    expect(outcome.pruned).toEqual([]);
+    expect(numbers(outcome.chained)).toEqual([1, 3, 4]);
+    // The empty branch never got a review sandbox, a PR, or a restack turn.
     expect(effects.reviews).not.toContain(branchOf(2));
     expect(effects.prsCreated.map((p) => p.branch)).not.toContain(branchOf(2));
-    // #4 never got a sandbox — its foundation was already gone.
-    expect(effects.builds.map((b) => b.branch)).toEqual([
-      branchOf(1),
-      branchOf(2),
-      branchOf(3),
+    expect(effects.restacks.map((r) => r.branch)).not.toContain(branchOf(2));
+  });
+
+  it("builds a step chained directly after a no-op from the no-op's base", async () => {
+    const stack = chain([{ n: 1 }, { n: 2, deps: [1] }, { n: 3, deps: [2] }]);
+    const effects = fakeEffects({
+      builds: { [branchOf(2)]: { commitCount: 0, stdout: "" } },
+      carries: [[branchOf(1), branchOf(2)]],
+    });
+
+    const outcome = await walk(stack, effects);
+
+    expect(numbers(outcome.noops)).toEqual([2]);
+    expect(numbers(outcome.chained)).toEqual([1, 3]);
+    // #3's sandbox cuts from #2's base, the tip the no-op never moved.
+    expect(effects.builds).toEqual([
+      { branch: branchOf(1), waveBase: "main" },
+      { branch: branchOf(2), waveBase: branchOf(1) },
+      { branch: branchOf(3), waveBase: branchOf(1) },
     ]);
+    expect(effects.restacks).toEqual([
+      { branch: branchOf(1), onto: "main" },
+      { branch: branchOf(3), onto: branchOf(1) },
+    ]);
+  });
+
+  it("reports a no-op as a neutral skip with the manual-close reminder", async () => {
+    const stack = chain([{ n: 1 }]);
+    const effects = fakeEffects({
+      builds: { [branchOf(1)]: { commitCount: 0, stdout: "" } },
+      carries: [["main", branchOf(1)]],
+    });
+
+    await walk(stack, effects);
+
+    expect(vi.mocked(console.log).mock.calls.flat().join("\n")).toContain(
+      "○ #1 skipped — no changes to make: all its work already landed " +
+        "in the PRs below it. Close the issue manually once the stack " +
+        "merges.",
+    );
   });
 
   it("surfaces a missing-dependency report as the prune reason", async () => {
@@ -735,21 +782,15 @@ describe("prune propagation", () => {
     ]);
     const effects = fakeEffects({
       openPrs: [branchOf(3)],
-      builds: { [branchOf(2)]: { commitCount: 0, stdout: "" } },
-      carries: [
-        [branchOf(3), branchOf(2)],
-        [branchOf(1), branchOf(2)],
-      ],
+      builds: { [branchOf(2)]: new Error("docker died") },
+      carries: [[branchOf(3), branchOf(2)]],
     });
 
     const outcome = await walk(stack, effects);
 
     expect(numbers(outcome.chained)).toEqual([1]);
     expect(outcome.pruned).toEqual([
-      {
-        step: stack[1],
-        reason: `its branch carries nothing ahead of ${branchOf(1)}`,
-      },
+      { step: stack[1], reason: "docker died" },
       {
         step: stack[2],
         reason: "its branch history contains pruned sandcastle/issue-2",
@@ -778,18 +819,15 @@ describe("prune propagation", () => {
 
     expect(numbers(outcome.chained)).toEqual([1, 3, 4]);
     // 3's turn came after 2 pruned mid-restack, so it chains onto 1, not
-    // 2 — and the next wave's 4 chains onto 3. PR bases follow the tips.
+    // 2 — and the next wave's 4 chains onto 3. Every PR already targets
+    // its tip, so the check-first retarget edits nothing (ADR 0040).
     expect(effects.restacks).toEqual([
       { branch: branchOf(1), onto: "main" },
       { branch: branchOf(2), onto: branchOf(1) },
       { branch: branchOf(3), onto: branchOf(1) },
       { branch: branchOf(4), onto: branchOf(3) },
     ]);
-    expect(effects.retargets).toEqual([
-      { branch: branchOf(1), base: "main" },
-      { branch: branchOf(3), base: branchOf(1) },
-      { branch: branchOf(4), base: branchOf(3) },
-    ]);
+    expect(effects.retargets).toEqual([]);
   });
 });
 
@@ -825,6 +863,105 @@ describe("conflict resolutions in the outcome", () => {
       { branch: branchOf(3), from: "old-3", to: "sha-3" },
     ]);
   });
+});
+
+describe("check-first PR retargeting", () => {
+  // Siblings 2 and 3 share wave 2: 2 restacks first and moves the tip,
+  // so only 3's PR base goes stale.
+  const siblings = () =>
+    chain([{ n: 1 }, { n: 2, deps: [1] }, { n: 3, deps: [1] }]);
+
+  it("edits only the PR whose base mismatches its chain predecessor", async () => {
+    const effects = fakeEffects();
+
+    await walk(siblings(), effects);
+
+    expect(effects.retargets).toEqual([
+      { branch: branchOf(3), base: branchOf(2) },
+    ]);
+  });
+
+  it("warns with the current base, expected base, and fix command when the edit fails", async () => {
+    const effects = fakeEffects({ retargetFails: [branchOf(3)] });
+
+    await walk(siblings(), effects);
+
+    const warned = vi.mocked(console.error).mock.calls.flat().join("\n");
+    expect(warned).toContain(
+      `⚠ ${branchOf(3)}'s PR is based on ${branchOf(1)} instead of ` +
+        `${branchOf(2)} and retargeting failed — fix with ` +
+        `gh pr edit ${branchOf(3)} --base ${branchOf(2)}.`,
+    );
+  });
+
+  it("skips retargeting a branch with no readable PR instead of double-warning", async () => {
+    // The failed-PR branch already gets the missing-PR warning; the
+    // retarget pass must not add a second one (ADR 0040).
+    const stack = chain([{ n: 1 }, { n: 2, deps: [1] }]);
+    const effects = fakeEffects({ createPrFails: [branchOf(1)] });
+
+    const outcome = await walk(stack, effects);
+
+    expect(outcome.missingPrs).toEqual([branchOf(1)]);
+    expect(
+      vi.mocked(console.error).mock.calls.flat().join("\n"),
+    ).not.toContain("retargeting failed");
+  });
+
+  it("never warns about a base that already matches", async () => {
+    // Every retarget call would throw — but none fires, because every
+    // PR opened against the base it ends up chained on.
+    const effects = fakeEffects({
+      retargetFails: [branchOf(1), branchOf(2), branchOf(3)],
+    });
+
+    await walk(chain([{ n: 1 }, { n: 2, deps: [1] }, { n: 3, deps: [2] }]), effects);
+
+    expect(
+      vi.mocked(console.error).mock.calls.flat().join("\n"),
+    ).not.toContain("retarget");
+  });
+});
+
+describe("runSucceeded", () => {
+  const outcome = (over: Partial<StackOutcome> = {}): StackOutcome => ({
+    stack: [],
+    chained: [],
+    skipped: [],
+    skippedMerged: [],
+    staleRebuilt: [],
+    resolved: [],
+    noops: [],
+    pruned: [],
+    missingPrs: [],
+    localRefMoves: [],
+    ...over,
+  });
+  const step = chain([{ n: 1 }])[0]!;
+
+  it.each([
+    ["all stacks clean", [outcome()], 0, true],
+    ["no-op skips only", [outcome({ noops: [step] })], 0, true],
+    [
+      "a pruned step",
+      [outcome({ pruned: [{ step, reason: "docker died" }] })],
+      0,
+      false,
+    ],
+    ["a missing PR", [outcome({ missingPrs: [branchOf(1)] })], 0, false],
+    ["a failed stack link", [outcome()], 1, false],
+    [
+      "one clean stack beside one pruned stack",
+      [outcome(), outcome({ pruned: [{ step, reason: "docker died" }] })],
+      0,
+      false,
+    ],
+  ] as const)(
+    "classifies %s",
+    (_what, outcomes, linkFailures, verdict) => {
+      expect(runSucceeded(outcomes, linkFailures)).toBe(verdict);
+    },
+  );
 });
 
 describe("stack linking", () => {

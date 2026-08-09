@@ -75,8 +75,11 @@ Every step in a wave builds at the same time. Each builds in its own
 the current chain tip. Sandboxes come from one global pool capped at 3,
 shared across all stacks. Inside its sandbox the implementer agent
 builds and commits; it neither pushes nor opens a PR. The host then
-pushes the branch and reads what it carries ahead of its base: nothing
-means the step prunes on the missing-dependency tripwire; otherwise a
+pushes the branch and reads what it carries ahead of its base. An empty
+branch with a missing-dependency report prunes on the tripwire. An
+empty branch without one is a **no-op**: a neutral skip, spliced out of
+the chain — dependents keep building from the no-op's base, and the
+issue stays open for a manual close once the stack merges. Otherwise a
 reviewer agent runs in a fresh sandbox on the same branch. After the
 review the host pushes the reviewer's commits and opens the draft PR —
 so the PR's opening diff already includes the reviewer's fixes, and a
@@ -112,8 +115,10 @@ result counts only if host code finds the rebase finished, the tree
 clean, and the check passing. A step that still cannot join the chain
 is **pruned**: dropped from the chain together with every step that
 depends on it. Independent issues keep building, and other stacks run
-regardless. The run exits non-zero if anything was pruned; a re-run
-retries the pruned work.
+regardless. A no-op skip is not a prune and fails nothing. The run
+exits non-zero and retains the plan only when something was pruned, a
+built branch lost its PR, or a stack link failed; a clean run deletes
+the plan. A re-run of a retained plan retries the pruned work.
 
 ## End of run
 

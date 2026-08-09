@@ -1,8 +1,9 @@
 // The structured console renderer: timestamps, stack tags, role colors,
-// phase rules, banners (ADR 0032). The console is an append-only log,
-// not a live TUI; every line is self-sufficient. Line shape is a pure
-// function of (clock, message, tag, role, style); the console sink at
-// the bottom is the only impure part.
+// stack rules, banners (ADR 0032), and the three-level log grammar
+// (docs/log-grammar.md). The console is an append-only log, not a live
+// TUI; every line is self-sufficient. Line shape and the blank-line
+// grammar are pure functions; the console sink at the bottom is the
+// only impure part.
 
 import { styleText } from "node:util";
 
@@ -104,12 +105,12 @@ export function renderLine(
     .join("\n");
 }
 
-// One width for every rule, so phase boundaries scan as a column. A
+// One width for every rule, so section boundaries scan as a column. A
 // long title wins over the width: the fill disappears, never the title.
 const RULE_WIDTH = 72;
 
 /**
- * A box-drawn phase rule: `── [tag] title ────────…` padded with `─` to
+ * A box-drawn stack rule: `── [tag] title ────────…` padded with `─` to
  * RULE_WIDTH (timestamp excluded), dashes dimmed, tag hue-colored.
  */
 export function renderRule(
@@ -131,9 +132,9 @@ export function renderRule(
 }
 
 /**
- * A heavy three-line heading for the run's major sections (plan, run
- * summary): full-width `━` bars around a bold title. Louder than a
- * phase rule, quieter than the run-start banner — a scrollback landmark
+ * A heavy three-line heading for the run phases (PLAN, EXECUTE, RUN
+ * SUMMARY): full-width `━` bars around a bold title. Louder than a
+ * stack rule, quieter than the run-start banner — a scrollback landmark
  * that stays obviously text.
  */
 export function renderHeading(
@@ -196,6 +197,48 @@ export const RUN_START_BANNER: readonly string[] = [
 
 
 // ---------------------------------------------------------------------------
+// The blank-line grammar (docs/log-grammar.md)
+// ---------------------------------------------------------------------------
+
+/** The three entry levels: heavy banner, thin divider, plain line. */
+export type EntryKind = "heading" | "rule" | "line";
+
+export interface GrammarState {
+  /** Stack lane of the last entry; untagged lines keep the lane. */
+  readonly lastStack?: number;
+  /** True when the last emitted line was blank — no gap needed. */
+  readonly lastBlank: boolean;
+}
+
+export const grammarStart: GrammarState = { lastBlank: true };
+
+/**
+ * Decide the blank line before one entry and advance the state. A gap
+ * precedes every heading and rule, and a line whose stack differs from
+ * the previous entry's. A heading resets the lane. `endsBlank` marks a
+ * message whose own last line is blank.
+ */
+export function grammarGap(
+  state: GrammarState,
+  kind: EntryKind,
+  tag?: StackTag,
+  endsBlank = false,
+): { readonly gap: boolean; readonly next: GrammarState } {
+  const switched =
+    tag !== undefined &&
+    state.lastStack !== undefined &&
+    tag.stack !== state.lastStack;
+  return {
+    gap: !state.lastBlank && (kind !== "line" || switched),
+    next: {
+      lastStack:
+        kind === "heading" ? undefined : (tag?.stack ?? state.lastStack),
+      lastBlank: endsBlank,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The console sink: the only impure part
 // ---------------------------------------------------------------------------
 
@@ -211,33 +254,60 @@ export interface SayOpts {
   readonly role?: Role;
 }
 
+// The one grammar lane for both streams: stdout and stderr interleave
+// on the operator's console, so they share the state.
+let grammar = grammarStart;
+
+const emit = (
+  sink: (text: string) => void,
+  kind: EntryKind,
+  text: string,
+  tag?: StackTag,
+): void => {
+  const endsBlank = text === "" || text.endsWith("\n");
+  const { gap, next } = grammarGap(grammar, kind, tag, endsBlank);
+  grammar = next;
+  sink(gap ? `\n${text}` : text);
+};
+
 /** Print one (possibly multi-line) message to stdout, stamped and tagged. */
 export function say(message: string, opts: SayOpts = {}): void {
-  console.log(
+  emit(
+    console.log,
+    "line",
     renderLine(new Date(), message, { ...opts, style: styleFor(process.stdout) }),
+    opts.tag,
   );
 }
 
 /** The stderr twin of `say` — styled against stderr's own color support. */
 export function sayError(message: string, opts: SayOpts = {}): void {
-  console.error(
+  emit(
+    console.error,
+    "line",
     renderLine(new Date(), message, { ...opts, style: styleFor(process.stderr) }),
+    opts.tag,
   );
 }
 
-/** Print a phase-boundary rule to stdout. */
-export function phaseRule(
+/** Print a stack-lifecycle rule to stdout. */
+export function stackRule(
   title: string,
   opts: { readonly tag?: StackTag } = {},
 ): void {
-  console.log(
+  emit(
+    console.log,
+    "rule",
     renderRule(new Date(), title, { ...opts, style: styleFor(process.stdout) }),
+    opts.tag,
   );
 }
 
-/** Print a heavy section heading to stdout. */
+/** Print a heavy run-phase heading to stdout. */
 export function sayHeading(title: string): void {
-  console.log(
+  emit(
+    console.log,
+    "heading",
     renderHeading(new Date(), title, { style: styleFor(process.stdout) }),
   );
 }
@@ -251,6 +321,8 @@ export function sayBanner(rows: readonly string[]): void {
       .map((row) => renderLine(now, row, { role: "bold", style }))
       .join("\n"),
   );
+  // The banner ends blank, so the next entry needs no gap.
+  grammar = grammarStart;
 }
 
 /**

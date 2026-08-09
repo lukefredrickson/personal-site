@@ -8,7 +8,6 @@ import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { openRunLog } from "./exec.ts";
 import {
-  phaseRule,
   renderOmittedUmbrellas,
   RUN_START_BANNER,
   say,
@@ -38,6 +37,7 @@ import {
   MAX_SANDBOXES,
   productionWalkEffects,
   runStack,
+  runSucceeded,
   Semaphore,
   type StackOutcome,
 } from "./walk.ts";
@@ -52,7 +52,7 @@ function closeSandboxesOnSigint(): void {
     if (interrupted) process.exit(130);
     interrupted = true;
     sayError(
-      `\nInterrupted — closing ${liveSandboxes.size} sandbox(es); ` +
+      `Interrupted — closing ${liveSandboxes.size} sandbox(es); ` +
         `Ctrl-C again to force quit.`,
       { role: "warn" },
     );
@@ -74,13 +74,13 @@ async function planCommand(): Promise<never> {
   // Replan: an existing plan file is stale by declaration.
   if (existsSync(PLAN_FILE)) {
     deletePlan();
-    say(`Discarded the existing plan at ${PLAN_FILE} — replanning.\n`);
+    say(`Discarded the existing plan at ${PLAN_FILE} — replanning.`);
   }
   const plan = await computePlan();
   writePlan(plan);
   printPlan(plan);
   say(
-    `\nPlan written to ${PLAN_FILE}; no GitHub writes were made. Execute ` +
+    `Plan written to ${PLAN_FILE}; no GitHub writes were made. Execute ` +
       `it with \`npm run sandcastle\`.`,
   );
   process.exit(0);
@@ -89,8 +89,8 @@ async function planCommand(): Promise<never> {
 // The approval gate between judgment and side effects. Enter proceeds.
 // Ctrl-C keeps the plan file, so the next bare run executes it without
 // re-judgment. Non-interactive stdin skips the gate: nobody can answer.
+// No divider: rules belong to stack lifecycle alone (docs/log-grammar.md).
 async function approvePlanOrExit(): Promise<void> {
-  phaseRule("approve");
   if (!process.stdin.isTTY) {
     say("stdin is not a TTY — executing without approval pause.");
     return;
@@ -137,7 +137,7 @@ async function runCommand(): Promise<never> {
   // An empty plan executes as a successful no-op, so it is consumed too.
   if (plan.stacks.length === 0) {
     deletePlan();
-    say("\nNothing needed changing. Plan file deleted.");
+    say("Nothing needed changing. Plan file deleted.");
     process.exit(0);
   }
 
@@ -149,7 +149,7 @@ async function runCommand(): Promise<never> {
     // The stacks assume the amended graph, so a half-applied proposal
     // must not walk. Application is idempotent; a re-run resumes it.
     sayError(
-      `\n✗ Failed applying blocked-by mutations: ` +
+      `✗ Failed applying blocked-by mutations: ` +
         `${error instanceof Error ? error.message : String(error)}\n` +
         `Plan retained at ${PLAN_FILE} — fix and re-run \`npm run sandcastle\`.`,
       { role: "fail" },
@@ -163,7 +163,7 @@ async function runCommand(): Promise<never> {
 
   // Promise.all keeps `outcomes` in plan order for the summary,
   // whatever order the stacks finish in.
-  phaseRule("execute");
+  sayHeading("EXECUTE");
   for (const path of sweepLeakedSandboxWorktrees(".")) {
     say(`↺ removed leaked sandbox worktree ${path} from a dead run.`, {
       role: "warn",
@@ -215,6 +215,13 @@ async function runCommand(): Promise<never> {
     if (outcome.staleRebuilt.length > 0) {
       notes.push(`${outcome.staleRebuilt.length} rebuilt from stale`);
     }
+    if (outcome.noops.length > 0) {
+      notes.push(
+        `${outcome.noops.length} skipped as no-op (` +
+          outcome.noops.map((s) => `#${s.issue.number}`).join(", ") +
+          `)`,
+      );
+    }
     const suffix = notes.length === 0 ? "" : `, ${notes.join(", ")}`;
     if (outcome.pruned.length > 0) {
       say(
@@ -233,6 +240,15 @@ async function runCommand(): Promise<never> {
         `✓ Stack ${i + 1}/${outcomes.length}: ${outcome.chained.length}/` +
           `${outcome.stack.length} step(s) chained (${done}${suffix})`,
         { role: "success", tag },
+      );
+    }
+    // Every no-op leaves its issue open: the summary repeats the
+    // reminder so the manual close is not lost (ADR 0039).
+    for (const step of outcome.noops) {
+      say(
+        `    ○ #${step.issue.number} (${step.branch}) — no changes to ` +
+          `make; close the issue manually once the stack merges.`,
+        { tag: { ...tag, issue: step.issue.number } },
       );
     }
     // These branches carry authored conflict resolutions, not just
@@ -276,22 +292,23 @@ async function runCommand(): Promise<never> {
     }
   }
 
-  const prunedCount = outcomes.filter((o) => o.pruned.length > 0).length;
   const missingPrs = outcomes.flatMap((o) => o.missingPrs);
 
   if (missingPrs.length > 0) {
     sayError(
-      `\n${missingPrs.length} branch(es) have commits but no PR: ` +
+      `${missingPrs.length} branch(es) have commits but no PR: ` +
         missingPrs.join(", "),
       { role: "warn" },
     );
   }
 
-  if (prunedCount > 0 || missingPrs.length > 0 || linkFailures.length > 0) {
+  // The classification is pure (runSucceeded); this entry only adapts
+  // its verdict into the plan lifecycle and the closing line (ADR 0039).
+  if (!runSucceeded(outcomes, linkFailures.length)) {
     // The retained plan makes a re-run execute identical walks; the
     // ledger skips complete steps, so pruned work retries (ADR 0034).
     sayError(
-      `\nPlan retained at ${PLAN_FILE} — re-run \`npm run sandcastle\` ` +
+      `Plan retained at ${PLAN_FILE} — re-run \`npm run sandcastle\` ` +
         `to resume the same walks.`,
       { role: "fail" },
     );
@@ -300,8 +317,8 @@ async function runCommand(): Promise<never> {
 
   deletePlan();
   say(
-    `\nAll done; plan file deleted. Stacks are linked on GitHub — review ` +
-      `each one bottom-up, merge the bottom PR first, and let ` +
+    `All steps complete — plan cleared. Stacks are linked on GitHub — ` +
+      `review each one bottom-up, merge the bottom PR first, and let ` +
       `auto-retargeting handle the rest.`,
     { role: "success" },
   );
@@ -327,6 +344,6 @@ sayBanner(RUN_START_BANNER);
 
 // Opened before anything spawns: every child process this invocation
 // runs tees its raw output here (ADR 0032).
-say(`Raw child-process output tees to ${openRunLog()}.\n`);
+say(`Raw child-process output tees to ${openRunLog()}.`);
 
 await (command === "plan" ? planCommand() : runCommand());

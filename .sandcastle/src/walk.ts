@@ -7,7 +7,7 @@
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { ChildFailure, runCaptured } from "./exec.ts";
-import { phaseRule, say, sayError, type StackTag } from "./render.ts";
+import { stackRule, say, sayError, type StackTag } from "./render.ts";
 import {
   branchCarries,
   deleteStaleBranch,
@@ -152,6 +152,8 @@ export interface WalkEffects {
   closeIssueWithComment(issueNumber: number, comment: string): void;
   /** Bind the PR urls into a GitHub stack, bottom-to-top. */
   linkPrStack(urls: readonly string[]): void;
+  /** Current base of the branch's open PR; undefined when unreadable. */
+  prBase(branch: string): string | undefined;
   /** Retarget the branch's PR onto a new base branch. */
   retargetPrBase(branch: string, base: string): void;
   /** Run the implementer on the step's branch in its own sandbox, cut from `waveBase`. */
@@ -239,6 +241,16 @@ export function productionWalkEffects(worktree: string): WalkEffects {
     linkPrStack(urls) {
       // gh's own chatter is captured; the walk reports the result.
       runCaptured("gh", ["stack", "link", ...urls]);
+    },
+    prBase(branch) {
+      try {
+        const pr = JSON.parse(
+          runCaptured("gh", ["pr", "view", branch, "--json", "baseRefName"]),
+        ) as { baseRefName: string };
+        return pr.baseRefName;
+      } catch {
+        return undefined;
+      }
     },
     retargetPrBase(branch, base) {
       runCaptured("gh", ["pr", "edit", branch, "--base", base]);
@@ -373,11 +385,27 @@ export interface StackOutcome {
   readonly staleRebuilt: readonly StackStep[];
   /** Chained steps whose rebase conflict rerere or the resolver fixed. */
   readonly resolved: readonly ResolvedStep[];
+  /** Steps whose build produced no commits — spliced, not failed (ADR 0040). */
+  readonly noops: readonly StackStep[];
   readonly pruned: readonly PrunedStep[];
   /** Branches left with commits but no PR — warned, not pruned. */
   readonly missingPrs: readonly string[];
   /** Every local-ref move this stack made, for the run-summary audit. */
   readonly localRefMoves: readonly LocalRefMove[];
+}
+
+/**
+ * True when the run needs no resume: nothing pruned, every built branch
+ * has its PR, every stack linked. No-op skips never count against it.
+ */
+export function runSucceeded(
+  outcomes: readonly StackOutcome[],
+  linkFailureCount: number,
+): boolean {
+  return (
+    linkFailureCount === 0 &&
+    outcomes.every((o) => o.pruned.length === 0 && o.missingPrs.length === 0)
+  );
 }
 
 // Run-wide shared state: one sandbox pool, one lock serializing the
@@ -402,13 +430,14 @@ export async function runStack(
     ...tag,
     issue: step.issue.number,
   });
-  phaseRule(`Starting ${label}: ${stack.length} step(s)`, { tag });
+  stackRule(`Starting ${label}: ${stack.length} step(s)`, { tag });
 
   const levels = waveLevels(stack);
   const skipped: StackStep[] = [];
   const skippedMerged: StackStep[] = [];
   const staleRebuilt: StackStep[] = [];
   const resolved: ResolvedStep[] = [];
+  const noops: StackStep[] = [];
   const missingPrs: string[] = [];
   const localRefMoves: LocalRefMove[] = [];
   const pruned = new Map<number, string>();
@@ -431,7 +460,7 @@ export async function runStack(
       }
     }
     sayError(
-      `\n✗ #${step.issue.number} pruned — ${reason}.` +
+      `✗ #${step.issue.number} pruned — ${reason}.` +
         (descendants.length === 0
           ? ""
           : ` Its dependents ${descendants.map((n) => `#${n}`).join(", ")} ` +
@@ -451,9 +480,16 @@ export async function runStack(
     depth: number,
   ): Promise<{
     readonly failure?: string;
-    readonly disposition: "skipped-open" | "skipped-merged" | "built" | "rebuilt";
+    readonly disposition:
+      | "skipped-open"
+      | "skipped-merged"
+      | "built"
+      | "rebuilt"
+      | "noop";
   }> => {
-    phaseRule(
+    // A plain tagged line: dividers are reserved for stack lifecycle
+    // (docs/log-grammar.md).
+    say(
       `#${step.issue.number}: ${step.issue.title} ` +
         `(wave ${depth + 1}/${levels.length}: ${waveBase} → ${step.branch})`,
       { tag: stepTag(step) },
@@ -559,9 +595,19 @@ export async function runStack(
         const report = /<missing-dependency>([\s\S]*?)<\/missing-dependency>/.exec(
           build.stdout,
         );
-        failure = report
-          ? `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`
-          : `its branch carries nothing ahead of ${waveBase}`;
+        if (report) {
+          failure = `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`;
+        } else {
+          // An empty branch equals its wave base: a neutral skip, spliced
+          // out of the chain; dependents build from that base (ADR 0040).
+          say(
+            `○ #${step.issue.number} skipped — no changes to make: all ` +
+              `its work already landed in the PRs below it. Close the ` +
+              `issue manually once the stack merges.`,
+            { tag: stepTag(step) },
+          );
+          return { disposition: "noop" };
+        }
       } else {
         // A reviewer failure lands here and prunes the step before any
         // PR exists (ADR 0036).
@@ -593,14 +639,14 @@ export async function runStack(
       pr = undefined;
     }
     if (pr !== undefined) {
-      say(`\n✓ #${step.issue.number} built and reviewed: ${pr}`, {
+      say(`✓ #${step.issue.number} built and reviewed: ${pr}`, {
         role: "success",
         tag: stepTag(step),
       });
     } else {
       missingPrs.push(step.branch);
       sayError(
-        `\n⚠ #${step.issue.number}: ${step.branch} is built and reviewed ` +
+        `⚠ #${step.issue.number}: ${step.branch} is built and reviewed ` +
           `but its draft PR could not be opened. Continuing — open it ` +
           `manually with gh pr create --draft --head ${step.branch} ` +
           `--base ${waveBase}.`,
@@ -629,7 +675,7 @@ export async function runStack(
     const survivors = level.filter((step) => {
       const already = pruned.get(step.issue.number);
       if (already === undefined) return true;
-      say(`\n– #${step.issue.number} not built: ${already}.`, {
+      say(`– #${step.issue.number} not built: ${already}.`, {
         role: "dim",
         tag: stepTag(step),
       });
@@ -654,6 +700,12 @@ export async function runStack(
         skippedMerged.push(step);
         continue;
       }
+      // A no-op branch equals the tip it was cut from: no restack turn,
+      // tip unchanged, dependents keep building (ADR 0040).
+      if (disposition === "noop") {
+        noops.push(step);
+        continue;
+      }
       if (disposition === "skipped-open") skipped.push(step);
       if (disposition === "rebuilt") staleRebuilt.push(step);
       toRestack.push(step);
@@ -664,7 +716,7 @@ export async function runStack(
     // hold its restack turn now.
     if (toRestack.length === 0) continue;
     await ctx.restackLock.use(async () => {
-      phaseRule(
+      say(
         `Restacking wave ${depth + 1}/${levels.length} of ${label} onto ${waveBase}`,
         { tag },
       );
@@ -767,15 +819,21 @@ export async function runStack(
         }
 
         // Keep each PR based on its actual chain predecessor, so review
-        // diffs stay per-issue after prunes. The no-op path retargets too.
-        try {
-          ctx.effects.retargetPrBase(step.branch, tipName);
-        } catch {
-          sayError(
-            `⚠ could not retarget the PR base of ${step.branch} — fix with ` +
-              `gh pr edit ${step.branch} --base ${tipName}.`,
-            { role: "warn", tag: stepTag(step) },
-          );
+        // diffs stay per-issue after prunes. Check first: a matching
+        // base needs no edit; no readable PR means nothing to retarget
+        // (the missing-PR warning already covers it) (ADR 0040).
+        const currentBase = ctx.effects.prBase(step.branch);
+        if (currentBase !== undefined && currentBase !== tipName) {
+          try {
+            ctx.effects.retargetPrBase(step.branch, tipName);
+          } catch {
+            sayError(
+              `⚠ ${step.branch}'s PR is based on ${currentBase} ` +
+                `instead of ${tipName} and retargeting failed — fix ` +
+                `with gh pr edit ${step.branch} --base ${tipName}.`,
+              { role: "warn", tag: stepTag(step) },
+            );
+          }
         }
 
         chainedSoFar.push(step);
@@ -796,20 +854,23 @@ export async function runStack(
 
   // Each walk marks its own end: with concurrent stacks the next rule
   // on the console can belong to another stack.
-  phaseRule(`Finished ${label}`, { tag });
+  stackRule(`Finished ${label}`, { tag });
 
-  // Merged steps are complete but not chained: the chain and the
-  // run-end stack link omit them.
-  const merged = new Set(skippedMerged.map((s) => s.issue.number));
+  // Merged and no-op steps are complete but not chained: the chain and
+  // the run-end stack link omit them.
+  const offChain = new Set(
+    [...skippedMerged, ...noops].map((s) => s.issue.number),
+  );
   return {
     stack,
     chained: stack.filter(
-      (s) => !pruned.has(s.issue.number) && !merged.has(s.issue.number),
+      (s) => !pruned.has(s.issue.number) && !offChain.has(s.issue.number),
     ),
     skipped: skipped.filter((s) => !pruned.has(s.issue.number)),
     skippedMerged,
     staleRebuilt: staleRebuilt.filter((s) => !pruned.has(s.issue.number)),
     resolved: resolved.filter((r) => !pruned.has(r.step.issue.number)),
+    noops,
     pruned: stack
       .filter((s) => pruned.has(s.issue.number))
       .map((s) => ({ step: s, reason: pruned.get(s.issue.number)! })),
