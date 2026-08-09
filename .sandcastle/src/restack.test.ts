@@ -12,6 +12,7 @@ import {
   deleteStaleBranch,
   gateBranchAncestry,
   originBranchExists,
+  pushBranch,
   restackBranch,
   sweepLeakedSandboxWorktrees,
 } from "./restack.ts";
@@ -419,6 +420,32 @@ describe("sweepLeakedSandboxWorktrees", () => {
   it("is a no-op when no sandbox worktree directory exists", () => {
     const f = fixture();
     expect(sweepLeakedSandboxWorktrees(f.clone)).toEqual([]);
+  });
+});
+
+describe("pushBranch", () => {
+  it("publishes a local-only branch to origin", () => {
+    const f = fixture();
+    f.git(["branch", "fresh", f.mainSha]);
+    const tip = f.commitOn(
+      "fresh",
+      "fresh: work",
+      { "a.txt": "a\n" },
+      { push: false },
+    );
+    pushBranch(f.worktree, "fresh");
+    expect(f.git(["rev-parse", "fresh"], join(f.root, "origin.git"))).toBe(tip);
+  });
+
+  it("fast-forwards an origin ref the implementer round already pushed", () => {
+    const f = fixture();
+    f.addBranch("fresh", f.mainSha, {
+      message: "fresh: implement",
+      files: { "a.txt": "a\n" },
+    });
+    const tip = f.commitOn("fresh", "fresh: review fixes", { "a.txt": "b\n" }, { push: false });
+    pushBranch(f.worktree, "fresh");
+    expect(f.git(["rev-parse", "fresh"], join(f.root, "origin.git"))).toBe(tip);
   });
 });
 

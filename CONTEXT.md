@@ -165,8 +165,10 @@ library) in which one step's agents build. Drawn from a global pool
 capped at 3, shared across all stacks.
 
 **Implementer / Reviewer** — the sandboxed agents for one step: the
-implementer builds, pushes, and opens the draft PR; the reviewer runs
-after it in the same sandbox, only if commits were produced.
+implementer builds and commits; the reviewer runs in a fresh sandbox on
+the same branch when it carries commits ahead of its base. Neither
+pushes nor opens the PR — the host does both, opening the draft PR only
+after the review (ADR 0036).
 
 **Check gate** — `npm run check`, the single mechanical pass/fail signal.
 Gates the implementer in the sandbox and every rewritten tip on the host;

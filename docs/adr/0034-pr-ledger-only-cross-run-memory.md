@@ -3,6 +3,11 @@
 Date: 2026-08-07
 Status: Accepted
 
+Amended by
+[36. Sandcastle: the draft PR opens only after the reviewer pass](0036-pr-opens-after-reviewer-pass.md):
+the verdict rule is unchanged, but "open PR" now also asserts a
+completed reviewer pass.
+
 Implements issue
 [#162](https://github.com/lukefredrickson/personal-site/issues/162).
 Extends ADR 0018's resume semantics and rides the `WalkEffects`

@@ -5,10 +5,11 @@
 Sandcastle is an agent factory. It turns a backlog of GitHub issues
 into pull requests without a human writing the code. One command reads
 the open issues that carry the `Sandcastle` label, plans them into an
-order, and runs a Claude agent session for each one. Each session
-implements the issue, opens a draft PR, and then reviews its own work.
-The operator has two jobs: approve the plan before execution, and
-review the finished PRs.
+order, and runs Claude agent sessions for each one. Each issue is
+implemented, then reviewed, and only then does the host open its draft
+PR — an open PR always means implemented and reviewed. The operator
+has two jobs: approve the plan before execution, and review the
+finished PRs.
 
 The factory is this repo's own code in `.sandcastle/`. It builds on the
 Sandcastle library, `@ai-hero/sandcastle`
@@ -64,9 +65,14 @@ deepest dependency. A **wave** is the concurrent build of one level.
 Every step in a wave builds at the same time. Each builds in its own
 **sandbox**, an isolated Docker environment from the library, cut from
 the current chain tip. Sandboxes come from one global pool capped at 3,
-shared across all stacks. Inside the sandbox, the implementer agent
-builds, pushes the branch, and opens a draft PR. A reviewer agent runs
-after it when commits exist.
+shared across all stacks. Inside its sandbox the implementer agent
+builds and commits; it neither pushes nor opens a PR. The host then
+pushes the branch and reads what it carries ahead of its base: nothing
+means the step prunes on the missing-dependency tripwire; otherwise a
+reviewer agent runs in a fresh sandbox on the same branch. After the
+review the host pushes the reviewer's commits and opens the draft PR —
+so the PR's opening diff already includes the reviewer's fixes, and a
+crash-resumed step always gets its reviewer pass before its PR exists.
 
 After the whole wave finishes, the level **restacks**: each sibling
 branch rebases onto the growing chain, in ascending issue-number order.
@@ -81,8 +87,8 @@ finished first.
 Progress lives on GitHub, not in local state. At each step start the
 walk reads the step's **PR ledger**: every PR whose head is the step's
 branch, in any state. The ledger is the only cross-run memory. An open
-PR means the step is complete: the sandbox is
-skipped, and the restack detects a no-op. Otherwise the newest PR
+PR means the step is complete — implemented and reviewed: the sandbox
+is skipped, and the restack detects a no-op. Otherwise the newest PR
 decides. Merged means complete: the step is skipped, left out of the
 chain, and its still-open issue closed. Closed means the operator
 rejected the work. A rejected or PR-less branch is **stale**: deleted,
