@@ -4,6 +4,8 @@ Date: 2026-07-30
 Status: Accepted
 Amended 2026-07-30: video embeds via `astro-embed` — see
 [Amendment: video embeds](#amendment-video-embeds-astro-embed-2026-07-30).
+Amended 2026-08-09: the global-CSS list in rule 2 — see
+[Amendment: the Inline link](#amendment-the-inline-link-adr-0036-2026-08-09).
 
 ## Context
 
@@ -128,3 +130,12 @@ Exceptions to this ADR's rules, accepted knowingly:
 
 The rose `--video` token loses its only consumer and stays dormant unless a
 future design revives it.
+
+## Amendment: the Inline link (ADR 0036, 2026-08-09)
+
+Rule 2's global-CSS list reads four things, not three: tokens, the reset, the
+prose partial, and one shared class, `.inline-link`. It names the Inline link —
+the link treatment a post's prose and the author card share — and lives in
+`prose.css` beside the `.prose a` selector it is listed with. The presumption
+rule 2 protects is unchanged: a component styles itself, scoped, and reaches for
+the shared class only to wear a treatment prose already defines.

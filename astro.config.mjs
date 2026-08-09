@@ -91,8 +91,8 @@ export default defineConfig({
     processor: satteri({ mdastPlugins: [readingTimePlugin] }),
   },
 
-  // Minification drops a vendor prefix as redundant unless the target names
-  // the browser floor `colors.css` states (ADR 0036).
+  // Minification drops the `-webkit-` prefix in `prose.css` unless the target
+  // names the browser floor. `colors.css` states that floor (ADR 0036).
   vite: {
     build: { cssTarget: ['chrome123', 'safari17.5', 'firefox120'] },
   },

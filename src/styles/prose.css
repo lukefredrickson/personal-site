@@ -3,7 +3,7 @@
    under a `.prose` wrapper. Typography only: anything with its own framing
    (figures, code frames, embeds) styles itself. Vertical rhythm is rem/em,
    not the px spacing scale (ADR 0011). The Inline link is the one shared
-   class here; a component opts in with `.inline-link` (ADR 0036). */
+   class here (ADR 0036). */
 
 .prose {
   display: flex;
@@ -34,17 +34,17 @@
   font-weight: var(--weight-title);
 }
 
-/* The Inline link — ADR 0036. Every markdown link is one; anything else
-   opts in by wearing the class. */
+/* The Inline link — ADR 0036. */
 .prose a,
 .inline-link {
-  /* The underline paints in this padding, below the text box. */
+  /* The underline paints in this padding, below the content box. */
   padding-bottom: var(--border-w);
   background-image: linear-gradient(var(--link) 0 0);
   background-position: 0 100%;
   background-size: 100% var(--border-w);
   background-repeat: no-repeat;
-  /* Every line fragment of a wrapped link paints its own underline. */
+  /* The browser floor needs the prefix. The CSS target in `astro.config.mjs`
+     keeps it (ADR 0036). */
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   color: var(--link);
