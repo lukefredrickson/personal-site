@@ -31,11 +31,10 @@ export interface UmbrellaOmission {
 }
 
 /**
- * Remove umbrella issues from the walk before stacking (ADR 0039). The
- * `parent` label declares an umbrella; `inferred` numbers are the
- * judgment agent's guesses and count only for unlabeled walk members.
- * A dependent of an omitted umbrella inherits the umbrella's own
- * blockers, so omission never breaks a chain. Pure: issues, edges, and
+ * Remove umbrella issues from the walk before stacking (ADR 0039).
+ * The `parent` label declares an umbrella; `inferred` numbers count
+ * only for unlabeled walk members. A dependent of an omitted umbrella
+ * inherits the umbrella's own blockers. Pure: issues, edges, and
  * classification in; a reduced walk plus the omitted list out.
  */
 export function omitUmbrellas(

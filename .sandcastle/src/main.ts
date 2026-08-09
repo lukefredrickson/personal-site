@@ -259,8 +259,7 @@ async function runCommand(): Promise<never> {
     }
   }
 
-  // The plan's omitted umbrellas repeat here so the follow-up action
-  // survives to the end of the run (ADR 0039).
+  // The plan's omitted umbrellas repeat in the summary (ADR 0039).
   const umbrellaLines = renderOmittedUmbrellas(plan.omittedUmbrellas);
   if (umbrellaLines.length > 0) {
     say("");
