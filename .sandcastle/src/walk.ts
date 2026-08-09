@@ -41,7 +41,7 @@ export const MAX_SANDBOXES = 3;
 const IDLE_TIMEOUT_SECONDS = 1800;
 
 // Live sandbox handles, for main.ts's SIGINT close. Containers carry no
-// issue number, so these handles are the only route to them (#170).
+// issue number, so only these handles can close them (#170).
 export const liveSandboxes = new Set<{ close(): Promise<unknown> }>();
 
 // Counting semaphore: `use` waits for a slot, runs the thunk, frees

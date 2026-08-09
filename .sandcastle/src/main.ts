@@ -40,11 +40,11 @@ import {
   type StackOutcome,
 } from "./walk.ts";
 
-// Ctrl-C kills the process group, but the containers run under the
-// docker daemon and would leak with their worktrees (#170). Close every
-// live sandbox best-effort, then exit; registering the handler disables
-// Node's default instant exit, so the exit call is mandatory. A second
-// Ctrl-C forces the exit if a close hangs.
+// SIGINT kills the process group. The containers run under the docker
+// daemon and outlive it, with their worktrees (#170). The handler
+// closes every live sandbox best-effort, then exits. Registering it
+// disables Node's default instant exit, so the exit call is mandatory.
+// A second Ctrl-C forces the exit if a close hangs.
 function closeSandboxesOnSigint(): void {
   let interrupted = false;
   process.on("SIGINT", () => {
@@ -55,9 +55,16 @@ function closeSandboxesOnSigint(): void {
         `Ctrl-C again to force quit.`,
       { role: "warn" },
     );
-    void Promise.allSettled([...liveSandboxes].map((s) => s.close())).then(
-      () => process.exit(130),
-    );
+    void (async () => {
+      // Running steps can create new sandboxes while a batch closes;
+      // sweep until the registry drains, then exit.
+      while (liveSandboxes.size > 0) {
+        const batch = [...liveSandboxes];
+        await Promise.allSettled(batch.map((s) => s.close()));
+        for (const sandbox of batch) liveSandboxes.delete(sandbox);
+      }
+      process.exit(130);
+    })();
   });
 }
 
