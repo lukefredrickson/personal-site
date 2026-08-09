@@ -29,6 +29,7 @@ import {
   createRestackWorktree,
   preflightGhToken,
   removeRestackWorktree,
+  sweepLeakedSandboxWorktrees,
 } from "./restack.ts";
 import {
   linkChainedPrs,
@@ -162,6 +163,11 @@ async function runCommand(): Promise<never> {
   // Promise.all keeps `outcomes` in plan order for the summary,
   // whatever order the stacks finish in.
   phaseRule("execute");
+  for (const path of sweepLeakedSandboxWorktrees(".")) {
+    say(`↺ removed leaked sandbox worktree ${path} from a dead run.`, {
+      role: "warn",
+    });
+  }
   say(
     `Running ${plan.stacks.length} stack(s) with a global cap of ` +
       `${MAX_SANDBOXES} concurrent sandbox(es).`,
