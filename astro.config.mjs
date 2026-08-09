@@ -91,6 +91,12 @@ export default defineConfig({
     processor: satteri({ mdastPlugins: [readingTimePlugin] }),
   },
 
+  // Minification drops a vendor prefix as redundant unless the target names
+  // the browser floor `colors.css` states (ADR 0036).
+  vite: {
+    build: { cssTarget: ['chrome123', 'safari17.5', 'firefox120'] },
+  },
+
   // Expressive Code goes first: MDX inherits its code-block rewrite only
   // when it is already registered.
   integrations: [
