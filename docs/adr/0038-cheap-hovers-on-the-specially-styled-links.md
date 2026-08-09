@@ -41,8 +41,9 @@ and background fade, as ADR 0037 said they would.
   untouched. Every hover selector carries `:not(.active)`, so the active pill
   keeps its inverted ink fill and the current page never flickers.
 - **Tag pill link** — the wash deepens one step, to
-  `--tint-{blue,foam,neutral}-bg-hover`. The selectors are `a.tag-pill`: a badge
-  renders a `<span>` and stays inert.
+  `--tint-{blue,foam,neutral}-bg-hover`. Every selector is anchor-qualified
+  (`a.neutral`, `a.blue`, `a.foam`): a badge renders a `<span>` and stays inert,
+  and a hue with no `bg-hover` slot falls through to no hover at all.
 - **Card link** — the card takes the hover, not the anchor. The chip row sits
   above the anchor's card-wide overlay, so a cursor over a chip would otherwise
   drop the title's hover on a region that still navigates. The title goes

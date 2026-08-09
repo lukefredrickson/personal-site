@@ -47,9 +47,9 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 		color: var(--text-body);
 	}
 
-	/* Only a tag renders an <a>; a badge is a <span> and stays inert. */
-	a.tag-pill:hover,
-	a.tag-pill:focus-visible {
+	/* Only a tag renders an <a>. A badge renders a <span> and stays inert. */
+	a.neutral:hover,
+	a.neutral:focus-visible {
 		background: var(--tint-neutral-bg-hover);
 	}
 

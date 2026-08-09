@@ -168,8 +168,7 @@
   --dot-current-ring: light-dark(var(--border-strong), var(--accent)); /* ink outline in light; merges with gold fill in dark */
 
   /* ---- tints — named by palette hue, never by what wears it (ADR 0030).
-     A hue carries only the slots something reads: a `bg-hover` exists for the
-     three tints a Tag pill link wears (ADR 0038). ---- */
+     A hue carries only the slots something reads. ---- */
   --tint-blue-bg: light-dark(var(--blue-w94), var(--blue-w36));
   --tint-blue-bg-hover: light-dark(var(--blue-w88), var(--blue-w42));
   --tint-blue-fg: light-dark(var(--blue-50), var(--blue-70));

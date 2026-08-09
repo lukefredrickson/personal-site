@@ -118,8 +118,7 @@ const { title, href, date, excerpt, tags = [], draft = false, placeholder } = pr
 		text-decoration: none;
 	}
 
-	/* The card, not the link: the chips sit above the overlay and the title
-	   still answers a cursor over them. */
+	/* The card takes the hover: a chip sits above the overlay (ADR 0038). */
 	.featured-post:hover .title a,
 	.title a:focus-visible {
 		color: var(--link);

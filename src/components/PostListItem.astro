@@ -70,8 +70,7 @@ const { title, href, date, excerpt, tags = [], draft = false, compact = false } 
 		text-decoration: none;
 	}
 
-	/* The row, not the link: the chips sit above the overlay and the title
-	   still answers a cursor over them. */
+	/* The row takes the hover: a chip sits above the overlay (ADR 0038). */
 	.post-row:hover .title a,
 	.title a:focus-visible {
 		color: var(--link);

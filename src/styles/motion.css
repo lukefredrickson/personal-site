@@ -5,5 +5,5 @@
 :root {
   --ease: ease-out;
   --duration-fast: 150ms;  /* color and background fades */
-  --duration-slide: 200ms; /* the Inline link underline, the theme toggle knob */
+  --duration-slide: 200ms; /* slides */
 }
