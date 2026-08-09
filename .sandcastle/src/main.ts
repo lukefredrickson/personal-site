@@ -32,12 +32,40 @@ import {
 } from "./restack.ts";
 import {
   linkChainedPrs,
+  liveSandboxes,
   MAX_SANDBOXES,
   productionWalkEffects,
   runStack,
   Semaphore,
   type StackOutcome,
 } from "./walk.ts";
+
+// SIGINT kills the process group. The containers and their worktrees
+// survive it (#170). The handler closes every live sandbox, then
+// exits. Registering it disables Node's default instant exit, so the
+// exit call is mandatory. A second Ctrl-C forces the exit.
+function closeSandboxesOnSigint(): void {
+  let interrupted = false;
+  process.on("SIGINT", () => {
+    if (interrupted) process.exit(130);
+    interrupted = true;
+    sayError(
+      `\nInterrupted — closing ${liveSandboxes.size} sandbox(es); ` +
+        `Ctrl-C again to force quit.`,
+      { role: "warn" },
+    );
+    void (async () => {
+      // New sandboxes can appear while a batch closes; close batches
+      // until the set is empty, then exit.
+      while (liveSandboxes.size > 0) {
+        const batch = [...liveSandboxes];
+        await Promise.allSettled(batch.map((s) => s.close()));
+        for (const sandbox of batch) liveSandboxes.delete(sandbox);
+      }
+      process.exit(130);
+    })();
+  });
+}
 
 async function planCommand(): Promise<never> {
   sayHeading("PLAN");
@@ -126,6 +154,10 @@ async function runCommand(): Promise<never> {
     );
     process.exit(1);
   }
+
+  // Registered after the approval gate: Ctrl-C during approval still
+  // aborts at once, and no sandboxes exist yet.
+  closeSandboxesOnSigint();
 
   // Promise.all keeps `outcomes` in plan order for the summary,
   // whatever order the stacks finish in.

@@ -4,7 +4,7 @@
 // never on internal structure. Specs that push run the real check gate,
 // so they carry generous timeouts.
 
-import { writeFileSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, type Fixture } from "./fixtures.ts";
@@ -408,6 +408,52 @@ describe("deleteStaleBranch", () => {
     const f = fixture();
     expect(originBranchExists(f.worktree, "ghost")).toBe(false);
     expect(() => deleteStaleBranch(f.worktree, "ghost")).not.toThrow();
+  });
+
+  it("reclaims a dead run's sandbox worktree holding the branch, then deletes", () => {
+    const f = fixture();
+    f.addBranch("stale", f.mainSha, {
+      message: "stale: rejected work",
+      files: { "stale.txt": "x\n" },
+    });
+    // A dead run's leaked sandbox worktree: under .sandcastle/worktrees/
+    // relative to cwd, holding the branch (#170).
+    const sandbox = join(f.root, ".sandcastle", "worktrees", "sandcastle-issue-9");
+    f.git(["worktree", "add", sandbox, "stale"]);
+    deleteStaleBranch(f.worktree, "stale");
+    expect(existsSync(sandbox)).toBe(false);
+    expect(f.sha("refs/heads/stale")).toBeUndefined();
+    expect(originGone(f, "stale")).toBe(true);
+  });
+
+  it("prunes a sandbox worktree entry whose directory is gone, then deletes", () => {
+    const f = fixture();
+    f.addBranch("stale", f.mainSha, {
+      message: "stale: rejected work",
+      files: { "stale.txt": "x\n" },
+    });
+    // The directory is deleted but git's worktree entry survives and
+    // still holds the branch; `remove --force` clears the entry too.
+    const sandbox = join(f.root, ".sandcastle", "worktrees", "sandcastle-issue-9");
+    f.git(["worktree", "add", sandbox, "stale"]);
+    rmSync(sandbox, { recursive: true, force: true });
+    deleteStaleBranch(f.worktree, "stale");
+    expect(f.sha("refs/heads/stale")).toBeUndefined();
+    expect(originGone(f, "stale")).toBe(true);
+  });
+
+  it("refuses a worktree outside .sandcastle/worktrees/, leaving everything untouched", () => {
+    const f = fixture();
+    const tip = f.addBranch("stale", f.mainSha, {
+      message: "stale: rejected work",
+      files: { "stale.txt": "x\n" },
+    });
+    const elsewhere = join(f.root, "operator-worktree");
+    f.git(["worktree", "add", elsewhere, "stale"]);
+    expect(() => deleteStaleBranch(f.worktree, "stale")).toThrow();
+    expect(existsSync(elsewhere)).toBe(true);
+    expect(f.sha("refs/heads/stale")).toBe(tip);
+    expect(originGone(f, "stale")).toBe(false);
   });
 
   it("refuses when the local branch is checked out, leaving origin untouched", () => {

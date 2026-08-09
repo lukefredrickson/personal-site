@@ -4,8 +4,8 @@
 // Local sandcastle/* refs are factory-owned and move only under lease;
 // nothing the operator authored is ever overwritten.
 
-import { cpSync, existsSync, readFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { cpSync, existsSync, readFileSync, realpathSync } from "node:fs";
+import { isAbsolute, join, sep } from "node:path";
 import { printChildFailure, runCaptured } from "./exec.ts";
 import { runHostAgent } from "./host-agent.ts";
 import { say } from "./render.ts";
@@ -188,11 +188,34 @@ export function originBranchExists(worktree: string, branch: string): boolean {
   return resolveRef(worktree, `refs/remotes/origin/${branch}`) !== undefined;
 }
 
+// Where the sandbox library puts its worktrees, relative to cwd. A dead
+// run can leak one still holding its branch (#170).
+const SANDBOX_WORKTREES_DIR = ".sandcastle/worktrees";
+
+// Remove a dead run's sandbox worktree that holds `branch`, so the
+// branch delete does not refuse. Dead-run state is untrusted
+// (ADR 0034). A worktree outside the sandbox directory is operator
+// state; the guard does not touch it.
+function reclaimDeadSandboxWorktree(worktree: string, branch: string): void {
+  const checkout = checkedOutAt(worktree, branch);
+  if (checkout === undefined) return;
+  let root: string;
+  try {
+    // realpath matches git's printed paths under a symlinked cwd.
+    root = realpathSync(SANDBOX_WORKTREES_DIR);
+  } catch {
+    return;
+  }
+  if (!checkout.startsWith(root + sep)) return;
+  git(["worktree", "remove", "--force", checkout], { cwd: worktree });
+}
+
 // Delete a stale branch everywhere the factory owns it: local ref
 // first — git refuses to delete a checked-out branch, and that refusal
 // must abort before origin is touched (ADR 0034).
 export function deleteStaleBranch(worktree: string, branch: string): void {
   if (resolveRef(worktree, `refs/heads/${branch}`) !== undefined) {
+    reclaimDeadSandboxWorktree(worktree, branch);
     git(["branch", "-D", branch], { cwd: worktree });
   }
   if (originBranchExists(worktree, branch)) {
