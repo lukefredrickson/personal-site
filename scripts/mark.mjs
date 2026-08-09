@@ -8,6 +8,10 @@ const MARK_SOURCE = fileURLToPath(
   new URL('./FiraCode-VariableFont_wght.ttf', import.meta.url),
 );
 
+const SOURCE = openSync(MARK_SOURCE);
+const EM = SOURCE.unitsPerEm;
+const instances = new Map();
+
 /* The mark instantiates the maximum of the variable `wght` axis. */
 const MARK_WEIGHT = 700;
 
@@ -23,7 +27,7 @@ const MARK_GLYPHS = [
  * Returns one path per fill class and the ink box around all of them.
  */
 export function outlineMark() {
-  const font = openSync(MARK_SOURCE).getVariation({ wght: MARK_WEIGHT });
+  const font = instance(MARK_WEIGHT);
   const paths = new Map();
   let ink = null;
 
@@ -52,6 +56,41 @@ export function fitMark(ink, { size, inset }) {
   const x = round((size - (ink.minX + ink.maxX) * scale) / 2, 3);
   const y = round((size + (ink.minY + ink.maxY) * scale) / 2, 3);
   return `matrix(${scale},0,0,${-scale},${x},${y})`;
+}
+
+/**
+ * Outlines a run in font units, with the y axis pointing up. The pen steps
+ * by `advanceEm`, not by the font's own advance. `start` counts the pen
+ * steps that precede the run.
+ */
+export function outlineRun(text, { weight, advanceEm, start = 0 }) {
+  const font = instance(weight);
+  const advance = advanceEm * EM;
+
+  return [...text]
+    .map((char, index) =>
+      font
+        .layout(char)
+        .glyphs[0].path.translate((start + index) * advance, 0)
+        .toSVG(),
+    )
+    .join('');
+}
+
+/**
+ * Sets a run at the given size, with its pen origin on the baseline.
+ * Returns the SVG matrix that also flips the y axis.
+ */
+export function fitRun({ x, baseline, size }) {
+  const scale = round(size / EM, 6);
+  return `matrix(${scale},0,0,${-scale},${x},${baseline})`;
+}
+
+function instance(weight) {
+  if (!instances.has(weight)) {
+    instances.set(weight, SOURCE.getVariation({ wght: weight }));
+  }
+  return instances.get(weight);
 }
 
 function box({ minX, minY, maxX, maxY }) {
