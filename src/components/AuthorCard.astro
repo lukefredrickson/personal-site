@@ -30,7 +30,7 @@ const {
 	<div class="photo">{photo && <Image src={photo} alt={name} width={52} />}</div>
 	{/* The sentence is fixed copy; only the varying words are props. */}
 	<p class="bio">
-		<b>{name}</b> — {blurb} More about me + career highlights on the <a href={href}>{linkLabel}</a>.
+		<b>{name}</b> — {blurb} More about me + career highlights on the <a class="inline-link" href={href}>{linkLabel}</a>.
 	</p>
 </aside>
 
@@ -75,12 +75,5 @@ const {
 		color: var(--ink);
 		font-family: var(--font-display);
 		font-weight: var(--weight-title);
-	}
-
-	.bio a {
-		border-bottom: var(--border-w) solid var(--link);
-		color: var(--link);
-		font-weight: var(--weight-ui);
-		text-decoration: none;
 	}
 </style>

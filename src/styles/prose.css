@@ -2,7 +2,8 @@
    Compiled markdown cannot carry scoped classes, so its styles live here,
    under a `.prose` wrapper. Typography only: anything with its own framing
    (figures, code frames, embeds) styles itself. Vertical rhythm is rem/em,
-   not the px spacing scale (ADR 0011). */
+   not the px spacing scale (ADR 0011). The Inline link is the one shared
+   class here (ADR 0036). */
 
 .prose {
   display: flex;
@@ -33,8 +34,19 @@
   font-weight: var(--weight-title);
 }
 
-.prose a {
-  border-bottom: var(--border-w) solid var(--link);
+/* The Inline link — ADR 0036. */
+.prose a,
+.inline-link {
+  /* The underline paints in this padding, below the content box. */
+  padding-bottom: var(--border-w);
+  background-image: linear-gradient(var(--link) 0 0);
+  background-position: 0 100%;
+  background-size: 100% var(--border-w);
+  background-repeat: no-repeat;
+  /* The browser floor needs the prefix. The CSS target in `astro.config.mjs`
+     keeps it (ADR 0036). */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
   color: var(--link);
   font-weight: var(--weight-ui);
   text-decoration: none;
