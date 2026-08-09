@@ -10,6 +10,12 @@ first backlog run: replay-window restacks, the resume ancestry gate, rerere,
 factory-owned local `sandcastle/*` refs, and the missing-dependency
 tripwire. The amendments are integrated into the sections below.
 
+Build sequence amended by
+[36. Sandcastle: the draft PR opens only after the reviewer pass](0036-pr-opens-after-reviewer-pass.md):
+the host, not the implementer, pushes the branch and opens the draft PR,
+after the reviewer pass; the missing-dependency tripwire keys on branch
+state, not the run's commit count.
+
 Amended 2026-08-02 by ADR 0028
 ([#103](https://github.com/lukefredrickson/personal-site/issues/103)):
 the no-test-runner stance is re-scoped to the site only — the factory

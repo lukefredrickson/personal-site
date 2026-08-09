@@ -14,6 +14,7 @@ import {
   fetchOrigin,
   gateBranchAncestry,
   originBranchExists,
+  pushBranch,
   resolveOriginTip,
   restackBranch,
   type BranchGate,
@@ -118,12 +119,22 @@ function openPrUrl(
   return effects.prLedger(branch).find((pr) => pr.state === "OPEN")?.url;
 }
 
-/** What a sandbox build left behind, as the walk judges completeness. */
+/** What the implement effect left behind. */
 export interface SandboxBuild {
-  /** Commits the implementer produced on the step's branch. */
+  /** Commits the implementer produced on the step's branch this run. */
   readonly commitCount: number;
-  /** Implementer stdout — searched for the missing-dependency report. */
+  /** Implementer stdout — carries the missing-dependency and pr-body markers. */
   readonly stdout: string;
+}
+
+// The implementer emits the PR body between <pr-body> markers; the
+// host guarantees the closing keyword, so merging closes the issue.
+function draftPrBody(stdout: string, issueNumber: number): string {
+  const body =
+    /<pr-body>([\s\S]*?)<\/pr-body>/.exec(stdout)?.[1]?.trim() ?? "";
+  const closes = `Closes #${issueNumber}`;
+  if (body === "") return closes;
+  return body.startsWith(closes) ? body : `${closes}\n\n${body}`;
 }
 
 // The walk's entire outward surface (ADR 0029): specs run the walk
@@ -143,8 +154,19 @@ export interface WalkEffects {
   linkPrStack(urls: readonly string[]): void;
   /** Retarget the branch's PR onto a new base branch. */
   retargetPrBase(branch: string, base: string): void;
-  /** Build the step's branch in its own sandbox, cut from `waveBase`. */
-  buildInSandbox(step: StackStep, waveBase: string): Promise<SandboxBuild>;
+  /** Run the implementer on the step's branch in its own sandbox, cut from `waveBase`. */
+  implementInSandbox(step: StackStep, waveBase: string): Promise<SandboxBuild>;
+  /** Run the reviewer over the branch's diff from `waveBase`, in its own sandbox. */
+  reviewInSandbox(step: StackStep, waveBase: string): Promise<void>;
+  /** Push the branch's local ref to origin (restack-owned). */
+  pushBranch(branch: string): void;
+  /** Open the step's draft PR — the completion marker. Returns its URL. */
+  createDraftPr(
+    branch: string,
+    base: string,
+    title: string,
+    body: string,
+  ): string;
   fetchOrigin(): void;
   resolveOriginTip(branch: string): string;
   gateBranchAncestry(branch: string, baseSha: string): BranchGate;
@@ -155,6 +177,32 @@ export interface WalkEffects {
     windowSha: string,
   ): Promise<RestackOutcome>;
   branchCarries(outer: string, inner: string): boolean;
+}
+
+// One agent run in the step's own sandbox: create, run, always close.
+// baseBranch cuts the branch from the wave's base; the library ignores
+// it when the branch exists, so a re-run resumes.
+async function runInStepSandbox<T>(
+  step: StackStep,
+  waveBase: string,
+  run: (
+    sandbox: Awaited<ReturnType<typeof sandcastle.createSandbox>>,
+  ) => Promise<T>,
+): Promise<T> {
+  const sandbox = await sandcastle.createSandbox({
+    branch: step.branch,
+    baseBranch: waveBase,
+    sandbox: docker(),
+    hooks,
+    copyToWorktree,
+  });
+  liveSandboxes.add(sandbox);
+  try {
+    return await run(sandbox);
+  } finally {
+    liveSandboxes.delete(sandbox);
+    await sandbox.close();
+  }
 }
 
 // The real wiring: gh on PATH, docker sandboxes, the restack module
@@ -195,18 +243,8 @@ export function productionWalkEffects(worktree: string): WalkEffects {
     retargetPrBase(branch, base) {
       runCaptured("gh", ["pr", "edit", branch, "--base", base]);
     },
-    async buildInSandbox(step, waveBase) {
-      // baseBranch cuts the new branch from the wave's base. The
-      // library ignores it when the branch exists, so a re-run resumes.
-      const sandbox = await sandcastle.createSandbox({
-        branch: step.branch,
-        baseBranch: waveBase,
-        sandbox: docker(),
-        hooks,
-        copyToWorktree,
-      });
-      liveSandboxes.add(sandbox);
-      try {
+    implementInSandbox(step, waveBase) {
+      return runInStepSandbox(step, waveBase, async (sandbox) => {
         const implement = await sandbox.run({
           name: `implementer #${step.issue.number}`,
           maxIterations: 100,
@@ -220,27 +258,44 @@ export function productionWalkEffects(worktree: string): WalkEffects {
             BASE_BRANCH: waveBase,
           },
         });
-        if (implement.commits.length > 0) {
-          await sandbox.run({
-            name: `reviewer #${step.issue.number}`,
-            maxIterations: 1,
-            idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS,
-            agent: sandcastle.claudeCode("claude-opus-5"),
-            promptFile: "./.sandcastle/prompts/review-prompt.md",
-            promptArgs: {
-              BRANCH: step.branch,
-              BASE_BRANCH: waveBase,
-            },
-          });
-        }
         return {
           commitCount: implement.commits.length,
           stdout: implement.stdout,
         };
-      } finally {
-        liveSandboxes.delete(sandbox);
-        await sandbox.close();
-      }
+      });
+    },
+    async reviewInSandbox(step, waveBase) {
+      // The branch exists by now, so the sandbox re-enters it with the
+      // implementer's synced commits.
+      await runInStepSandbox(step, waveBase, (sandbox) =>
+        sandbox.run({
+          name: `reviewer #${step.issue.number}`,
+          maxIterations: 1,
+          idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS,
+          agent: sandcastle.claudeCode("claude-opus-5"),
+          promptFile: "./.sandcastle/prompts/review-prompt.md",
+          promptArgs: {
+            BRANCH: step.branch,
+            BASE_BRANCH: waveBase,
+          },
+        }),
+      );
+    },
+    pushBranch: (branch) => pushBranch(worktree, branch),
+    createDraftPr(branch, base, title, body) {
+      return runCaptured("gh", [
+        "pr",
+        "create",
+        "--draft",
+        "--head",
+        branch,
+        "--base",
+        base,
+        "--title",
+        title,
+        "--body",
+        body,
+      ]).trim();
     },
     fetchOrigin: () => fetchOrigin(worktree),
     resolveOriginTip: (branch) => resolveOriginTip(worktree, branch),
@@ -406,6 +461,7 @@ export async function runStack(
 
     let failure: string | undefined;
     let rebuiltStale = false;
+    let prBody: string | undefined;
     try {
       // Read at step start, not plan time: the verdict must see GitHub
       // as it is now. Inside the try: a flaked `gh` prunes only this step.
@@ -487,10 +543,17 @@ export async function runStack(
       }
 
       const build = await ctx.sandboxPool.use(() =>
-        ctx.effects.buildInSandbox(step, waveBase),
+        ctx.effects.implementInSandbox(step, waveBase),
       );
 
-      if (build.commitCount === 0) {
+      // The reviewer decision reads pushed branch state, never this
+      // run's commit count (ADR 0036).
+      const empty = await ctx.restackLock.use(() => {
+        ctx.effects.pushBranch(step.branch);
+        return ctx.effects.branchCarries(waveBase, step.branch);
+      });
+
+      if (empty) {
         // The missing-dependency tripwire (ADR 0018): the report becomes
         // the prune reason, which puts the suspected edge in the summary.
         const report = /<missing-dependency>([\s\S]*?)<\/missing-dependency>/.exec(
@@ -498,7 +561,15 @@ export async function runStack(
         );
         failure = report
           ? `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`
-          : "produced no commits";
+          : `its branch carries nothing ahead of ${waveBase}`;
+      } else {
+        // A reviewer failure lands here and prunes the step before any
+        // PR exists (ADR 0036).
+        await ctx.sandboxPool.use(() =>
+          ctx.effects.reviewInSandbox(step, waveBase),
+        );
+        await ctx.restackLock.use(() => ctx.effects.pushBranch(step.branch));
+        prBody = draftPrBody(build.stdout, step.issue.number);
       }
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
@@ -508,27 +579,31 @@ export async function runStack(
       return { failure, disposition: "built" };
     }
 
-    // Verify from the host with the same open-PR test the skip uses; a
-    // sandbox-side flake would otherwise pass silently. A missing PR
-    // warns — the branch still restacks, and a re-run reopens the PR.
+    // The draft PR opens only after the review pass (ADR 0036). A
+    // failed creation warns — the branch still restacks.
     let pr: string | undefined;
     try {
-      pr = openPrUrl(ctx.effects, step.branch);
+      pr = ctx.effects.createDraftPr(
+        step.branch,
+        waveBase,
+        step.issue.title,
+        prBody ?? `Closes #${step.issue.number}`,
+      );
     } catch {
       pr = undefined;
     }
     if (pr !== undefined) {
-      say(`\n✓ #${step.issue.number} built: ${pr}`, {
+      say(`\n✓ #${step.issue.number} built and reviewed: ${pr}`, {
         role: "success",
         tag: stepTag(step),
       });
     } else {
       missingPrs.push(step.branch);
       sayError(
-        `\n⚠ #${step.issue.number}: commits exist on ${step.branch} ` +
-          `but no PR was found. Continuing — open it manually with ` +
-          `gh pr create --draft --head ${step.branch} --base ${waveBase}, ` +
-          `or re-run \`npm run sandcastle\` to have the step retried.`,
+        `\n⚠ #${step.issue.number}: ${step.branch} is built and reviewed ` +
+          `but its draft PR could not be opened. Continuing — open it ` +
+          `manually with gh pr create --draft --head ${step.branch} ` +
+          `--base ${waveBase}.`,
         { role: "warn", tag: stepTag(step) },
       );
     }

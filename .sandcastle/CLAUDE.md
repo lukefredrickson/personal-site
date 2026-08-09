@@ -55,7 +55,8 @@ summary and exits non-zero if anything was pruned.
 
 Resume semantics: at step start the walk fetches the step's PR ledger —
 every PR whose head is its branch, in any state — and computes a
-verdict: an open PR means complete; otherwise the newest PR decides
+verdict: an open PR means complete (implemented and reviewed — the
+draft PR opens only after the reviewer pass); otherwise the newest PR decides
 (merged → complete, issue auto-closed; closed → rejected, branch deleted
 and rebuilt fresh). Progress lives on GitHub, not in local state. A
 surviving plan file means a run failed midway or was

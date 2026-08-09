@@ -70,8 +70,7 @@ If you find improvements to make:
 
 1. Make the changes directly on this branch
 2. Run `npm run check` to ensure nothing is broken — it is the only gate; the repo intentionally has no test runner, and you must not add one
-3. Commit describing the refinements
-4. Push your commits so the open draft PR picks them up: `git push origin {{BRANCH}}`. If the push is rejected for credentials, run `gh auth setup-git` once and retry.
+3. Commit describing the refinements. Do not push — the host pushes your commits and opens the draft PR after your pass.
 
 If the code is already clean and well-structured, do nothing.
 

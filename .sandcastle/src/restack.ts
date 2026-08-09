@@ -246,6 +246,15 @@ export function deleteStaleBranch(worktree: string, branch: string): void {
   }
 }
 
+// Publish a branch's local ref to origin. A plain push suffices: stale
+// diverged branches are deleted before any build reaches this (ADR 0034).
+export function pushBranch(worktree: string, branch: string): void {
+  pushToOrigin(worktree, [
+    "origin",
+    `refs/heads/${branch}:refs/heads/${branch}`,
+  ]);
+}
+
 /** How a conflicted rebase got finished without pruning. */
 export type ConflictResolution = "rerere" | "agent";
 

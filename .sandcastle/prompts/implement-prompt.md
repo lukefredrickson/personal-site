@@ -78,21 +78,28 @@ Make a git commit. The commit message must:
 
 Keep it concise.
 
-# PULL REQUEST
+# HANDOFF
 
-When the work is complete and `npm run check` passes:
+Do not push the branch and do not open a PR. After your run the host pushes
+the branch, runs a reviewer pass over it, and opens the draft PR itself.
 
-1. Push the branch: `git push -u origin {{BRANCH}}`. If the push is rejected
-   for credentials, run `gh auth setup-git` once and retry.
-2. Open a draft PR based on the branch you were cut from, using stock `gh`
-   (the host retargets the base to the PR's final predecessor afterwards, so
-   do not second-guess it):
+When the work is complete and `npm run check` passes, write the PR body and
+output it between markers, each on its own line:
 
-   `gh pr create --draft --head {{BRANCH}} --base {{BASE_BRANCH}} --title "..." --body-file <file>`
+```
+<pr-body>
+Closes #{{ISSUE_NUMBER}}
 
-3. The body must follow `.github/pull_request_template.md`, start with
-   `Closes #{{ISSUE_NUMBER}}`, and stay under ~200 words. Never hard-wrap
-   prose in the body — GitHub renders a single newline as a line break there.
+...
+</pr-body>
+```
+
+The body must follow `.github/pull_request_template.md`, start with
+`Closes #{{ISSUE_NUMBER}}`, and stay under ~200 words. Never hard-wrap
+prose in the body — GitHub renders a single newline as a line break there.
+
+Output the body even when you found the work already complete on the branch
+and made no new commits — the host needs it to open the PR.
 
 Do not close the issue — merging the PR does that. Do not merge anything.
 

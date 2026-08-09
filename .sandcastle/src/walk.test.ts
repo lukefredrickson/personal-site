@@ -62,10 +62,12 @@ interface FakeOptions {
   readonly closeIssueFails?: boolean;
   /** Ancestry-gate verdict per branch; default clean. */
   readonly gates?: Readonly<Record<string, BranchGate>>;
-  /** Sandbox result per branch; an Error throws. Default: one commit. */
+  /** Implement result per branch; an Error throws. Default: one commit. */
   readonly builds?: Readonly<Record<string, SandboxBuild | Error>>;
-  /** Branches whose successful build fails to open a PR. */
-  readonly buildOpensNoPr?: readonly string[];
+  /** Branches whose review sandbox throws. */
+  readonly reviewFails?: readonly string[];
+  /** Branches whose draft-PR creation throws. */
+  readonly createPrFails?: readonly string[];
   /** Restack outcome per branch; an Error throws. Default: restacked. */
   readonly restacks?: Readonly<Record<string, RestackOutcome | Error>>;
   /** [outer, inner] pairs where outer's history carries inner. */
@@ -75,8 +77,14 @@ interface FakeOptions {
 }
 
 interface FakeEffects extends WalkEffects {
-  /** Branches that got a sandbox, with the base each was cut from. */
+  /** Branches that got an implement sandbox, with each one's base. */
   readonly builds: { branch: string; waveBase: string }[];
+  /** Branches that got a review sandbox. */
+  readonly reviews: string[];
+  /** Branches the host pushed, in order. */
+  readonly pushes: string[];
+  /** Every draft PR the host opened. */
+  readonly prsCreated: { branch: string; base: string; title: string; body: string }[];
   /** Branches the ancestry gate was consulted for. */
   readonly gated: string[];
   /** Restack turns taken, with the tip each branch was rebased onto. */
@@ -88,7 +96,7 @@ interface FakeEffects extends WalkEffects {
   readonly deleted: string[];
   /** Issues closed with their comment text. */
   readonly closedIssues: { issue: number; comment: string }[];
-  /** Interleaved "delete:<branch>" / "build:<branch>" order record. */
+  /** Interleaved delete/implement/push/review/pr order record. */
   readonly events: string[];
 }
 
@@ -99,6 +107,9 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
   );
   const effects: FakeEffects = {
     builds: [],
+    reviews: [],
+    pushes: [],
+    prsCreated: [],
     gated: [],
     restacks: [],
     retargets: [],
@@ -106,8 +117,8 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
     deleted: [],
     closedIssues: [],
     events: [],
-    // The `prs` map holds the open PRs (given up front or opened by a
-    // fake build); the `ledgers` option supplies the closed/merged rest.
+    // The `prs` map holds the open PRs (given up front or opened by
+    // createDraftPr); the `ledgers` option supplies the rest.
     prLedger(branch) {
       if (options.prQueryFlakes?.includes(branch)) {
         throw new Error(`gh flaked listing PRs for ${branch}`);
@@ -138,22 +149,35 @@ function fakeEffects(options: FakeOptions = {}): FakeEffects {
     retargetPrBase(branch, base) {
       effects.retargets.push({ branch, base });
     },
-    async buildInSandbox(step, waveBase) {
+    async implementInSandbox(step, waveBase) {
       effects.builds.push({ branch: step.branch, waveBase });
-      effects.events.push(`build:${step.branch}`);
+      effects.events.push(`implement:${step.branch}`);
       const build = options.builds?.[step.branch] ?? {
         commitCount: 1,
         stdout: "",
       };
       if (build instanceof Error) throw build;
-      // The implementer opens the draft PR from inside the sandbox.
-      if (
-        build.commitCount > 0 &&
-        !options.buildOpensNoPr?.includes(step.branch)
-      ) {
-        prs.set(step.branch, urlOf(step.branch));
-      }
       return build;
+    },
+    async reviewInSandbox(step) {
+      effects.reviews.push(step.branch);
+      effects.events.push(`review:${step.branch}`);
+      if (options.reviewFails?.includes(step.branch)) {
+        throw new Error(`review sandbox died on ${step.branch}`);
+      }
+    },
+    pushBranch(branch) {
+      effects.pushes.push(branch);
+      effects.events.push(`push:${branch}`);
+    },
+    createDraftPr(branch, base, title, body) {
+      if (options.createPrFails?.includes(branch)) {
+        throw new Error(`gh pr create exploded for ${branch}`);
+      }
+      effects.prsCreated.push({ branch, base, title, body });
+      effects.events.push(`pr:${branch}`);
+      prs.set(branch, urlOf(branch));
+      return urlOf(branch);
     },
     fetchOrigin() {},
     resolveOriginTip: (branch) => `origin-sha:${branch}`,
@@ -241,11 +265,11 @@ describe("step re-run selection on resume", () => {
     ]);
   });
 
-  it("warns but keeps a built branch whose PR never appeared", async () => {
+  it("warns but keeps a built branch whose PR creation failed", async () => {
     // A missing PR doesn't invalidate the chain — the branch still
     // restacks, and a re-run treats the step as incomplete.
     const stack = chain([{ n: 1 }, { n: 2, deps: [1] }]);
-    const effects = fakeEffects({ buildOpensNoPr: [branchOf(1)] });
+    const effects = fakeEffects({ createPrFails: [branchOf(1)] });
 
     const outcome = await walk(stack, effects);
 
@@ -265,6 +289,106 @@ describe("step re-run selection on resume", () => {
       { branch: branchOf(2), waveBase: branchOf(1) },
       { branch: branchOf(3), waveBase: branchOf(2) },
     ]);
+  });
+});
+
+describe("implement, review, then the host opens the PR", () => {
+  it("sequences a fresh build: implement, push, review, push, PR", async () => {
+    const stack = chain([{ n: 1 }]);
+    const effects = fakeEffects();
+
+    const outcome = await walk(stack, effects);
+
+    expect(effects.events).toEqual([
+      `implement:${branchOf(1)}`,
+      `push:${branchOf(1)}`,
+      `review:${branchOf(1)}`,
+      `push:${branchOf(1)}`,
+      `pr:${branchOf(1)}`,
+    ]);
+    expect(numbers(outcome.chained)).toEqual([1]);
+  });
+
+  it("reviews and opens the PR for a crash-resumed step with no new commits", async () => {
+    // The branch already carries the implementation from a dead run;
+    // the implement pass adds nothing. The reviewer decision reads the
+    // branch, not this run's commit count, so review and PR still run.
+    const stack = chain([{ n: 1 }]);
+    const effects = fakeEffects({
+      builds: { [branchOf(1)]: { commitCount: 0, stdout: "" } },
+    });
+
+    const outcome = await walk(stack, effects);
+
+    expect(effects.reviews).toEqual([branchOf(1)]);
+    expect(effects.prsCreated.map((p) => p.branch)).toEqual([branchOf(1)]);
+    expect(outcome.pruned).toEqual([]);
+    expect(numbers(outcome.chained)).toEqual([1]);
+  });
+
+  it("fails the step before any PR exists when the review effect throws", async () => {
+    const stack = chain([{ n: 1 }, { n: 2, deps: [1] }]);
+    const effects = fakeEffects({ reviewFails: [branchOf(1)] });
+
+    const outcome = await walk(stack, effects);
+
+    expect(effects.prsCreated).toEqual([]);
+    expect(outcome.pruned).toEqual([
+      {
+        step: stack[0],
+        reason: expect.stringContaining("review sandbox died"),
+      },
+      { step: stack[1], reason: "depends on pruned #1" },
+    ]);
+  });
+
+  it("opens the PR against the wave base with the implementer's emitted body", async () => {
+    const stack = chain([{ n: 1 }]);
+    const effects = fakeEffects({
+      builds: {
+        [branchOf(1)]: {
+          commitCount: 2,
+          stdout:
+            "…<pr-body>Closes #1\n\nAdds the thing per the spec.</pr-body>…",
+        },
+      },
+    });
+
+    await walk(stack, effects);
+
+    expect(effects.prsCreated).toEqual([
+      {
+        branch: branchOf(1),
+        base: "main",
+        title: "Issue 1",
+        body: "Closes #1\n\nAdds the thing per the spec.",
+      },
+    ]);
+  });
+
+  it("guarantees the closing keyword when the emitted body lacks it", async () => {
+    const stack = chain([{ n: 1 }]);
+    const effects = fakeEffects({
+      builds: {
+        [branchOf(1)]: {
+          commitCount: 1,
+          stdout: "<pr-body>Adds the thing.</pr-body>",
+        },
+      },
+    });
+
+    await walk(stack, effects);
+
+    expect(effects.prsCreated[0]?.body).toBe("Closes #1\n\nAdds the thing.");
+  });
+
+  it("falls back to a bare closing keyword when no body was emitted", async () => {
+    const stack = chain([{ n: 1 }]);
+    const effects = fakeEffects();
+
+    await walk(stack, effects);
+
+    expect(effects.prsCreated[0]?.body).toBe("Closes #1");
   });
 });
 
@@ -339,9 +463,9 @@ describe("the PR ledger verdict at step start", () => {
     ]);
     // Deletion strictly precedes the rebuild, so a fresh sandbox can
     // never resume rejected work.
-    expect(effects.events).toEqual([
+    expect(effects.events.slice(0, 2)).toEqual([
       `delete:${branchOf(1)}`,
-      `build:${branchOf(1)}`,
+      `implement:${branchOf(1)}`,
     ]);
     // The gate still runs after deletion — it just finds nothing stale.
     expect(effects.gated).toEqual([branchOf(1)]);
@@ -356,9 +480,9 @@ describe("the PR ledger verdict at step start", () => {
 
     const outcome = await walk(stack, effects);
 
-    expect(effects.events).toEqual([
+    expect(effects.events.slice(0, 2)).toEqual([
       `delete:${branchOf(1)}`,
-      `build:${branchOf(1)}`,
+      `implement:${branchOf(1)}`,
     ]);
     expect(numbers(outcome.staleRebuilt)).toEqual([1]);
   });
@@ -477,19 +601,26 @@ describe("prune propagation", () => {
       { n: 4, deps: [2] },
     ]);
 
-  it("prunes a commit-less build and its dependents; independents keep building", async () => {
+  it("prunes an empty build and its dependents; independents keep building", async () => {
     const stack = diamond();
     const effects = fakeEffects({
       builds: { [branchOf(2)]: { commitCount: 0, stdout: "" } },
+      carries: [[branchOf(1), branchOf(2)]],
     });
 
     const outcome = await walk(stack, effects);
 
     expect(numbers(outcome.chained)).toEqual([1, 3]);
     expect(outcome.pruned).toEqual([
-      { step: stack[1], reason: "produced no commits" },
+      {
+        step: stack[1],
+        reason: `its branch carries nothing ahead of ${branchOf(1)}`,
+      },
       { step: stack[3], reason: "depends on pruned #2" },
     ]);
+    // The empty branch never got a review sandbox or a PR.
+    expect(effects.reviews).not.toContain(branchOf(2));
+    expect(effects.prsCreated.map((p) => p.branch)).not.toContain(branchOf(2));
     // #4 never got a sandbox — its foundation was already gone.
     expect(effects.builds.map((b) => b.branch)).toEqual([
       branchOf(1),
@@ -508,6 +639,7 @@ describe("prune propagation", () => {
             "…<missing-dependency>needs the fixture\nhelper from #103</missing-dependency>…",
         },
       },
+      carries: [["main", branchOf(1)]],
     });
 
     const outcome = await walk(stack, effects);
@@ -604,14 +736,20 @@ describe("prune propagation", () => {
     const effects = fakeEffects({
       openPrs: [branchOf(3)],
       builds: { [branchOf(2)]: { commitCount: 0, stdout: "" } },
-      carries: [[branchOf(3), branchOf(2)]],
+      carries: [
+        [branchOf(3), branchOf(2)],
+        [branchOf(1), branchOf(2)],
+      ],
     });
 
     const outcome = await walk(stack, effects);
 
     expect(numbers(outcome.chained)).toEqual([1]);
     expect(outcome.pruned).toEqual([
-      { step: stack[1], reason: "produced no commits" },
+      {
+        step: stack[1],
+        reason: `its branch carries nothing ahead of ${branchOf(1)}`,
+      },
       {
         step: stack[2],
         reason: "its branch history contains pruned sandcastle/issue-2",
