@@ -9,5 +9,6 @@
 @import "./colors.css";
 @import "./typography.css";
 @import "./spacing.css";
+@import "./motion.css";
 @import "./base.css";
 @import "./prose.css";

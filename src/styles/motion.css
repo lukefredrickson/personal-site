@@ -1,0 +1,9 @@
+/* Motion tokens — the site's one easing and its two durations (ADR 0037).
+   A duration is named by the job it times. A component never writes its own
+   duration or easing. */
+
+:root {
+  --ease: ease-out;
+  --duration-fast: 150ms;  /* color and background fades */
+  --duration-slide: 200ms; /* the Inline link underline slide */
+}

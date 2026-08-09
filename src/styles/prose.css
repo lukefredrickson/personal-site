@@ -34,14 +34,17 @@
   font-weight: var(--weight-title);
 }
 
-/* The Inline link — ADR 0036. */
+/* The Inline link — ADR 0036, ADR 0037. */
 .prose a,
 .inline-link {
   /* The underline paints in this padding, below the content box. */
   padding-bottom: var(--border-w);
-  background-image: linear-gradient(var(--link) 0 0);
+  /* Layer order is paint order: the slide layer sits over the underline. */
+  background-image:
+    linear-gradient(var(--link-hover) 0 0),
+    linear-gradient(var(--link) 0 0);
   background-position: 0 100%;
-  background-size: 100% var(--border-w);
+  background-size: 0% var(--border-w), 100% var(--border-w);
   background-repeat: no-repeat;
   /* The browser floor needs the prefix. The CSS target in `astro.config.mjs`
      keeps it (ADR 0036). */
@@ -50,6 +53,30 @@
   color: var(--link);
   font-weight: var(--weight-ui);
   text-decoration: none;
+}
+
+.prose a:hover,
+.prose a:focus-visible,
+.inline-link:hover,
+.inline-link:focus-visible {
+  background-size: 100% var(--border-w), 100% var(--border-w);
+  color: var(--link-hover);
+}
+
+.prose a:focus-visible,
+.inline-link:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* ADR 0012 gates every transition on this query. */
+@media (prefers-reduced-motion: no-preference) {
+  .prose a,
+  .inline-link {
+    transition:
+      background-size var(--duration-slide) var(--ease),
+      color var(--duration-fast) var(--ease);
+  }
 }
 
 .prose strong {
