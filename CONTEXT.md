@@ -44,6 +44,24 @@ the rose `draft` badge (ADR 0021).
 code) at build time and shown in the post header. Never in frontmatter, never
 on list surfaces. See ADR 0020.
 
+## Brand assets
+
+**Brand asset** — a file in `public/` that carries the site's identity: the
+favicon, the touch and manifest icons, and the OG card. Every one is written by
+the generator; none is hand-maintained (ADR 0036).
+
+**Mark** — the `lf.` lockup: the letters `l` and `f` plus a period, set at
+fixed offsets. The letters wear the ink fill, the period the gold accent.
+_Avoid_: "logo", and "dot" for the period — that is the ladder's marker.
+
+**Mark source** — `scripts/FiraCode-VariableFont_wght.ttf`, the committed Fira
+Code variable font. Every letterform in every brand asset is outlined from it
+at weight 700. A shipped asset is a visual reference target, never a source.
+
+**Generator** — `scripts/generate-icons.mjs`, run by `npm run generate:icons`.
+It outlines the mark from the mark source and writes the brand assets. Its
+output is deterministic: two runs produce identical bytes.
+
 ## Astro
 
 **Static output** — Astro's default build mode: every page is pre-rendered to
