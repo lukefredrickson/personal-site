@@ -118,6 +118,24 @@ const { title, href, date, excerpt, tags = [], draft = false, placeholder } = pr
 		text-decoration: none;
 	}
 
+	/* The card, not the link: the chips sit above the overlay and the title
+	   still answers a cursor over them. */
+	.featured-post:hover .title a,
+	.title a:focus-visible {
+		color: var(--link);
+	}
+
+	.title a:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.title a {
+			transition: color var(--duration-fast) var(--ease);
+		}
+	}
+
 	/* The overlay makes the whole card the target; a nested <a> is invalid
 	   HTML. Card text stops being selectable. */
 	.title a::after {

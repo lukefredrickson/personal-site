@@ -59,6 +59,7 @@
   --foam-80: oklch(80% var(--c-foam) var(--h-foam));
   --foam-85: oklch(85% var(--c-foam) var(--h-foam));
   --foam-w36: oklch(36% 0.03 var(--h-foam));
+  --foam-w42: oklch(42% 0.03 var(--h-foam));
   --foam-w88: oklch(88% 0.03 var(--h-foam));
   --foam-w94: oklch(94% 0.03 var(--h-foam));
 
@@ -72,6 +73,7 @@
   --blue-80: oklch(80% var(--c-blue) var(--h-blue));
   --blue-85: oklch(85% var(--c-blue) var(--h-blue));
   --blue-w36: oklch(36% 0.03 var(--h-blue));
+  --blue-w42: oklch(42% 0.03 var(--h-blue));
   --blue-w88: oklch(88% 0.03 var(--h-blue));
   --blue-w94: oklch(94% 0.03 var(--h-blue));
 
@@ -166,17 +168,21 @@
   --dot-current-ring: light-dark(var(--border-strong), var(--accent)); /* ink outline in light; merges with gold fill in dark */
 
   /* ---- tints — named by palette hue, never by what wears it (ADR 0030).
-     A hue carries only the slots something reads. ---- */
+     A hue carries only the slots something reads: a `bg-hover` exists for the
+     three tints a Tag pill link wears (ADR 0038). ---- */
   --tint-blue-bg: light-dark(var(--blue-w94), var(--blue-w36));
+  --tint-blue-bg-hover: light-dark(var(--blue-w88), var(--blue-w42));
   --tint-blue-fg: light-dark(var(--blue-50), var(--blue-70));
   --tint-blue-line: var(--tint-blue-fg);
   --tint-foam-bg: light-dark(var(--foam-w94), var(--foam-w36));
+  --tint-foam-bg-hover: light-dark(var(--foam-w88), var(--foam-w42));
   --tint-foam-fg: light-dark(var(--foam-50), var(--foam-75));
   --tint-foam-line: light-dark(var(--foam-60), var(--foam-75));
   --tint-gold-bg: light-dark(var(--gold-w94), var(--gold-w36));
   --tint-rose-bg: light-dark(var(--rose-w94), var(--rose-w36));
   --tint-rose-fg: light-dark(var(--rose-50), var(--rose-75));
   --tint-neutral-bg: light-dark(var(--paper-95), var(--ink-35));
+  --tint-neutral-bg-hover: light-dark(var(--paper-93), var(--ink-40));
 
   /* ---- badges — roles over the tint palette ---- */
   --latest-bg: var(--tint-blue-bg);
@@ -209,6 +215,7 @@
 
   /* ---- buttons ---- */
   --btn-primary-bg: var(--p-blue-deep);                     /* primary (résumé) button */
+  --btn-primary-bg-hover: var(--p-blue);
   --btn-primary-fg: light-dark(var(--paper-97), var(--blue-w94));
 
   /* ---- code block syntax — five distinct colors, both themes ---- */

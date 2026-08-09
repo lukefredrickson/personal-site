@@ -66,6 +66,23 @@ const section = currentSection(Astro.url.pathname);
 		border-bottom: 2.5px solid transparent;
 	}
 
+	/* The hover leaves the border alone: the underline marks the current page. */
+	nav a:hover,
+	nav a:focus-visible {
+		color: var(--ink);
+	}
+
+	nav a:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		nav a {
+			transition: color var(--duration-fast) var(--ease);
+		}
+	}
+
 	nav a[aria-current='page'] {
 		color: var(--ink);
 		border-bottom-color: var(--link);

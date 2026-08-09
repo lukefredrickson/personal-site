@@ -42,14 +42,41 @@ const text = count === undefined ? label : `${label} · ${count}`;
 		text-decoration: none;
 	}
 
+	/* The idle pill fills with its own tint; the active pill stays inverted. */
+	.filter-pill:not(.active):hover,
+	.filter-pill:not(.active):focus-visible {
+		background: var(--tint-neutral-bg);
+	}
+
+	.filter-pill:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.filter-pill {
+			transition: background-color var(--duration-fast) var(--ease);
+		}
+	}
+
 	.blue {
 		border-color: var(--tint-blue-line);
 		color: var(--tint-blue-fg);
 	}
 
+	.blue:not(.active):hover,
+	.blue:not(.active):focus-visible {
+		background: var(--tint-blue-bg);
+	}
+
 	.foam {
 		border-color: var(--tint-foam-line);
 		color: var(--tint-foam-fg);
+	}
+
+	.foam:not(.active):hover,
+	.foam:not(.active):focus-visible {
+		background: var(--tint-foam-bg);
 	}
 
 	/* Last so it wins over the tints at equal specificity. */

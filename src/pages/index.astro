@@ -253,6 +253,22 @@ const hero =
 		text-decoration: none;
 	}
 
+	.more:hover,
+	.more:focus-visible {
+		color: var(--link-hover);
+	}
+
+	.more:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.more {
+			transition: color var(--duration-fast) var(--ease);
+		}
+	}
+
 	/* The portrait and the greeting stack on narrow viewports. */
 	@media (max-width: 40rem) {
 		.hero {

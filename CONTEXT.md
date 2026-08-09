@@ -21,9 +21,9 @@ One vocabulary, named by the palette hue it is (`blue`, `foam`, `gold`,
 `rose`), plus `neutral` for the untinted role.
 
 **Motion token** — one of the shared transition values in `motion.css`: the
-easing (`--ease`) and the two durations (`--duration-fast` for color,
-`--duration-slide` for the underline slide). Every transition on the site reads
-them (ADR 0037).
+easing (`--ease`) and the two durations (`--duration-fast` for a color or
+background fade, `--duration-slide` for a slide). Every transition on the site
+reads them (ADR 0037, ADR 0038).
 _Avoid_: a component-local duration or easing literal.
 
 **Inline link** — a link styled as part of running text: every link in a post's
@@ -33,6 +33,16 @@ hover and focus it brightens to the link-hover color and slides the underline in
 from the left (ADR 0037). Not a nav link, a button, a pill, or a card link —
 those carry their own identities.
 _Avoid_: "prose link" for the treatment as a whole.
+
+**Card link** — the title link of a featured post card, a post row, or a
+neighbor card. An overlay on the link makes the whole card the hit area, so the
+title shifts to the link color when the cursor is anywhere on the card
+(ADR 0038).
+
+**Utility link** — a bare navigation link outside the header: "all posts →" on
+the home page, "← all posts" on a post page. It brightens on hover, each one
+along its own resting color (ADR 0038).
+_Avoid_: "back link" for only one half of the pair.
 
 **Promotion ladder** — the vertical timeline running down the left of a company
 card's roles: one dot per role, joined by rails. Home page only, realized by
