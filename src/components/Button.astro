@@ -43,10 +43,32 @@ const Element = href ? 'a' : 'button';
 		cursor: pointer;
 	}
 
+	.button:hover,
+	.button:focus-visible {
+		background: var(--surface-raised);
+	}
+
+	.button:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.button {
+			transition: background-color var(--duration-fast) var(--ease);
+		}
+	}
+
 	.primary {
 		border-color: transparent;
 		background: var(--btn-primary-bg);
 		color: var(--btn-primary-fg);
 		font-weight: var(--weight-title);
+	}
+
+	/* Last so it wins over the base hover at equal specificity. */
+	.primary:hover,
+	.primary:focus-visible {
+		background: var(--btn-primary-bg-hover);
 	}
 </style>

@@ -92,6 +92,22 @@ const sides = [
 		color: var(--text-faint);
 	}
 
+	a.card:hover .title,
+	a.card:focus-visible .title {
+		color: var(--link);
+	}
+
+	a.card:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		a.card .title {
+			transition: color var(--duration-fast) var(--ease);
+		}
+	}
+
 	/* Two side-by-side titles stop being readable on narrow viewports. */
 	@media (max-width: 40rem) {
 		.prev-next {

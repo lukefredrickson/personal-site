@@ -47,14 +47,41 @@ const href = tag ? `/blog/tags/${tag}/` : undefined;
 		color: var(--text-body);
 	}
 
+	/* Only a tag renders an <a>. A badge renders a <span> and stays inert. */
+	a.neutral:hover,
+	a.neutral:focus-visible {
+		background: var(--tint-neutral-bg-hover);
+	}
+
+	a.tag-pill:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		a.tag-pill {
+			transition: background-color var(--duration-fast) var(--ease);
+		}
+	}
+
 	.blue {
 		background: var(--tint-blue-bg);
 		color: var(--tint-blue-fg);
 	}
 
+	a.blue:hover,
+	a.blue:focus-visible {
+		background: var(--tint-blue-bg-hover);
+	}
+
 	.foam {
 		background: var(--tint-foam-bg);
 		color: var(--tint-foam-fg);
+	}
+
+	a.foam:hover,
+	a.foam:focus-visible {
+		background: var(--tint-foam-bg-hover);
 	}
 
 	/* No tag maps to rose; rose is the draft badge's hue (ADR 0021). */

@@ -70,6 +70,23 @@ const { title, href, date, excerpt, tags = [], draft = false, compact = false } 
 		text-decoration: none;
 	}
 
+	/* The row takes the hover: a chip sits above the overlay (ADR 0038). */
+	.post-row:hover .title a,
+	.title a:focus-visible {
+		color: var(--link);
+	}
+
+	.title a:focus-visible {
+		outline: 2px solid var(--link);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.title a {
+			transition: color var(--duration-fast) var(--ease);
+		}
+	}
+
 	/* The overlay makes the whole row the target; a nested <a> is invalid
 	   HTML. Row text stops being selectable. */
 	.title a::after {

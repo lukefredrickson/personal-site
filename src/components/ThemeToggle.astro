@@ -82,7 +82,7 @@ import { Moon, Sun } from '@lucide/astro';
 	/* Animates only when the visitor allows motion. */
 	@media (prefers-reduced-motion: no-preference) {
 		.knob {
-			transition: transform 0.18s ease;
+			transition: transform var(--duration-slide) var(--ease);
 		}
 	}
 
