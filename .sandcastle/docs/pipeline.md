@@ -48,12 +48,20 @@ edges. A read-only **judgment agent** then proposes edge additions and
 removals, because a raw backlog rarely has every real dependency drawn.
 Each proposed change is a **mutation**. Host code screens the proposal
 mechanically: cycle-creating or unknown-issue mutations drop with a
-reason. `planStacks` partitions the amended graph into connected
-components. It orders each component with a deterministic topological
-sort. A one-issue component is a standalone PR based on main, not a
-stack. The result is printed and written to the plan file. Planning
-never writes to GitHub; the bare run applies the accepted mutations
-before execution starts.
+reason. **Umbrella issues** — parent tickets whose whole scope lands in
+their children — are then omitted from the graph: the `parent` label
+declares one, and the judgment agent may infer one where the label is
+missing. A dependent of an omitted umbrella inherits the umbrella's own
+blockers, so omission never breaks a chain. The plan lists each omitted
+umbrella with its follow-up (close after the children merge); an
+inferred one adds a veto instruction, since the owner can label or
+re-plan before execution. The RUN SUMMARY repeats the list. The run
+never closes an umbrella itself. `planStacks` partitions the amended
+graph into connected components. It orders each component with a
+deterministic topological sort. A one-issue component is a standalone
+PR based on main, not a stack. The result is printed and written to
+the plan file. Planning never writes to GitHub; the bare run applies
+the accepted mutations before execution starts.
 
 ## Execution: waves
 

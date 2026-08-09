@@ -9,7 +9,7 @@ reads; treat any denied tool call as confirmation, not an obstacle.
 
 # INPUTS
 
-Open Sandcastle issues (number, title):
+Open Sandcastle issues (number, title, labels):
 
 ```json
 {{ISSUES_JSON}}
@@ -48,6 +48,27 @@ in topological order; unrelated components run as independent stacks. So:
   consequence, and do not propose edges touching issues outside the list
   above — the host rejects them.
 
+# UMBRELLA ISSUES
+
+An **umbrella issue** is a parent ticket whose whole scope lands in its
+child issues — it has no implementation work of its own. Umbrellas are
+omitted from the build graph: building one burns a sandbox to produce
+zero commits. Detection is two-tier:
+
+- An issue carrying the `parent` label is an umbrella by owner
+  declaration. The host omits it; you do not need to report it.
+- For each **unlabeled** issue, judge whether it fits the umbrella
+  shape: its body delegates all concrete work to other issues (child
+  checklists, "tracking issue", sub-issue lists), and every deliverable
+  it names is owned by another issue in the walk. If so, report it in
+  `umbrellas` with one concrete sentence of evidence.
+
+Report only genuine umbrellas — a thin issue with real work of its own
+is not one. Your classification is a proposal: the plan output marks it
+as inferred, and the owner can veto it before execution. Do not propose
+blocked-by mutations whose only purpose is to reposition an umbrella;
+edges touching umbrellas are spliced out when the umbrella is omitted.
+
 # METHOD
 
 Protect your own context window: fan exploration out to subagents (the
@@ -84,11 +105,18 @@ is a JSON object of this shape:
       "blocker": 41,
       "reasoning": "one concrete sentence: why this edge is not a real dependency"
     }
+  ],
+  "umbrellas": [
+    {
+      "issue": 44,
+      "reasoning": "one concrete sentence: which issues own all of #44's scope"
+    }
   ]
 }
 ```
 
 `blocked` is the issue that waits; `blocker` is the issue it waits on.
-Every mutation needs a reasoning sentence grounded in what you actually
-read — cite files or issue text, not vibes. If the graph is already
-right, return `{"mutations": []}`.
+Every mutation and umbrella needs a reasoning sentence grounded in what
+you actually read — cite files or issue text, not vibes. If the graph
+is already right and no unlabeled issue is an umbrella, return
+`{"mutations": [], "umbrellas": []}`.

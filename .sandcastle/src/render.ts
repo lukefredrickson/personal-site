@@ -147,6 +147,39 @@ export function renderHeading(
   return `${bar}\n${stamp} ${style("bold", title)}\n${bar}`;
 }
 
+/** The shape `renderOmittedUmbrellas` needs from an omitted umbrella. */
+export interface UmbrellaNote {
+  readonly issue: { readonly number: number; readonly title: string };
+  readonly provenance: "labeled" | "inferred";
+}
+
+/**
+ * The omitted-umbrella block, printed in the plan and the RUN SUMMARY
+ * (ADR 0039). One line per umbrella with its follow-up action; an
+ * inferred one adds the veto instruction. Empty input renders nothing.
+ */
+export function renderOmittedUmbrellas(
+  omitted: readonly UmbrellaNote[],
+): string[] {
+  if (omitted.length === 0) return [];
+  const lines = [
+    `Omitted ${omitted.length} umbrella issue(s) — scope lands in their children:`,
+  ];
+  for (const { issue, provenance } of omitted) {
+    lines.push(
+      `  #${issue.number} ${issue.title} — not built; close after the ` +
+        `children merge.`,
+    );
+    if (provenance === "inferred") {
+      lines.push(
+        `      inferred by the judgment agent; label it \`parent\` to ` +
+          `confirm, or re-plan to override.`,
+      );
+    }
+  }
+  return lines;
+}
+
 // ---------------------------------------------------------------------------
 // The banner: hand-picked block lettering for run start only
 // ---------------------------------------------------------------------------

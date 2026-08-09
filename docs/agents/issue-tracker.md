@@ -5,6 +5,7 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Umbrella issues**: when filing a parent ticket whose whole scope lands in its child issues (from a grill, a wayfinder map, or any breakdown), apply the `parent` label at creation (`--label parent`). The label declares the issue an umbrella: Sandcastle omits it from the build graph and reminds the owner to close it after the children merge (ADR 0039).
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`

@@ -46,7 +46,9 @@ the coding standards handed to sandboxed agents.
 
 Plan → approve → execute → summary. Planning fetches the labeled issues
 and their blocked-by edges, runs a read-only judgment agent, screens its
-proposed edge mutations mechanically, and writes the plan file. The bare
+proposed edge mutations mechanically, omits umbrella issues (`parent`
+label, or agent-inferred with a veto note; ADR 0039), and writes the
+plan file. The bare
 command pauses for approval (Enter to execute, Ctrl-C aborts but keeps the
 plan file). Execution walks each stack in waves: every issue in a
 topological level builds concurrently in its own sandbox, then the level

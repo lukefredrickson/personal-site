@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  omitUmbrellas,
   planStacks,
   pruneClosure,
   screenMutations,
   waveLevels,
   type Blocker,
   type EdgeMutation,
+  type LabeledIssue,
   type StackIssue,
   type StackStep,
 } from "./stack.ts";
@@ -393,5 +395,108 @@ describe("pruneClosure", () => {
   it("returns an empty set for no seeds", () => {
     const [stack] = planStacks([issue(1), issue(2)], graph({ 2: [1] }));
     expect(pruneClosure(stack!, [])).toEqual(new Set());
+  });
+});
+
+describe("omitUmbrellas", () => {
+  function labeled(number: number, labels: string[] = []): LabeledIssue {
+    return { number, title: `Issue ${number}`, labels };
+  }
+
+  it("omits a parent-labeled issue with provenance labeled", () => {
+    const result = omitUmbrellas(
+      [labeled(1), labeled(2, ["parent"])],
+      graph({}),
+    );
+    expect(result.issues).toEqual([issue(1)]);
+    expect(result.omitted).toEqual([
+      { issue: issue(2), provenance: "labeled" },
+    ]);
+  });
+
+  it("keeps an unlabeled issue unless the agent classification marks it", () => {
+    const kept = omitUmbrellas([labeled(1)], graph({}));
+    expect(kept.issues).toEqual([issue(1)]);
+    expect(kept.omitted).toEqual([]);
+
+    const inferred = omitUmbrellas([labeled(1)], graph({}), [1]);
+    expect(inferred.issues).toEqual([]);
+    expect(inferred.omitted).toEqual([
+      { issue: issue(1), provenance: "inferred" },
+    ]);
+  });
+
+  it("keeps labeled provenance when the agent also infers the issue", () => {
+    const result = omitUmbrellas([labeled(1, ["parent"])], graph({}), [1]);
+    expect(result.omitted).toEqual([
+      { issue: issue(1), provenance: "labeled" },
+    ]);
+  });
+
+  it("ignores an inference for an issue outside the walk", () => {
+    const result = omitUmbrellas([labeled(1)], graph({}), [99]);
+    expect(result.issues).toEqual([issue(1)]);
+    expect(result.omitted).toEqual([]);
+  });
+
+  it("rebases an umbrella's dependents onto the umbrella's own blockers", () => {
+    // 1 → umbrella 2 → 3: omitting 2 leaves 3 blocked by 1 directly.
+    const result = omitUmbrellas(
+      [labeled(1), labeled(2, ["parent"]), labeled(3)],
+      graph({ 2: [1], 3: [2] }),
+    );
+    expect(result.issues).toEqual([issue(1), issue(3)]);
+    expect(edgesOf(result.blockedBy)).toEqual({ 1: [], 3: [1] });
+  });
+
+  it("splices through a chain of omitted umbrellas", () => {
+    const result = omitUmbrellas(
+      [labeled(1), labeled(2, ["parent"]), labeled(3, ["parent"]), labeled(4)],
+      graph({ 2: [1], 3: [2], 4: [3] }),
+    );
+    expect(result.issues).toEqual([issue(1), issue(4)]);
+    expect(edgesOf(result.blockedBy)).toEqual({ 1: [], 4: [1] });
+  });
+
+  it("gives an unblocked umbrella's dependents no inherited blockers", () => {
+    const result = omitUmbrellas(
+      [labeled(1, ["parent"]), labeled(2), labeled(3)],
+      graph({ 2: [1], 3: [1] }),
+    );
+    expect(edgesOf(result.blockedBy)).toEqual({ 2: [], 3: [] });
+  });
+
+  it("dedupes blockers inherited through the splice", () => {
+    // 4 is blocked by 1 directly and again through umbrella 2.
+    const result = omitUmbrellas(
+      [labeled(1), labeled(2, ["parent"]), labeled(4)],
+      graph({ 2: [1], 4: [1, 2] }),
+    );
+    expect(edgesOf(result.blockedBy)).toEqual({ 1: [], 4: [1] });
+  });
+
+  it("carries an umbrella's external blockers through to dependents", () => {
+    const blockedBy = new Map<number, Blocker[]>([
+      [2, [{ number: 99, state: "closed" }]],
+      [3, [{ number: 2, state: "open" }]],
+    ]);
+    const result = omitUmbrellas(
+      [labeled(2, ["parent"]), labeled(3)],
+      blockedBy,
+    );
+    expect(result.blockedBy.get(3)).toEqual([{ number: 99, state: "closed" }]);
+  });
+
+  it("orders the omitted list ascending by issue number", () => {
+    const result = omitUmbrellas(
+      [labeled(5, ["parent"]), labeled(1), labeled(3, ["parent"])],
+      graph({}),
+    );
+    expect(result.omitted.map((o) => o.issue.number)).toEqual([3, 5]);
+  });
+
+  it("strips labels from the surviving issues", () => {
+    const result = omitUmbrellas([labeled(1, ["Sandcastle"])], graph({}));
+    expect(result.issues).toEqual([{ number: 1, title: "Issue 1" }]);
   });
 });

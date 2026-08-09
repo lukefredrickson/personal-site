@@ -9,6 +9,7 @@ import { createInterface } from "node:readline/promises";
 import { openRunLog } from "./exec.ts";
 import {
   phaseRule,
+  renderOmittedUmbrellas,
   RUN_START_BANNER,
   say,
   sayBanner,
@@ -256,6 +257,14 @@ async function runCommand(): Promise<never> {
         { role: "dim", tag },
       );
     }
+  }
+
+  // The plan's omitted umbrellas repeat here so the follow-up action
+  // survives to the end of the run (ADR 0039).
+  const umbrellaLines = renderOmittedUmbrellas(plan.omittedUmbrellas);
+  if (umbrellaLines.length > 0) {
+    say("");
+    for (const line of umbrellaLines) say(line);
   }
 
   // The run-end pass re-links each stack with its full membership,

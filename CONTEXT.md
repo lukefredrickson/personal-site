@@ -196,6 +196,13 @@ Screened mechanically (`screenMutations`): cycle-creating or
 unknown-issue mutations drop with a logged reason. `run` is the only
 writer of surviving mutations to GitHub.
 
+**Umbrella issue** — a parent ticket whose whole scope lands in its
+child issues; omitted from the build graph, never a step (ADR 0039).
+Declared by the `parent` label, or inferred by the judgment agent —
+inferences are marked in the plan for owner veto. Closed by a human
+after the children merge, never by the run.
+_Avoid_: epic, tracking issue, parent issue.
+
 ### Stacks
 
 **Blocked-by graph** — GitHub's native issue-dependency edges over the
