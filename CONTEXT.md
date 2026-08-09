@@ -63,11 +63,11 @@ It outlines the mark from the mark source and writes the brand assets. Its
 output is deterministic: two runs produce identical bytes.
 
 **Tile** — the `#211d38` square behind the mark in every raster brand asset. It
-carries the dark fills, because a raster answers no theme query (ADR 0037). The
-favicon is an SVG and has no tile.
+carries the dark fills, because a raster brand asset answers no theme query
+(ADR 0037). `favicon.svg` is an SVG and has no tile.
 
-**Frame** — one rendered size of a raster brand asset. The favicon `.ico` packs
-two frames, 16 and 32; every other raster is a single frame.
+**Frame** — one rendered size of a raster brand asset. `favicon.ico` packs two
+frames, 16 and 32; every other raster brand asset is a single frame.
 
 ## Astro
 

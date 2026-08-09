@@ -18,24 +18,24 @@ const THEMES = {
   dark: { ltr: '#dddceb', dot: '#ffc05a' },
 };
 
-/* Every raster draws on this square, then scales to the frame size. */
+/* Every raster brand asset draws on this square, then scales to its frame
+   size. The tile, the insets, and the ICO radius come from ADR 0037. */
 const TILE = { size: 64, fill: '#211d38' };
 
-/* The inset and the radius are fractions of the tile (ADR 0037). */
-const ICO = { sizes: [16, 32], inset: 0.1, radius: 0.125 };
+const ICO = { sizes: [16, 32], insetFraction: 0.1, radiusFraction: 0.125 };
 
 const PNGS = [
-  { name: 'apple-touch-icon.png', size: 180, inset: 0.072 },
-  { name: 'icon-192.png', size: 192, inset: 0.154 },
-  { name: 'icon-512.png', size: 512, inset: 0.154 },
+  { name: 'apple-touch-icon.png', size: 180, insetFraction: 0.072 },
+  { name: 'icon-192.png', size: 192, insetFraction: 0.154 },
+  { name: 'icon-512.png', size: 512, insetFraction: 0.154 },
 ];
 
 const mark = outlineMark();
 
 write('favicon.svg', faviconSvg(mark));
 
-for (const { name, size, inset } of PNGS) {
-  write(name, frame(tileSvg(mark, { inset }), size));
+for (const { name, size, insetFraction } of PNGS) {
+  write(name, frame(tileSvg(mark, { insetFraction }), size));
 }
 
 const icoSvg = tileSvg(mark, ICO);
@@ -65,17 +65,18 @@ function fillRules(theme) {
     .join('');
 }
 
-/* A raster carries no theme query, so it wears the dark fills (ADR 0037). */
-function tileSvg({ outlines, ink }, { inset, radius = 0 }) {
+/* A raster brand asset answers no theme query, so it wears the dark
+   fills (ADR 0037). */
+function tileSvg({ outlines, ink }, { insetFraction, radiusFraction = 0 }) {
   const { size, fill } = TILE;
-  const transform = fitMark(ink, { size, inset: inset * size });
+  const transform = fitMark(ink, { size, inset: insetFraction * size });
   const paths = outlines
     .map(({ fillClass, d }) => `<path fill="${THEMES.dark[fillClass]}" d="${d}"/>`)
     .join('');
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">`,
-    `<rect width="${size}" height="${size}" rx="${radius * size}" fill="${fill}"/>`,
+    `<rect width="${size}" height="${size}" rx="${radiusFraction * size}" fill="${fill}"/>`,
     `<g transform="${transform}">${paths}</g>`,
     '</svg>',
   ].join('');
@@ -89,9 +90,9 @@ function frame(svg, size) {
 
 /**
  * Packs the frames into an ICO container: a 6-byte header, one 16-byte
- * entry per frame, then the frames. An entry holds the width, the height,
- * two zero bytes, the color planes, the bit depth, the byte length, and
- * the offset, in that order. A frame stays a PNG (ADR 0037).
+ * entry per frame, then the frames. An entry gives the frame's width,
+ * height, color planes, bit depth, byte length, and offset. A frame
+ * stays a PNG (ADR 0037).
  */
 function ico(frames) {
   const header = Buffer.alloc(6);
