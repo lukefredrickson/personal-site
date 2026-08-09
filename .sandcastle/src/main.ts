@@ -32,12 +32,34 @@ import {
 } from "./restack.ts";
 import {
   linkChainedPrs,
+  liveSandboxes,
   MAX_SANDBOXES,
   productionWalkEffects,
   runStack,
   Semaphore,
   type StackOutcome,
 } from "./walk.ts";
+
+// Ctrl-C kills the process group, but the containers run under the
+// docker daemon and would leak with their worktrees (#170). Close every
+// live sandbox best-effort, then exit; registering the handler disables
+// Node's default instant exit, so the exit call is mandatory. A second
+// Ctrl-C forces the exit if a close hangs.
+function closeSandboxesOnSigint(): void {
+  let interrupted = false;
+  process.on("SIGINT", () => {
+    if (interrupted) process.exit(130);
+    interrupted = true;
+    sayError(
+      `\nInterrupted — closing ${liveSandboxes.size} sandbox(es); ` +
+        `Ctrl-C again to force quit.`,
+      { role: "warn" },
+    );
+    void Promise.allSettled([...liveSandboxes].map((s) => s.close())).then(
+      () => process.exit(130),
+    );
+  });
+}
 
 async function planCommand(): Promise<never> {
   sayHeading("PLAN");
@@ -126,6 +148,10 @@ async function runCommand(): Promise<never> {
     );
     process.exit(1);
   }
+
+  // Registered after the approval gate: an approval Ctrl-C keeps its
+  // plain stop-here path, with no sandboxes to close yet.
+  closeSandboxesOnSigint();
 
   // Promise.all keeps `outcomes` in plan order for the summary,
   // whatever order the stacks finish in.

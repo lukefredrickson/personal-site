@@ -40,6 +40,10 @@ export const MAX_SANDBOXES = 3;
 // suggested --idle-timeout flag does not exist in v0.12.0.
 const IDLE_TIMEOUT_SECONDS = 1800;
 
+// Live sandbox handles, for main.ts's SIGINT close. Containers carry no
+// issue number, so these handles are the only route to them (#170).
+export const liveSandboxes = new Set<{ close(): Promise<unknown> }>();
+
 // Counting semaphore: `use` waits for a slot, runs the thunk, frees
 // the slot. Waiters resume in FIFO order. One slot makes it a mutex.
 export class Semaphore {
@@ -201,6 +205,7 @@ export function productionWalkEffects(worktree: string): WalkEffects {
         hooks,
         copyToWorktree,
       });
+      liveSandboxes.add(sandbox);
       try {
         const implement = await sandbox.run({
           name: `implementer #${step.issue.number}`,
@@ -233,6 +238,7 @@ export function productionWalkEffects(worktree: string): WalkEffects {
           stdout: implement.stdout,
         };
       } finally {
+        liveSandboxes.delete(sandbox);
         await sandbox.close();
       }
     },
