@@ -30,7 +30,8 @@ Everything lives in `.sandcastle/src/`:
 - `exec.ts` — captured child execution (git, npm, gh) and the per-run raw
   log; console policy lives at the call sites.
 - `render.ts` — the structured console renderer: timestamps, stack tags,
-  role colors, phase rules, banners (ADR 0032).
+  role colors, banners (ADR 0032), and the three-level log grammar
+  (`docs/log-grammar.md`, ADR 0039).
 - `fixtures.ts` — throwaway git fixture repos for the git-surgery specs.
 - `stack.test.ts` / `walk.test.ts` / `restack.test.ts` / `render.test.ts`
   — the vitest suite: pure-logic specs, `WalkEffects` state-machine
@@ -53,7 +54,9 @@ command pauses for approval (Enter to execute, Ctrl-C aborts but keeps the
 plan file). Execution walks each stack in waves: every issue in a
 topological level builds concurrently in its own sandbox, then the level
 restacks serially onto the growing chain. The run ends with a per-stack
-summary and exits non-zero if anything was pruned.
+summary; a clean run deletes the plan, and only real failures (prunes,
+missing PRs, failed links) retain it and exit non-zero — a no-op skip
+counts as clean (ADR 0039).
 
 Resume semantics: at step start the walk fetches the step's PR ledger —
 every PR whose head is its branch, in any state — and computes a

@@ -278,3 +278,9 @@ with its dependency-descendants (prune closure) — including any branch
 whose history contains a pruned step's commits. Pruned branches and PRs
 are left untouched within the run — the next run judges them by their
 ledger like any other step; any prune makes the run exit non-zero.
+
+**No-op skip** — a step whose implementer left its branch equal to the
+wave base, with no missing-dependency report: spliced out of the chain
+(no restack turn, tip unchanged) while dependents keep building from
+that base. Neutral, never a prune; its issue stays open for a manual
+close once the stack merges (ADR 0039).
