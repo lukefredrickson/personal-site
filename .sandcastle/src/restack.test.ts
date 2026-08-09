@@ -4,7 +4,7 @@
 // never on internal structure. Specs that push run the real check gate,
 // so they carry generous timeouts.
 
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFixture, type Fixture } from "./fixtures.ts";
@@ -422,6 +422,22 @@ describe("deleteStaleBranch", () => {
     f.git(["worktree", "add", sandbox, "stale"]);
     deleteStaleBranch(f.worktree, "stale");
     expect(existsSync(sandbox)).toBe(false);
+    expect(f.sha("refs/heads/stale")).toBeUndefined();
+    expect(originGone(f, "stale")).toBe(true);
+  });
+
+  it("prunes a sandbox worktree entry whose directory is gone, then deletes", () => {
+    const f = fixture();
+    f.addBranch("stale", f.mainSha, {
+      message: "stale: rejected work",
+      files: { "stale.txt": "x\n" },
+    });
+    // The directory is deleted but git's worktree entry survives and
+    // still holds the branch; `remove --force` clears the entry too.
+    const sandbox = join(f.root, ".sandcastle", "worktrees", "sandcastle-issue-9");
+    f.git(["worktree", "add", sandbox, "stale"]);
+    rmSync(sandbox, { recursive: true, force: true });
+    deleteStaleBranch(f.worktree, "stale");
     expect(f.sha("refs/heads/stale")).toBeUndefined();
     expect(originGone(f, "stale")).toBe(true);
   });

@@ -40,11 +40,10 @@ import {
   type StackOutcome,
 } from "./walk.ts";
 
-// SIGINT kills the process group. The containers run under the docker
-// daemon and outlive it, with their worktrees (#170). The handler
-// closes every live sandbox best-effort, then exits. Registering it
-// disables Node's default instant exit, so the exit call is mandatory.
-// A second Ctrl-C forces the exit if a close hangs.
+// SIGINT kills the process group. The containers and their worktrees
+// survive it (#170). The handler closes every live sandbox, then
+// exits. Registering it disables Node's default instant exit, so the
+// exit call is mandatory. A second Ctrl-C forces the exit.
 function closeSandboxesOnSigint(): void {
   let interrupted = false;
   process.on("SIGINT", () => {
@@ -56,8 +55,8 @@ function closeSandboxesOnSigint(): void {
       { role: "warn" },
     );
     void (async () => {
-      // Running steps can create new sandboxes while a batch closes;
-      // sweep until the registry drains, then exit.
+      // New sandboxes can appear while a batch closes; close batches
+      // until the set is empty, then exit.
       while (liveSandboxes.size > 0) {
         const batch = [...liveSandboxes];
         await Promise.allSettled(batch.map((s) => s.close()));
@@ -156,8 +155,8 @@ async function runCommand(): Promise<never> {
     process.exit(1);
   }
 
-  // Registered after the approval gate: an approval Ctrl-C keeps its
-  // plain stop-here path, with no sandboxes to close yet.
+  // Registered after the approval gate: Ctrl-C during approval still
+  // aborts at once, and no sandboxes exist yet.
   closeSandboxesOnSigint();
 
   // Promise.all keeps `outcomes` in plan order for the summary,
