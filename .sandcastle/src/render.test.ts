@@ -139,15 +139,15 @@ describe("renderHeading", () => {
 });
 
 describe("the run-start banner", () => {
-  // The one banner is literal lettering; this pins its shape — 8 rows,
-  // shading characters only, no trailing whitespace (renderLine would
+  // The one banner is literal lettering; this pins its shape — 5 rows,
+  // ASCII line art only, no trailing whitespace (renderLine would
   // stamp a trailing-space row as if it said something).
-  it("is 8 tidy rows of block shading", () => {
-    expect(RUN_START_BANNER).toHaveLength(8);
+  it("is 5 tidy rows of ASCII line art", () => {
+    expect(RUN_START_BANNER).toHaveLength(5);
     for (const row of RUN_START_BANNER) {
       expect(row).toBe(row.trimEnd());
       expect(row).not.toBe("");
-      expect(row).toMatch(/^[█░ ]+$/);
+      expect(row).toMatch(/^[_/\\|() ]+$/);
     }
   });
 });
