@@ -3,7 +3,7 @@
 The console is an append-only log. Every entry is one of three levels,
 and blank lines appear at exactly three sites. The renderer's specs in
 `src/render.test.ts` enforce this grammar; `src/render.ts` implements
-it. Decision record: ADR 0039.
+it. Decision record: ADR 0040.
 
 ## The three levels
 

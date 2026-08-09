@@ -619,7 +619,7 @@ describe("prune propagation", () => {
 
   it("splices an empty build as a no-op; its dependent builds from the no-op's base", async () => {
     // The no-op branch equals its wave base, so #4 loses nothing by
-    // building on without it (ADR 0039).
+    // building on without it (ADR 0040).
     const stack = diamond();
     const effects = fakeEffects({
       builds: { [branchOf(2)]: { commitCount: 0, stdout: "" } },
@@ -820,7 +820,7 @@ describe("prune propagation", () => {
     expect(numbers(outcome.chained)).toEqual([1, 3, 4]);
     // 3's turn came after 2 pruned mid-restack, so it chains onto 1, not
     // 2 — and the next wave's 4 chains onto 3. Every PR already targets
-    // its tip, so the check-first retarget edits nothing (ADR 0039).
+    // its tip, so the check-first retarget edits nothing (ADR 0040).
     expect(effects.restacks).toEqual([
       { branch: branchOf(1), onto: "main" },
       { branch: branchOf(2), onto: branchOf(1) },
@@ -896,7 +896,7 @@ describe("check-first PR retargeting", () => {
 
   it("skips retargeting a branch with no readable PR instead of double-warning", async () => {
     // The failed-PR branch already gets the missing-PR warning; the
-    // retarget pass must not add a second one (ADR 0039).
+    // retarget pass must not add a second one (ADR 0040).
     const stack = chain([{ n: 1 }, { n: 2, deps: [1] }]);
     const effects = fakeEffects({ createPrFails: [branchOf(1)] });
 

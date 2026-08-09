@@ -385,7 +385,7 @@ export interface StackOutcome {
   readonly staleRebuilt: readonly StackStep[];
   /** Chained steps whose rebase conflict rerere or the resolver fixed. */
   readonly resolved: readonly ResolvedStep[];
-  /** Steps whose build produced no commits — spliced, not failed (ADR 0039). */
+  /** Steps whose build produced no commits — spliced, not failed (ADR 0040). */
   readonly noops: readonly StackStep[];
   readonly pruned: readonly PrunedStep[];
   /** Branches left with commits but no PR — warned, not pruned. */
@@ -599,7 +599,7 @@ export async function runStack(
           failure = `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`;
         } else {
           // An empty branch equals its wave base: a neutral skip, spliced
-          // out of the chain; dependents build from that base (ADR 0039).
+          // out of the chain; dependents build from that base (ADR 0040).
           say(
             `○ #${step.issue.number} skipped — no changes to make: all ` +
               `its work already landed in the PRs below it. Close the ` +
@@ -701,7 +701,7 @@ export async function runStack(
         continue;
       }
       // A no-op branch equals the tip it was cut from: no restack turn,
-      // tip unchanged, dependents keep building (ADR 0039).
+      // tip unchanged, dependents keep building (ADR 0040).
       if (disposition === "noop") {
         noops.push(step);
         continue;
@@ -821,7 +821,7 @@ export async function runStack(
         // Keep each PR based on its actual chain predecessor, so review
         // diffs stay per-issue after prunes. Check first: a matching
         // base needs no edit; no readable PR means nothing to retarget
-        // (the missing-PR warning already covers it) (ADR 0039).
+        // (the missing-PR warning already covers it) (ADR 0040).
         const currentBase = ctx.effects.prBase(step.branch);
         if (currentBase !== undefined && currentBase !== tipName) {
           try {
