@@ -29,7 +29,7 @@ _Avoid_: a component-local duration or easing literal.
 **Inline link** — a link styled as part of running text: every link in a post's
 prose, plus the author card's link. Wears the link color and the underline, from
 one shared definition a component opts into with `.inline-link` (ADR 0036). On
-hover and focus it brightens to the link-hover color and sweeps the underline in
+hover and focus it brightens to the link-hover color and slides the underline in
 from the left (ADR 0037). Not a nav link, a button, a pill, or a card link —
 those carry their own identities.
 _Avoid_: "prose link" for the treatment as a whole.

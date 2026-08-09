@@ -39,7 +39,7 @@
 .inline-link {
   /* The underline paints in this padding, below the content box. */
   padding-bottom: var(--border-w);
-  /* The first layer is the slide; it paints over the resting layer. */
+  /* Layer order is paint order: the slide layer sits over the underline. */
   background-image:
     linear-gradient(var(--link-hover) 0 0),
     linear-gradient(var(--link) 0 0);
@@ -69,7 +69,7 @@
   outline-offset: 2px;
 }
 
-/* Animates only when the visitor allows motion (ADR 0012). */
+/* ADR 0012 gates every transition on this query. */
 @media (prefers-reduced-motion: no-preference) {
   .prose a,
   .inline-link {

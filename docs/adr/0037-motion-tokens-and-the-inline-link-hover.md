@@ -9,7 +9,7 @@ under PRD [#137](https://github.com/lukefredrickson/personal-site/issues/137).
 ## Context
 
 Nothing on the site reacts to the cursor. An Inline link (ADR 0036) is the
-first link to get hover feedback: the color brightens and an underline sweeps in
+first link to get hover feedback: the color brightens and an underline slides in
 from the left, retreating the way it came on leave.
 
 Two things are missing before that can be written. The site has no shared
@@ -78,7 +78,7 @@ full-width underline instantly.
   `@import`.
 - **Animating `width` on a pseudo-element instead.** ADR 0036 already ruled the
   pseudo-element out: it cannot span a wrapped link's line fragments.
-- **`transition: all`.** Sweeps up every future property on the rule, including
+- **`transition: all`.** Picks up every future property on the rule, including
   ones that trigger layout. Naming the two properties keeps the animation on
   paint.
 

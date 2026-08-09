@@ -1,6 +1,6 @@
 /* Motion tokens — the site's one easing and its two durations (ADR 0037).
-   A duration is named by the job it times. Every transition reads these
-   tokens; a component never writes its own duration or easing. */
+   A duration is named by the job it times. A component never writes its own
+   duration or easing. */
 
 :root {
   --ease: ease-out;
