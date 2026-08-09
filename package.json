@@ -28,6 +28,7 @@
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
     "@astrojs/check": "^0.9.9",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^26.1.2",
     "fontkit": "^2.0.4",
     "husky": "^9.1.7",
