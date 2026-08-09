@@ -13,6 +13,7 @@ import {
   gateBranchAncestry,
   originBranchExists,
   restackBranch,
+  sweepLeakedSandboxWorktrees,
 } from "./restack.ts";
 
 // npm spawns dominate; a cold CI cache can take a while.
@@ -377,6 +378,49 @@ describe("restackBranch: local-ref lease sync", () => {
 function originGone(f: Fixture, branch: string): boolean {
   return f.git(["ls-remote", "origin", `refs/heads/${branch}`]) === "";
 }
+
+describe("sweepLeakedSandboxWorktrees", () => {
+  it("removes every leaked sandbox worktree and reports the paths", () => {
+    const f = fixture();
+    f.addBranch("b1", f.mainSha, { message: "b1", files: { "b1.txt": "x\n" } });
+    f.addBranch("b2", f.mainSha, { message: "b2", files: { "b2.txt": "x\n" } });
+    const w1 = join(f.root, ".sandcastle", "worktrees", "sandcastle-issue-1");
+    const w2 = join(f.root, ".sandcastle", "worktrees", "sandcastle-issue-2");
+    f.git(["worktree", "add", w1, "b1"]);
+    f.git(["worktree", "add", w2, "b2"]);
+    expect([...sweepLeakedSandboxWorktrees(f.clone)].sort()).toEqual([w1, w2]);
+    expect(existsSync(w1)).toBe(false);
+    expect(existsSync(w2)).toBe(false);
+    // Only the checkouts go; the branch refs survive for the gate.
+    expect(f.sha("refs/heads/b1")).toBeDefined();
+    expect(f.sha("refs/heads/b2")).toBeDefined();
+  });
+
+  it("leaves a worktree outside .sandcastle/worktrees/ untouched", () => {
+    const f = fixture();
+    f.addBranch("b1", f.mainSha, { message: "b1", files: { "b1.txt": "x\n" } });
+    const elsewhere = join(f.root, "operator-worktree");
+    f.git(["worktree", "add", elsewhere, "b1"]);
+    expect(sweepLeakedSandboxWorktrees(f.clone)).toEqual([]);
+    expect(existsSync(elsewhere)).toBe(true);
+  });
+
+  it("prunes an entry whose directory is already gone", () => {
+    const f = fixture();
+    f.addBranch("b1", f.mainSha, { message: "b1", files: { "b1.txt": "x\n" } });
+    const w1 = join(f.root, ".sandcastle", "worktrees", "sandcastle-issue-1");
+    f.git(["worktree", "add", w1, "b1"]);
+    rmSync(w1, { recursive: true, force: true });
+    sweepLeakedSandboxWorktrees(f.clone);
+    // The pruned entry no longer holds the branch.
+    expect(() => f.git(["branch", "-D", "b1"])).not.toThrow();
+  });
+
+  it("is a no-op when no sandbox worktree directory exists", () => {
+    const f = fixture();
+    expect(sweepLeakedSandboxWorktrees(f.clone)).toEqual([]);
+  });
+});
 
 describe("deleteStaleBranch", () => {
   it("deletes both origin and local refs when both exist", () => {

@@ -210,6 +210,29 @@ function reclaimDeadSandboxWorktree(worktree: string, branch: string): void {
   git(["worktree", "remove", "--force", checkout], { cwd: worktree });
 }
 
+// Remove every leaked sandbox worktree before the run builds anything.
+// At run start no sandboxes are live, so all are dead-run state (ADR 0034).
+export function sweepLeakedSandboxWorktrees(repo: string): readonly string[] {
+  git(["worktree", "prune"], { cwd: repo });
+  let root: string;
+  try {
+    root = realpathSync(SANDBOX_WORKTREES_DIR);
+  } catch {
+    return [];
+  }
+  const removed: string[] = [];
+  for (const line of git(["worktree", "list", "--porcelain"], {
+    cwd: repo,
+  }).split("\n")) {
+    if (!line.startsWith("worktree ")) continue;
+    const path = line.slice("worktree ".length);
+    if (!path.startsWith(root + sep)) continue;
+    git(["worktree", "remove", "--force", path], { cwd: repo });
+    removed.push(path);
+  }
+  return removed;
+}
+
 // Delete a stale branch everywhere the factory owns it: local ref
 // first — git refuses to delete a checked-out branch, and that refusal
 // must abort before origin is touched (ADR 0034).
