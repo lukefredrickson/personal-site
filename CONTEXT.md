@@ -48,15 +48,16 @@ on list surfaces. See ADR 0020.
 
 **Brand asset** — a file in `public/` that carries the site's identity: the
 favicon, the touch and manifest icons, and the OG card. Every one is written by
-the generator; none is hand-maintained (ADR 0036).
+the generator; none is hand-maintained (ADR 0036, ADR 0038).
 
 **Mark** — the `lf.` lockup: the letters `l` and `f` plus a period, set at
 fixed offsets. The letters wear the ink fill, the period the gold accent.
 _Avoid_: "logo", and "dot" for the period — that is the ladder's marker.
 
 **Mark source** — `scripts/FiraCode-VariableFont_wght.ttf`, the committed Fira
-Code variable font. Every letterform in every brand asset is outlined from it
-at weight 700. A shipped asset is a visual reference target, never a source.
+Code variable font. Every letterform in every brand asset is outlined from it:
+the mark and the wordmark at weight 700, the tagline at 400 (ADR 0038). A
+shipped asset is a visual reference target, never a source.
 
 **Generator** — `scripts/generate-icons.mjs`, run by `npm run generate:icons`.
 It outlines the mark from the mark source and writes the brand assets. Its
@@ -68,6 +69,27 @@ carries the dark fills, because a raster brand asset answers no theme query
 
 **Frame** — one rendered size of a raster brand asset. `favicon.ico` packs two
 frames, 16 and 32; every other raster brand asset is a single frame.
+
+**OG card** — `public/og-default.png`, the 1200×630 preview image a link to the
+site unfurls into. It sets the mark on its tile, the wordmark, and the tagline
+inside a rounded card, in the dusk theme (ADR 0038).
+
+**Wordmark** — the `lukefredrickson.dev` lockup on the OG card: the site
+header's logo, enlarged. The domain wears the ink fill, the `.dev` the gold
+accent.
+
+**Tagline** — the OG card's one line under the wordmark: "building software for
+the energy transition".
+
+**Run** — one string of set type. The generator outlines every run from the
+mark source, and steps the pen by a fixed em fraction rather than by the font's
+advance (ADR 0038). The OG card carries three runs: the wordmark's domain, its
+`.dev`, and the tagline.
+
+**Highlighter** — the translucent gold stroke behind a run of words: the home
+hero's, and the OG card's under the wordmark's domain. It covers the run's
+bottom 36%.
+_Avoid_: "marker" for this — that is the ladder's dot.
 
 ## Astro
 

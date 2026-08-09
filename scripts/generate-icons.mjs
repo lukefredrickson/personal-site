@@ -3,7 +3,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { Resvg } from '@resvg/resvg-js';
-import { fitMark, outlineMark } from './mark.mjs';
+import { fitMark, fitRun, outlineMark, outlineRun } from './mark.mjs';
 
 const PUBLIC_DIR = new URL('../public/', import.meta.url);
 
@@ -30,6 +30,33 @@ const PNGS = [
   { name: 'icon-512.png', size: 512, insetFraction: 0.154 },
 ];
 
+/* Every OG card length is a unit on the canvas below, never a fraction of
+   it (ADR 0038). */
+const OG = {
+  canvas: { width: 1200, height: 630 },
+  card: { inset: 40, radius: 16, border: 1.5, fill: '#2d2945', stroke: '#55516f' },
+  tile: { x: 116, y: 156.17, size: 150, inset: 12.5, radius: 10 },
+  wordmark: {
+    domain: 'lukefredrickson',
+    tld: '.dev',
+    x: 116,
+    baseline: 404.1,
+    size: 72,
+    weight: 700,
+    advanceEm: 0.56,
+  },
+  highlighter: { fill: '#ffc05a', opacity: 0.6, heightEm: 0.36, dropEm: 0.1665 },
+  tagline: {
+    text: 'building software for the energy transition',
+    fill: '#8e8aac',
+    x: 116,
+    baseline: 464.25,
+    size: 28,
+    weight: 400,
+    advanceEm: 0.578,
+  },
+};
+
 const mark = outlineMark();
 
 write('favicon.svg', faviconSvg(mark));
@@ -41,6 +68,8 @@ for (const { name, size, insetFraction } of PNGS) {
 const icoSvg = tileSvg(mark, ICO);
 const icoFrames = ICO.sizes.map((size) => ({ size, png: frame(icoSvg, size) }));
 write('favicon.ico', ico(icoFrames));
+
+write('og-default.png', frame(ogCardSvg(mark), OG.canvas.width));
 
 function faviconSvg({ outlines, ink }) {
   const transform = fitMark(ink, FAVICON);
@@ -65,21 +94,67 @@ function fillRules(theme) {
     .join('');
 }
 
+function tileSvg(mark, { insetFraction, radiusFraction = 0 }) {
+  const { size } = TILE;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">`,
+    tile(mark, {
+      size,
+      inset: insetFraction * size,
+      radius: radiusFraction * size,
+    }),
+    '</svg>',
+  ].join('');
+}
+
 /* A raster brand asset answers no theme query, so it wears the dark
    fills (ADR 0037). */
-function tileSvg({ outlines, ink }, { insetFraction, radiusFraction = 0 }) {
-  const { size, fill } = TILE;
-  const transform = fitMark(ink, { size, inset: insetFraction * size });
+function tile({ outlines, ink }, { size, inset, radius }) {
+  const transform = fitMark(ink, { size, inset });
   const paths = outlines
     .map(({ fillClass, d }) => `<path fill="${THEMES.dark[fillClass]}" d="${d}"/>`)
     .join('');
 
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">`,
-    `<rect width="${size}" height="${size}" rx="${radiusFraction * size}" fill="${fill}"/>`,
+    `<rect width="${size}" height="${size}" rx="${radius}" fill="${TILE.fill}"/>`,
     `<g transform="${transform}">${paths}</g>`,
+  ].join('');
+}
+
+function ogCardSvg(mark) {
+  const { canvas, card, tile: tileBox, wordmark, highlighter, tagline } = OG;
+  const { width, height } = canvas;
+  const { domain, tld } = wordmark;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">`,
+    `<rect width="${width}" height="${height}" fill="${TILE.fill}"/>`,
+    cardRect(card, canvas),
+    `<g transform="translate(${tileBox.x},${tileBox.y})">${tile(mark, tileBox)}</g>`,
+    highlighterRect(wordmark, highlighter),
+    `<g transform="${fitRun(wordmark)}">`,
+    `<path fill="${THEMES.dark.ltr}" d="${outlineRun(domain, wordmark)}"/>`,
+    `<path fill="${THEMES.dark.dot}" d="${outlineRun(tld, { ...wordmark, start: domain.length })}"/>`,
+    '</g>',
+    `<g transform="${fitRun(tagline)}"><path fill="${tagline.fill}" d="${outlineRun(tagline.text, tagline)}"/></g>`,
     '</svg>',
   ].join('');
+}
+
+function cardRect({ inset, radius, border, fill, stroke }, { width, height }) {
+  return `<rect x="${inset}" y="${inset}" width="${width - 2 * inset}" height="${height - 2 * inset}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${border}"/>`;
+}
+
+function highlighterRect(
+  { x, baseline, size, advanceEm, domain },
+  { fill, opacity, heightEm, dropEm },
+) {
+  const height = heightEm * size;
+  const bottom = baseline + dropEm * size;
+  const width = domain.length * advanceEm * size;
+
+  return `<rect x="${x}" y="${bottom - height}" width="${width}" height="${height}" fill="${fill}" fill-opacity="${opacity}"/>`;
 }
 
 function frame(svg, size) {
