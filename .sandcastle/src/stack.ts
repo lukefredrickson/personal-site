@@ -8,6 +8,91 @@ export interface StackIssue {
   readonly title: string;
 }
 
+/** A walk issue with its GitHub label names, as planning fetches it. */
+export interface LabeledIssue extends StackIssue {
+  readonly labels: readonly string[];
+}
+
+/** The label that declares an issue an umbrella (ADR 0039). */
+export const UMBRELLA_LABEL = "parent";
+
+/** How an umbrella was detected: owner label, or judgment-agent guess. */
+export type UmbrellaProvenance = "labeled" | "inferred";
+
+export interface OmittedUmbrella {
+  readonly issue: StackIssue;
+  readonly provenance: UmbrellaProvenance;
+}
+
+export interface UmbrellaOmission {
+  readonly issues: readonly StackIssue[];
+  readonly blockedBy: ReadonlyMap<number, readonly Blocker[]>;
+  readonly omitted: readonly OmittedUmbrella[];
+}
+
+/**
+ * Remove umbrella issues from the walk before stacking (ADR 0039).
+ * The `parent` label declares an umbrella; `inferred` numbers count
+ * only for unlabeled walk members. A dependent of an omitted umbrella
+ * inherits the umbrella's own blockers. Pure: issues, edges, and
+ * classification in; a reduced walk plus the omitted list out.
+ */
+export function omitUmbrellas(
+  issues: readonly LabeledIssue[],
+  blockedBy: ReadonlyMap<number, readonly Blocker[]>,
+  inferred: readonly number[] = [],
+): UmbrellaOmission {
+  const provenance = new Map<number, UmbrellaProvenance>();
+  for (const issue of issues) {
+    if (issue.labels.includes(UMBRELLA_LABEL)) {
+      provenance.set(issue.number, "labeled");
+    }
+  }
+  const walk = new Set(issues.map((issue) => issue.number));
+  for (const number of inferred) {
+    if (walk.has(number) && !provenance.has(number)) {
+      provenance.set(number, "inferred");
+    }
+  }
+
+  // Splice each blocker through any omitted umbrellas: a dependent ends
+  // up blocked by the umbrella's own blockers, transitively.
+  const expand = (blocker: Blocker, seen: Set<number>): Blocker[] => {
+    if (!provenance.has(blocker.number)) return [blocker];
+    if (seen.has(blocker.number)) return [];
+    seen.add(blocker.number);
+    return (blockedBy.get(blocker.number) ?? []).flatMap((b) =>
+      expand(b, seen),
+    );
+  };
+
+  const kept = issues.filter((issue) => !provenance.has(issue.number));
+  const splicedBlockedBy = new Map<number, readonly Blocker[]>(
+    kept.map((issue) => {
+      const spliced = (blockedBy.get(issue.number) ?? []).flatMap((b) =>
+        expand(b, new Set()),
+      );
+      const byNumber = new Map(
+        spliced
+          .filter((b) => b.number !== issue.number)
+          .map((b) => [b.number, b]),
+      );
+      return [issue.number, [...byNumber.values()]];
+    }),
+  );
+
+  return {
+    issues: kept.map(({ number, title }) => ({ number, title })),
+    blockedBy: splicedBlockedBy,
+    omitted: [...provenance]
+      .sort(([a], [b]) => a - b)
+      .map(([number, prov]) => {
+        const { title } = issues.find((issue) => issue.number === number)!;
+        return { issue: { number, title }, provenance: prov };
+      }),
+  };
+}
+
 export interface StackStep {
   readonly issue: StackIssue;
   /** Branch this issue's work lands on: sandcastle/issue-<number>. */

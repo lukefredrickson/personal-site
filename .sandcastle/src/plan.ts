@@ -11,14 +11,16 @@ import {
 import { z } from "zod";
 import { runCaptured } from "./exec.ts";
 import { runHostAgent } from "./host-agent.ts";
-import { say, sayError } from "./render.ts";
+import { renderOmittedUmbrellas, say, sayError } from "./render.ts";
 import {
+  omitUmbrellas,
   planStacks,
   screenMutations,
   waveLevels,
   type Blocker,
   type EdgeMutation,
-  type StackIssue,
+  type LabeledIssue,
+  type OmittedUmbrella,
   type StackStep,
 } from "./stack.ts";
 import { MAX_SANDBOXES } from "./walk.ts";
@@ -38,6 +40,8 @@ export const PLAN_FILE = ".sandcastle/plan.json";
 export interface Plan {
   readonly stacks: readonly (readonly StackStep[])[];
   readonly mutations: readonly EdgeMutation[];
+  /** Umbrellas left out of the build graph (ADR 0039). */
+  readonly omittedUmbrellas: readonly OmittedUmbrella[];
 }
 
 export function readPlan(): Plan | undefined {
@@ -50,7 +54,8 @@ export function readPlan(): Plan | undefined {
       `${PLAN_FILE} predates the wave format — re-run \`npm run sandcastle plan\`.`,
     );
   }
-  return plan;
+  // A plan that predates umbrella omission just has none recorded.
+  return { ...plan, omittedUmbrellas: plan.omittedUmbrellas ?? [] };
 }
 
 export function writePlan(plan: Plan): void {
@@ -77,15 +82,24 @@ const proposalSchema = z.object({
       reasoning: z.string(),
     }),
   ),
+  // Unlabeled issues the agent judges to be umbrellas (ADR 0039).
+  umbrellas: z.array(
+    z.object({
+      issue: z.int(),
+      reasoning: z.string(),
+    }),
+  ),
 });
+
+type Proposal = z.infer<typeof proposalSchema>;
 
 // The judgment agent runs on the host and only proposes. The harness
 // enforces read-only, not the prompt: in -p mode every tool call
 // outside --allowedTools is auto-denied (ADR 0018).
 async function runPlanningAgent(
-  issues: readonly StackIssue[],
+  issues: readonly LabeledIssue[],
   blockedBy: ReadonlyMap<number, readonly Blocker[]>,
-): Promise<EdgeMutation[]> {
+): Promise<Proposal> {
   const prompt = readFileSync(PLAN_PROMPT_FILE, "utf8")
     .replace("{{ISSUES_JSON}}", JSON.stringify(issues, null, 2))
     .replace(
@@ -125,7 +139,7 @@ async function runPlanningAgent(
     jsonSchema: z.toJSONSchema(proposalSchema, { target: "draft-7" }),
   });
 
-  return proposalSchema.parse(JSON.parse(result)).mutations;
+  return proposalSchema.parse(JSON.parse(result));
 }
 
 // ---------------------------------------------------------------------------
@@ -140,24 +154,30 @@ function repoNameWithOwner(): string {
 }
 
 export async function computePlan(): Promise<Plan> {
-  const issues: StackIssue[] = JSON.parse(
-    runCaptured("gh", [
-      "issue",
-      "list",
-      "--state",
-      "open",
-      "--label",
-      "Sandcastle",
-      "--limit",
-      "100",
-      "--json",
-      "number,title",
-    ]),
-  );
+  const issues: LabeledIssue[] = (
+    JSON.parse(
+      runCaptured("gh", [
+        "issue",
+        "list",
+        "--state",
+        "open",
+        "--label",
+        "Sandcastle",
+        "--limit",
+        "100",
+        "--json",
+        "number,title,labels",
+      ]),
+    ) as { number: number; title: string; labels: { name: string }[] }[]
+  ).map(({ number, title, labels }) => ({
+    number,
+    title,
+    labels: labels.map((label) => label.name),
+  }));
 
   // No issues: skip the paid judgment agent.
   if (issues.length === 0) {
-    return { stacks: [], mutations: [] };
+    return { stacks: [], mutations: [], omittedUmbrellas: [] };
   }
 
   // Grouping and ordering derive from the blocked-by edges. N+1 API
@@ -184,7 +204,7 @@ export async function computePlan(): Promise<Plan> {
   const { accepted, rejected, amended } = screenMutations(
     issues,
     blockedBy,
-    proposed,
+    proposed.mutations,
   );
   for (const { mutation, reason } of rejected) {
     sayError(
@@ -194,7 +214,30 @@ export async function computePlan(): Promise<Plan> {
     );
   }
 
-  return { stacks: planStacks(issues, amended), mutations: accepted };
+  // Umbrella inferences outside the walk drop with a logged reason;
+  // the transform ignores them either way (ADR 0039).
+  const walk = new Set(issues.map((issue) => issue.number));
+  for (const umbrella of proposed.umbrellas) {
+    if (!walk.has(umbrella.issue)) {
+      sayError(
+        `✗ dropped umbrella inference for #${umbrella.issue} — not an ` +
+          `open Sandcastle issue in this walk. ` +
+          `(agent's reasoning: ${umbrella.reasoning})`,
+        { role: "fail" },
+      );
+    }
+  }
+  const { issues: built, blockedBy: spliced, omitted } = omitUmbrellas(
+    issues,
+    amended,
+    proposed.umbrellas.map((umbrella) => umbrella.issue),
+  );
+
+  return {
+    stacks: planStacks(built, spliced),
+    mutations: accepted,
+    omittedUmbrellas: omitted,
+  };
 }
 
 function describeMutation(mutation: EdgeMutation): string {
@@ -206,8 +249,13 @@ function describeMutation(mutation: EdgeMutation): string {
 export function printPlan(plan: Plan): void {
   if (plan.stacks.length === 0) {
     say(
-      "Empty plan: no open issues labeled Sandcastle, nothing to change.",
+      plan.omittedUmbrellas.length === 0
+        ? "Empty plan: no open issues labeled Sandcastle, nothing to change."
+        : "Empty plan: every open Sandcastle issue is an umbrella.",
     );
+    for (const line of renderOmittedUmbrellas(plan.omittedUmbrellas)) {
+      say(line);
+    }
     return;
   }
 
@@ -258,6 +306,12 @@ export function printPlan(plan: Plan): void {
         });
       }
     }
+    say("");
+  }
+
+  const umbrellaLines = renderOmittedUmbrellas(plan.omittedUmbrellas);
+  if (umbrellaLines.length > 0) {
+    for (const line of umbrellaLines) say(line);
     say("");
   }
 

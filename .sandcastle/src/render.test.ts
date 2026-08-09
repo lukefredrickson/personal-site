@@ -4,6 +4,7 @@ import {
   formatTag,
   renderHeading,
   renderLine,
+  renderOmittedUmbrellas,
   renderRule,
   RUN_START_BANNER,
   STACK_PALETTE,
@@ -135,6 +136,56 @@ describe("renderHeading", () => {
     expect(renderHeading(at(14, 3, 9), "PLAN", { style: marked })).toBe(
       `${bar}\n«dim»14:03:09«/» «bold»PLAN«/»\n${bar}`,
     );
+  });
+});
+
+describe("renderOmittedUmbrellas", () => {
+  it("renders nothing for no omitted umbrellas", () => {
+    expect(renderOmittedUmbrellas([])).toEqual([]);
+  });
+
+  it("renders a labeled umbrella with its follow-up and no caveat", () => {
+    expect(
+      renderOmittedUmbrellas([
+        {
+          issue: { number: 137, title: "Design system umbrella" },
+          provenance: "labeled",
+        },
+      ]),
+    ).toEqual([
+      "Omitted 1 umbrella issue(s) — scope lands in their children:",
+      "  #137 Design system umbrella — not built; close after the children merge.",
+    ]);
+  });
+
+  it("adds the veto instruction to an inferred umbrella", () => {
+    expect(
+      renderOmittedUmbrellas([
+        {
+          issue: { number: 137, title: "Design system umbrella" },
+          provenance: "inferred",
+        },
+      ]),
+    ).toEqual([
+      "Omitted 1 umbrella issue(s) — scope lands in their children:",
+      "  #137 Design system umbrella — not built; close after the children merge.",
+      "      inferred by the judgment agent; label it `parent` to confirm, " +
+        "or re-plan to override.",
+    ]);
+  });
+
+  it("lists mixed provenances under one header", () => {
+    const lines = renderOmittedUmbrellas([
+      { issue: { number: 10, title: "A" }, provenance: "labeled" },
+      { issue: { number: 20, title: "B" }, provenance: "inferred" },
+    ]);
+    expect(lines).toEqual([
+      "Omitted 2 umbrella issue(s) — scope lands in their children:",
+      "  #10 A — not built; close after the children merge.",
+      "  #20 B — not built; close after the children merge.",
+      "      inferred by the judgment agent; label it `parent` to confirm, " +
+        "or re-plan to override.",
+    ]);
   });
 });
 
