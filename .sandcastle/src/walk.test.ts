@@ -619,7 +619,7 @@ describe("prune propagation", () => {
 
   it("splices an empty build as a no-op; its dependent builds from the no-op's base", async () => {
     // The no-op branch equals its wave base, so #4 loses nothing by
-    // building on without it (#183).
+    // building on without it (ADR 0039).
     const stack = diamond();
     const effects = fakeEffects({
       builds: { [branchOf(2)]: { commitCount: 0, stdout: "" } },
@@ -820,7 +820,7 @@ describe("prune propagation", () => {
     expect(numbers(outcome.chained)).toEqual([1, 3, 4]);
     // 3's turn came after 2 pruned mid-restack, so it chains onto 1, not
     // 2 — and the next wave's 4 chains onto 3. Every PR already targets
-    // its tip, so the check-first retarget edits nothing (#183).
+    // its tip, so the check-first retarget edits nothing (ADR 0039).
     expect(effects.restacks).toEqual([
       { branch: branchOf(1), onto: "main" },
       { branch: branchOf(2), onto: branchOf(1) },
@@ -892,6 +892,20 @@ describe("check-first PR retargeting", () => {
         `${branchOf(2)} and retargeting failed — fix with ` +
         `gh pr edit ${branchOf(3)} --base ${branchOf(2)}.`,
     );
+  });
+
+  it("skips retargeting a branch with no readable PR instead of double-warning", async () => {
+    // The failed-PR branch already gets the missing-PR warning; the
+    // retarget pass must not add a second one (ADR 0039).
+    const stack = chain([{ n: 1 }, { n: 2, deps: [1] }]);
+    const effects = fakeEffects({ createPrFails: [branchOf(1)] });
+
+    const outcome = await walk(stack, effects);
+
+    expect(outcome.missingPrs).toEqual([branchOf(1)]);
+    expect(
+      vi.mocked(console.error).mock.calls.flat().join("\n"),
+    ).not.toContain("retargeting failed");
   });
 
   it("never warns about a base that already matches", async () => {

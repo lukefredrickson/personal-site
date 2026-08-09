@@ -7,7 +7,7 @@
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { ChildFailure, runCaptured } from "./exec.ts";
-import { phaseRule, say, sayError, type StackTag } from "./render.ts";
+import { stackRule, say, sayError, type StackTag } from "./render.ts";
 import {
   branchCarries,
   deleteStaleBranch,
@@ -385,7 +385,7 @@ export interface StackOutcome {
   readonly staleRebuilt: readonly StackStep[];
   /** Chained steps whose rebase conflict rerere or the resolver fixed. */
   readonly resolved: readonly ResolvedStep[];
-  /** Steps whose build produced no commits — spliced, not failed (#183). */
+  /** Steps whose build produced no commits — spliced, not failed (ADR 0039). */
   readonly noops: readonly StackStep[];
   readonly pruned: readonly PrunedStep[];
   /** Branches left with commits but no PR — warned, not pruned. */
@@ -430,7 +430,7 @@ export async function runStack(
     ...tag,
     issue: step.issue.number,
   });
-  phaseRule(`Starting ${label}: ${stack.length} step(s)`, { tag });
+  stackRule(`Starting ${label}: ${stack.length} step(s)`, { tag });
 
   const levels = waveLevels(stack);
   const skipped: StackStep[] = [];
@@ -599,7 +599,7 @@ export async function runStack(
           failure = `stopped on a missing dependency: ${report[1]!.trim().replace(/\s+/g, " ")}`;
         } else {
           // An empty branch equals its wave base: a neutral skip, spliced
-          // out of the chain; dependents build on unharmed (#183).
+          // out of the chain; dependents build from that base (ADR 0039).
           say(
             `○ #${step.issue.number} skipped — no changes to make: all ` +
               `its work already landed in the PRs below it. Close the ` +
@@ -701,7 +701,7 @@ export async function runStack(
         continue;
       }
       // A no-op branch equals the tip it was cut from: no restack turn,
-      // tip unchanged, dependents keep building (#183).
+      // tip unchanged, dependents keep building (ADR 0039).
       if (disposition === "noop") {
         noops.push(step);
         continue;
@@ -820,17 +820,17 @@ export async function runStack(
 
         // Keep each PR based on its actual chain predecessor, so review
         // diffs stay per-issue after prunes. Check first: a matching
-        // base needs no edit and no warning (#183).
+        // base needs no edit; no readable PR means nothing to retarget
+        // (the missing-PR warning already covers it) (ADR 0039).
         const currentBase = ctx.effects.prBase(step.branch);
-        if (currentBase !== tipName) {
+        if (currentBase !== undefined && currentBase !== tipName) {
           try {
             ctx.effects.retargetPrBase(step.branch, tipName);
           } catch {
             sayError(
-              `⚠ ${step.branch}'s PR is based on ` +
-                `${currentBase ?? "an unknown branch"} instead of ` +
-                `${tipName} and retargeting failed — fix with ` +
-                `gh pr edit ${step.branch} --base ${tipName}.`,
+              `⚠ ${step.branch}'s PR is based on ${currentBase} ` +
+                `instead of ${tipName} and retargeting failed — fix ` +
+                `with gh pr edit ${step.branch} --base ${tipName}.`,
               { role: "warn", tag: stepTag(step) },
             );
           }
@@ -854,7 +854,7 @@ export async function runStack(
 
   // Each walk marks its own end: with concurrent stacks the next rule
   // on the console can belong to another stack.
-  phaseRule(`Finished ${label}`, { tag });
+  stackRule(`Finished ${label}`, { tag });
 
   // Merged and no-op steps are complete but not chained: the chain and
   // the run-end stack link omit them.

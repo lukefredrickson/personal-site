@@ -242,8 +242,8 @@ async function runCommand(): Promise<never> {
         { role: "success", tag },
       );
     }
-    // Every no-op leaves its issue open: the reminder rides the summary
-    // so the manual close is not lost (#183).
+    // Every no-op leaves its issue open: the summary repeats the
+    // reminder so the manual close is not lost (ADR 0039).
     for (const step of outcome.noops) {
       say(
         `    ○ #${step.issue.number} (${step.branch}) — no changes to ` +
@@ -303,7 +303,7 @@ async function runCommand(): Promise<never> {
   }
 
   // The classification is pure (runSucceeded); this entry only adapts
-  // its verdict into the plan lifecycle and the closing line (#183).
+  // its verdict into the plan lifecycle and the closing line (ADR 0039).
   if (!runSucceeded(outcomes, linkFailures.length)) {
     // The retained plan makes a re-run execute identical walks; the
     // ledger skips complete steps, so pruned work retries (ADR 0034).

@@ -1,5 +1,5 @@
 // The structured console renderer: timestamps, stack tags, role colors,
-// phase rules, banners (ADR 0032), and the three-level log grammar
+// stack rules, banners (ADR 0032), and the three-level log grammar
 // (docs/log-grammar.md). The console is an append-only log, not a live
 // TUI; every line is self-sufficient. Line shape and the blank-line
 // grammar are pure functions; the console sink at the bottom is the
@@ -105,12 +105,12 @@ export function renderLine(
     .join("\n");
 }
 
-// One width for every rule, so phase boundaries scan as a column. A
+// One width for every rule, so section boundaries scan as a column. A
 // long title wins over the width: the fill disappears, never the title.
 const RULE_WIDTH = 72;
 
 /**
- * A box-drawn phase rule: `── [tag] title ────────…` padded with `─` to
+ * A box-drawn stack rule: `── [tag] title ────────…` padded with `─` to
  * RULE_WIDTH (timestamp excluded), dashes dimmed, tag hue-colored.
  */
 export function renderRule(
@@ -132,9 +132,9 @@ export function renderRule(
 }
 
 /**
- * A heavy three-line heading for the run's major sections (plan, run
- * summary): full-width `━` bars around a bold title. Louder than a
- * phase rule, quieter than the run-start banner — a scrollback landmark
+ * A heavy three-line heading for the run phases (PLAN, EXECUTE, RUN
+ * SUMMARY): full-width `━` bars around a bold title. Louder than a
+ * stack rule, quieter than the run-start banner — a scrollback landmark
  * that stays obviously text.
  */
 export function renderHeading(
@@ -291,7 +291,7 @@ export function sayError(message: string, opts: SayOpts = {}): void {
 }
 
 /** Print a stack-lifecycle rule to stdout. */
-export function phaseRule(
+export function stackRule(
   title: string,
   opts: { readonly tag?: StackTag } = {},
 ): void {
