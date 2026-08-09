@@ -2,6 +2,7 @@
    (ADR 0036). Run it with `npm run generate:icons`. */
 
 import { writeFileSync } from 'node:fs';
+import { Resvg } from '@resvg/resvg-js';
 import { fitMark, outlineMark } from './mark.mjs';
 
 const PUBLIC_DIR = new URL('../public/', import.meta.url);
@@ -17,8 +18,29 @@ const THEMES = {
   dark: { ltr: '#dddceb', dot: '#ffc05a' },
 };
 
+/* Every raster draws on this square, then scales to the frame size. */
+const TILE = { size: 64, fill: '#211d38' };
+
+/* The inset and the radius are fractions of the tile (ADR 0037). */
+const ICO = { sizes: [16, 32], inset: 0.1, radius: 0.125 };
+
+const PNGS = [
+  { name: 'apple-touch-icon.png', size: 180, inset: 0.072 },
+  { name: 'icon-192.png', size: 192, inset: 0.154 },
+  { name: 'icon-512.png', size: 512, inset: 0.154 },
+];
+
 const mark = outlineMark();
+
 write('favicon.svg', faviconSvg(mark));
+
+for (const { name, size, inset } of PNGS) {
+  write(name, frame(tileSvg(mark, { inset }), size));
+}
+
+const icoSvg = tileSvg(mark, ICO);
+const icoFrames = ICO.sizes.map((size) => ({ size, png: frame(icoSvg, size) }));
+write('favicon.ico', ico(icoFrames));
 
 function faviconSvg({ outlines, ink }) {
   const transform = fitMark(ink, FAVICON);
@@ -41,6 +63,55 @@ function fillRules(theme) {
   return Object.entries(theme)
     .map(([fillClass, fill]) => `.${fillClass}{fill:${fill}}`)
     .join('');
+}
+
+/* A raster carries no theme query, so it wears the dark fills (ADR 0037). */
+function tileSvg({ outlines, ink }, { inset, radius = 0 }) {
+  const { size, fill } = TILE;
+  const transform = fitMark(ink, { size, inset: inset * size });
+  const paths = outlines
+    .map(({ fillClass, d }) => `<path fill="${THEMES.dark[fillClass]}" d="${d}"/>`)
+    .join('');
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">`,
+    `<rect width="${size}" height="${size}" rx="${radius * size}" fill="${fill}"/>`,
+    `<g transform="${transform}">${paths}</g>`,
+    '</svg>',
+  ].join('');
+}
+
+function frame(svg, size) {
+  return new Resvg(svg, { fitTo: { mode: 'width', value: size } })
+    .render()
+    .asPng();
+}
+
+/**
+ * Packs the frames into an ICO container: a 6-byte header, one 16-byte
+ * entry per frame, then the frames. An entry holds the width, the height,
+ * two zero bytes, the color planes, the bit depth, the byte length, and
+ * the offset, in that order. A frame stays a PNG (ADR 0037).
+ */
+function ico(frames) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(frames.length, 4);
+
+  let offset = header.length + frames.length * 16;
+  const entries = frames.map(({ size, png }) => {
+    const entry = Buffer.alloc(16);
+    entry.writeUInt8(size, 0);
+    entry.writeUInt8(size, 1);
+    entry.writeUInt16LE(1, 4);
+    entry.writeUInt16LE(32, 6);
+    entry.writeUInt32LE(png.length, 8);
+    entry.writeUInt32LE(offset, 12);
+    offset += png.length;
+    return entry;
+  });
+
+  return Buffer.concat([header, ...entries, ...frames.map(({ png }) => png)]);
 }
 
 function write(name, contents) {
